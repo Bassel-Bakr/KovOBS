@@ -9,7 +9,7 @@
   "trim_padding_start": 1,
   "trim_padding_end": 5,
   "delete_after_trimming": false,
-  "only_pb": false,
+  "only_pb": true,
   "cache_version": "1.0.0",
   "cache_file": "cache.json",
   "screenshot": {

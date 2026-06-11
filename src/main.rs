@@ -2,127 +2,160 @@ mod cache;
 mod config;
 mod stat;
 
-use chrono::Utc;
-use obws::requests::sources::SaveScreenshot;
+use std::panic;
 use std::{sync::Arc, time::Duration};
-use tokio::fs;
-use tokio::process::Command;
-use tokio::sync::{Mutex, mpsc::channel};
 
-use crate::{config::AppConfig, stat::Stat};
-
+use anyhow::Context;
+use chrono::Utc;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
-use obws::{Client, events::Event::ReplayBufferSaved};
+use obws::requests::sources::SaveScreenshot;
+use obws::{events::Event::ReplayBufferSaved, Client};
+use tokio::fs;
+use tokio::process::Command;
+use tokio::sync::broadcast;
+use tokio::sync::broadcast::Receiver;
+use tokio::sync::broadcast::Sender;
+use tokio::sync::mpsc::channel;
+use tokio::sync::Mutex;
+use tokio::time;
+
+use crate::cache::Cache;
+use crate::{config::AppConfig, stat::Stat};
+
+const CONFIG_FILE: &str = "config.json";
+const STAT_FILE_SUFFIX: &str = "Stats.csv";
 
 #[tokio::main]
 async fn main() {
-    let config = AppConfig::load("config.json").expect("Failed to load configuration");
+    // Register panic handler
+    panic::set_hook(Box::new(|info| {
+        eprintln!("💥 App crashed: {}", info);
+        wait_for_enter_key();
+    }));
 
-    println!("Re-building cache from stats files...");
+    if let Err(err) = run().await {
+        eprintln!("🛑 Error: {}", err);
+        wait_for_enter_key();
+    }
+}
+
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let config = AppConfig::load(CONFIG_FILE)?;
+
+    println!("📦 Re-building cache from stat files...");
     let mut cache = cache::Cache::new(&config.cache_file);
     cache.load();
     cache.update(&config.stats_folder);
+    println!("✅  Done");
 
+    println!("⏺️ Connecting to OBS...");
     let client = Client::connect(
         &config.obs_host,
         config.obs_port,
         Some(&config.obs_password),
     )
-    .await
-    .expect("Failed to connect to OBS");
+    .await?;
+    println!("✅  Done");
 
-    println!("Successfully connected to OBS!");
-
-    // Enable replay buffer
+    println!("🔃 Making sure replay buffer is enabled...");
     if let Ok(true) = client.replay_buffer().status().await {
-        println!("Replay buffer is already active.");
+        println!("😃 Already active!");
     } else {
-        println!("Replay buffer is not active, starting it...");
-        client
-            .replay_buffer()
-            .start()
-            .await
-            .expect("Failed to start replay buffer");
-        println!("Replay buffer active.");
+        println!("🫡 Activating...");
+        client.replay_buffer().start().await?;
     }
+    println!("✅  Done");
 
     let config = Arc::new(config);
     let cache = Arc::new(Mutex::new(cache));
     let client = Arc::new(Mutex::new(client));
-    let last_stat = Arc::new(Mutex::new(None::<Stat>));
+
+    // Last seen stat
+    let (tx, mut rx) = broadcast::channel::<Stat>(1);
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
-            println!("Ctrl+C received, shutting down");
-            println!("Saving cache updates...");
-            cache.clone().lock().await.save(chrono::Utc::now());
-            println!("Disconnecting from OBS...");
+            println!("🔎 Ctrl+C received. Shutting down!");
+            println!("📦 Saving cache updates...");
+            cache.clone().lock().await.save(Utc::now());
             client.lock().await.disconnect().await;
-            println!("Bye!");
+            println!("✅  Done");
+            wait_for_enter_key();
         }
-        _ = listen_to_obs_events(config.clone(), client.clone(), last_stat.clone()) => {
-            println!("OBS task completed");
-        }
-        _ = watch_stats_folder(config.clone(), client.clone(), cache.clone(), last_stat.clone()) => {
-            println!("Stats folder watch task completed");
-        }
+        _ = listen_to_obs_events(config.clone(), client.clone(),  &mut rx) => { }
+        _ = watch_stats_folder(config.clone(), client.clone(), cache.clone(), &tx) => { }
     }
+
+    Ok(())
 }
 
 async fn listen_to_obs_events(
     config: Arc<AppConfig>,
     client: Arc<Mutex<Client>>,
-    last_stat: Arc<Mutex<Option<Stat>>>,
-) {
+    stat_receiver: &mut Receiver<Stat>,
+) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Obtain the event stream
-    let mut events = { client.lock().await.events().expect("Failed to get events") };
+    let mut events = { client.lock().await.events()? };
+
+    println!("🔔 Listening to OBS events");
 
     // 2. Listen to events as they occur
     while let Some(event) = events.next().await {
-        match event {
-            ReplayBufferSaved { path } => {
-                let stat = { last_stat.lock().await.clone() }.unwrap();
+        if let ReplayBufferSaved { path } = event {
+            let stat = match stat_receiver.try_recv() {
+                Ok(stat) => stat,
+                Err(_) => {
+                    println!("ℹ️ Ignoring external ReplayBufferSaved event");
+                    continue;
+                }
+            };
 
-                let output_path = std::path::Path::new(&config.clips_folder).join(&stat.scenario);
-                fs::create_dir_all(&output_path)
-                    .await
-                    .expect("Failed to create output directory");
+            let output_path = std::path::Path::new(&config.clips_folder).join(&stat.scenario);
+            fs::create_dir_all(&output_path).await.with_context(|| {
+                format!(
+                    "Failed to create output directory '{}'",
+                    output_path.display()
+                )
+            })?;
 
-                let clip_path = output_path.join(format!("{}.mp4", stat.to_string()));
+            let clip_path = output_path.join(format!("{}.mp4", stat));
 
-                let duration_seconds = (config.trim_padding_start + config.trim_padding_end)
-                    + (stat.end_dt - stat.start_dt).as_seconds_f32();
+            let duration_seconds = config.trim_padding_start
+                + config.trim_padding_end
+                + (stat.end_dt - stat.start_dt).as_seconds_f32();
 
-                Command::new("ffmpeg")
-                    .args([
-                        "-y",
-                        "-sseof",
-                        &format!("-{:.2}", duration_seconds),
-                        "-accurate_seek",
-                        "-i",
-                        path.to_str().unwrap(),
-                        "-c",
-                        "copy",
-                        "-avoid_negative_ts",
-                        "make_zero",
-                        clip_path.to_str().unwrap(),
-                    ])
-                    .status()
-                    .await
-                    .expect("Failed to execute ffmpeg command");
-            }
-            _ => (),
+            let args = [
+                "-y",
+                "-sseof",
+                &format!("-{:.2}", duration_seconds),
+                "-accurate_seek",
+                "-i",
+                path.to_str().unwrap(),
+                "-c",
+                "copy",
+                "-avoid_negative_ts",
+                "make_zero",
+                clip_path.to_str().unwrap(),
+            ];
+
+            Command::new("ffmpeg")
+                .args(args)
+                .status()
+                .await
+                .with_context(|| format!("Failed to execute ffmpeg {:?}", args))?;
         }
     }
+
+    Ok(())
 }
 
 async fn watch_stats_folder(
     config: Arc<AppConfig>,
     client: Arc<Mutex<Client>>,
-    cache: Arc<Mutex<cache::Cache>>,
-    last_stat: Arc<Mutex<Option<Stat>>>,
-) {
+    cache: Arc<Mutex<Cache>>,
+    stat_sender: &Sender<Stat>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let (tx, mut rx) = channel(10);
 
     let mut watcher = RecommendedWatcher::new(
@@ -131,14 +164,16 @@ async fn watch_stats_folder(
         },
         notify::Config::default(),
     )
-    .expect("Failed to create file watcher");
+    .with_context(|| "Failed to create watcher")?;
 
     watcher
         .watch(
             std::path::Path::new(&config.stats_folder),
             notify::RecursiveMode::NonRecursive,
         )
-        .expect("Failed to watch stats folder");
+        .with_context(|| "Failed to watch stats folder")?;
+
+    println!("📁 Watching stats folder");
 
     loop {
         match rx.recv().await {
@@ -147,71 +182,77 @@ async fn watch_stats_folder(
                 ref paths,
                 ..
             })) => {
-                let path = paths.first().expect("No path in event");
-                if let Some("csv") = path.extension().and_then(|s| s.to_str()) {
-                    println!("New stats file detected: {:?}", path);
-                    for _ in 0..100 {
-                        match Stat::parse(path) {
-                            Ok(stat) => {
-                                let mut last_stat_lock = last_stat.lock().await;
-                                *last_stat_lock = Some(stat.clone());
+                let path = paths.first().with_context(|| "Failed to read path")?;
 
-                                let (new_pb, old_high_score, new_score) = {
-                                    let mut cache = cache.lock().await;
-                                    cache.push(&stat)
-                                };
+                let is_stat_file = path.file_name().is_some_and(|name| {
+                    name.as_encoded_bytes()
+                        .ends_with(STAT_FILE_SUFFIX.as_bytes())
+                });
 
-                                if new_pb {
-                                    println!(
-                                        "New high score! Scenario: {}, Old: {}, New: {}",
-                                        stat.scenario, old_high_score, new_score
-                                    );
-                                } else {
-                                    println!(
-                                        "No new high score. Scenario: {}, High Score: {}, New Score: {}",
-                                        stat.scenario, old_high_score, new_score
-                                    );
+                if !is_stat_file {
+                    continue;
+                }
 
-                                    if config.only_pb {
-                                        break;
-                                    }
+                println!("🆕 New stat file detected: {:?}", path.display());
+
+                // Retry multiple times just in case the file wasn't fully written to disk
+                for _ in 0..100 {
+                    match Stat::parse(path) {
+                        Ok(stat) => {
+                            let (new_pb, old_high_score, new_score) = {
+                                let mut cache = cache.lock().await;
+                                cache.push(&stat)
+                            };
+
+                            if new_pb {
+                                println!(
+                                    "😃 New high score! Scenario: {}, Old: {}, New: {}",
+                                    stat.scenario, old_high_score, new_score
+                                );
+                            } else {
+                                println!(
+                                    "😔 No new high score. Scenario: {}, Old: {}, New: {}",
+                                    stat.scenario, old_high_score, new_score
+                                );
+
+                                if config.only_pb {
+                                    break;
                                 }
-
-                                // Calculated wasted time
-                                let wasted_time = Utc::now() - stat.end_dt;
-                                let sleep_duration = Duration::from_secs_f32(
-                                    (config.trim_padding_end as f32
-                                        - wasted_time.num_seconds() as f32)
-                                        .max(0.0),
-                                );
-
-                                // Wait a bit before clipping
-                                tokio::time::sleep(sleep_duration).await;
-
-                                _ = tokio::join!(
-                                    // Clip
-                                    save_clip(client.clone()),
-                                    // Screenshot
-                                    save_screenshot(client.clone(), config.clone(), &stat)
-                                );
-
-                                break;
                             }
-                            Err(_) => {
-                                tokio::time::sleep(Duration::from_millis(100)).await;
-                            }
+
+                            stat_sender.send(stat.clone())?;
+
+                            // Calculated wasted time
+                            let wasted_time = Utc::now() - stat.end_dt;
+                            let sleep_duration = Duration::from_secs_f32(
+                                (config.trim_padding_end - wasted_time.as_seconds_f32())
+                                    .max(0.0f32),
+                            );
+
+                            // Wait a bit before clipping
+                            time::sleep(sleep_duration).await;
+
+                            _ = tokio::join!(
+                                // Clip
+                                save_clip(client.clone()),
+                                // Screenshot
+                                save_screenshot(client.clone(), config.clone(), &stat)
+                            );
+
+                            break;
                         }
+                        Err(_) => time::sleep(Duration::from_millis(100)).await,
                     }
                 }
             }
+            Some(Err(e)) => return Err(Box::from(e)),
+            None => return Ok(()),
             _ => (),
         }
     }
 }
 
-async fn save_clip(
-    client: Arc<Mutex<Client>>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn save_clip(client: Arc<Mutex<Client>>) -> Result<(), Box<dyn std::error::Error>> {
     client.lock().await.replay_buffer().save().await?;
     Ok(())
 }
@@ -220,7 +261,7 @@ async fn save_screenshot(
     client: Arc<Mutex<Client>>,
     config: Arc<AppConfig>,
     stat: &Stat,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), Box<dyn std::error::Error>> {
     if !config.screenshot.enabled {
         return Ok(());
     }
@@ -229,9 +270,9 @@ async fn save_screenshot(
 
     fs::create_dir_all(&clip_path)
         .await
-        .expect("Failed to create screenshots output directory");
+        .with_context(|| format!("Failed to create clip directory '{}'", clip_path.display()))?;
 
-    let clip_path = clip_path.join(format!("{}.png", stat.to_string()));
+    let clip_path = clip_path.join(format!("{}.png", stat));
 
     let options = SaveScreenshot {
         source: obws::requests::sources::SourceId::Name(&config.obs_source_name),
@@ -248,7 +289,18 @@ async fn save_screenshot(
         .sources()
         .save_screenshot(options)
         .await
-        .expect("Failed to save screenshot");
+        .with_context(|| {
+            format!(
+                "Failed to save screenshot with options {}",
+                clip_path.display()
+            )
+        })?;
 
     Ok(())
+}
+
+fn wait_for_enter_key() {
+    println!("👋 Bye! Press Enter key to exit");
+    let mut s = String::new();
+    std::io::stdin().read_line(&mut s).unwrap();
 }

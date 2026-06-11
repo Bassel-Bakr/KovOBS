@@ -1,11 +1,13 @@
+use chrono::{DateTime, Duration, Local, NaiveDateTime, TimeZone, Timelike, Utc};
+use regex::Regex;
+use std::fmt::Display;
 use std::{
     fs::{self, File},
     io::{BufRead, BufReader},
     path,
 };
 
-use chrono::{DateTime, Duration, Local, NaiveDateTime, TimeZone, Timelike, Utc};
-use regex::Regex;
+use num_traits::ToPrimitive;
 
 const DATE_TIME_FORMAT: &str = "%Y.%m.%d-%H.%M.%S";
 
@@ -18,16 +20,22 @@ pub struct Stat {
     pub end_dt: DateTime<Utc>,
 }
 
-impl Stat {
-    pub fn to_string(&self) -> String {
-        format!(
+impl Display for Stat {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
             "{} - {} - {}",
             self.scenario,
-            self.score,
+            self.score.to_i32().map_or_else(
+                || format!("{:.2}", self.score),
+                |int| int.to_string(),
+            ),
             self.end_dt.with_timezone(&Local).format(DATE_TIME_FORMAT)
         )
     }
+}
 
+impl Stat {
     pub fn parse(stat_file: &path::Path) -> Result<Self, String> {
         let mut scenario = String::new();
         let mut score = 0.0f32;
