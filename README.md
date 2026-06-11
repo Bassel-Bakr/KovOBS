@@ -11,7 +11,7 @@ We'll need to set up credentials in OBS Studio:
 1. Optionally, set a password for added security.
 1. Save your settings.
 
-Before running the app, update the `config.json` file with your OBS WebSocket password:
+Before running the app, create a `config.json` file in the same folder as the executable with your OBS WebSocket password:
 
 1. Open the `config.json` file in the project directory.
 2. Locate the `"obs_password"` field.
@@ -24,6 +24,28 @@ Before running the app, update the `config.json` file with your OBS WebSocket pa
    ```
 
 4. Save the file.
+
+Example:
+```json
+{
+  "stats_folder": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\FPSAimTrainer\\FPSAimTrainer\\stats",
+  "clips_folder": "E:\\OBS\\KovOBS",
+  "obs_host": "localhost",
+  "obs_port": 4455,
+  "obs_password": "blablabla",
+  "obs_replay_folder": "E:\\OBS",
+  "obs_source_name": "KovaaK's",
+  "trim_padding_start": 1,
+  "trim_padding_end": 5,
+  "delete_after_trimming": false,
+  "only_pb": false,
+  "cache_version": "1.0.0",
+  "cache_file": "cache.json",
+  "screenshot": {
+    "enabled": true
+  }
+}
+```
 
 ## Legacy Python implemenation
 [OBS-KovaaKs-Auto-Clipper](https://github.com/Bassel-Bakr/OBS-KovaaKs-Auto-Clipper)
