@@ -9,7 +9,6 @@ use tokio::fs;
 use tokio::process::Command;
 use tokio::sync::{Mutex, mpsc::channel};
 
-// Bring the type into scope for cleaner usage
 use crate::{config::AppConfig, stat::Stat};
 
 use futures_util::StreamExt;
@@ -76,10 +75,10 @@ async fn listen_to_obs_events(
     client: Arc<Mutex<Client>>,
     last_stat: Arc<Mutex<Option<Stat>>>,
 ) {
-    // 2. Obtain the event stream
+    // 1. Obtain the event stream
     let mut events = { client.lock().await.events().expect("Failed to get events") };
 
-    // 3. Listen to events as they occur
+    // 2. Listen to events as they occur
     while let Some(event) = events.next().await {
         match event {
             ReplayBufferSaved { path } => {
