@@ -43,15 +43,15 @@ jobs:
         include:
           - os: ubuntu-latest
             binary: KovOBS
-            asset: KovOBS-linux-v${VERSION}
+            asset: KovOBS-linux
 
           - os: windows-latest
             binary: KovOBS.exe
-            asset: KovOBS-windows-v${VERSION}.exe
+            asset: KovOBS-windows
 
           - os: macos-latest
             binary: KovOBS
-            asset: KovOBS-macos-v${VERSION}
+            asset: KovOBS-macos
 
     runs-on: ${{ matrix.os }}
 
@@ -68,19 +68,22 @@ jobs:
 
       - name: Prepare artifact (Unix)
         if: runner.os != 'Windows'
+        shell: bash
         run: |
-          cp target/release/${{ matrix.binary }} "${{ matrix.asset }}"
+          cp target/release/${{ matrix.binary }} \
+             "${{ matrix.asset }}-v${VERSION}"
 
       - name: Prepare artifact (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Copy-Item target/release/${{ matrix.binary }} "${{ matrix.asset }}"
+          Copy-Item target/release/${{ matrix.binary }} `
+                    "${{ matrix.asset }}-v${env:VERSION}.exe"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}
+          name: ${{ matrix.asset }}-v${{ env.VERSION }}
+          path: ${{ matrix.asset }}-v*
 
   release:
     needs:
