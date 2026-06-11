@@ -91,6 +91,11 @@ jobs:
 
     steps:
       - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: List files
+        run: ls -la
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -98,7 +103,8 @@ jobs:
           tag_name: v${{ needs.version.outputs.version }}
           name: v${{ needs.version.outputs.version }}
           generate_release_notes: true
+          overwrite_files: true
           files: |
-            **/KovOBS-linux-v${{ needs.version.outputs.version }}
-            **/KovOBS-windows-v${{ needs.version.outputs.version }}.exe
-            **/KovOBS-macos-v${{ needs.version.outputs.version }}
+            KovOBS-linux-v${{ needs.version.outputs.version }}
+            KovOBS-windows-v${{ needs.version.outputs.version }}.exe
+            KovOBS-macos-v${{ needs.version.outputs.version }}
