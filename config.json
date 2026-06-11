@@ -1,0 +1,18 @@
+{
+  "stats_folder": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\FPSAimTrainer\\FPSAimTrainer\\stats",
+  "clips_folder": "E:\\OBS\\KovOBS",
+  "obs_host": "localhost",
+  "obs_port": 4455,
+  "obs_password": "",
+  "obs_replay_folder": "E:\\OBS",
+  "obs_source_name": "KovaaK's",
+  "trim_padding_start": 1,
+  "trim_padding_end": 5,
+  "delete_after_trimming": false,
+  "only_pb": false,
+  "cache_version": "1.0.0",
+  "cache_file": "cache.json",
+  "screenshot": {
+    "enabled": true
+  }
+}
