@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (leave empty to use Cargo.toml)"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          VERSION="${{ inputs.version }}"
+
+          if [ -z "$VERSION" ]; then
+            VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: version
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: KovOBS
+            asset: KovOBS-linux-v${VERSION}
+
+          - os: windows-latest
+            binary: KovOBS.exe
+            asset: KovOBS-windows-v${VERSION}.exe
+
+          - os: macos-latest
+            binary: KovOBS
+            asset: KovOBS-macos-v${VERSION}
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Prepare artifact (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cp target/release/${{ matrix.binary }} "${{ matrix.asset }}"
+
+      - name: Prepare artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item target/release/${{ matrix.binary }} "${{ matrix.asset }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  release:
+    needs:
+      - version
+      - build
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          name: v${{ needs.version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            **/KovOBS-linux-v${{ needs.version.outputs.version }}
+            **/KovOBS-windows-v${{ needs.version.outputs.version }}.exe
+            **/KovOBS-macos-v${{ needs.version.outputs.version }}
