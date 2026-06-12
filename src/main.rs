@@ -47,7 +47,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut cache = cache::Cache::new(&config.cache_file);
     cache.load();
     cache.update(&config.stats_folder);
-    println!("✅  Done");
+    println!("✅ Done");
 
     println!("⏺️ Connecting to OBS...");
     let client = Client::connect(
@@ -56,7 +56,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some(&config.obs_password),
     )
     .await?;
-    println!("✅  Done");
+    println!("✅ Done");
 
     println!("🔃 Making sure replay buffer is enabled...");
     if let Ok(true) = client.replay_buffer().status().await {
@@ -65,7 +65,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         println!("🫡 Activating...");
         client.replay_buffer().start().await?;
     }
-    println!("✅  Done");
+    println!("✅ Done");
 
     let config = Arc::new(config);
     let cache = Arc::new(Mutex::new(cache));
@@ -80,7 +80,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             println!("📦 Saving cache updates...");
             cache.clone().lock().await.save(Utc::now());
             client.lock().await.disconnect().await;
-            println!("✅  Done");
+            println!("✅ Done");
             wait_for_enter_key();
         }
         _ = listen_to_obs_events(config.clone(), client.clone(),  &mut rx) => { }
