@@ -1,5 +1,6 @@
 mod cache;
 mod config;
+mod delay;
 mod stat;
 
 use std::panic;
@@ -21,6 +22,7 @@ use tokio::sync::Mutex;
 use tokio::time;
 
 use crate::cache::Cache;
+use crate::delay::StatDelay;
 use crate::{config::AppConfig, stat::Stat};
 
 const CONFIG_FILE: &str = "config.json";
@@ -121,8 +123,7 @@ async fn listen_to_obs_events(
 
             let clip_path = output_path.join(format!("{}.mp4", stat));
 
-            let duration_seconds = config.trim_padding_start
-                + config.trim_padding_end
+            let duration_seconds = (config.trim_padding_start + config.trim_padding_end)
                 + (stat.end_dt - stat.start_dt).as_seconds_f32();
 
             let args = [
@@ -223,20 +224,21 @@ async fn watch_stats_folder(
                             stat_sender.send(stat.clone())?;
 
                             // Calculated wasted time
-                            let wasted_time = Utc::now() - stat.end_dt;
-                            let sleep_duration = Duration::from_secs_f32(
-                                (config.trim_padding_end - wasted_time.as_seconds_f32())
-                                    .max(0.0f32),
-                            );
-
-                            // Wait a bit before clipping
-                            time::sleep(sleep_duration).await;
+                            let delay = Arc::new(StatDelay {
+                                end_dt: stat.end_dt,
+                                duration: Duration::from_secs_f32(config.trim_padding_end),
+                            });
 
                             _ = tokio::join!(
                                 // Clip
-                                save_clip(client.clone()),
+                                save_clip(client.clone(), delay.clone()),
                                 // Screenshot
-                                save_screenshot(client.clone(), config.clone(), &stat)
+                                save_screenshot(
+                                    client.clone(),
+                                    config.clone(),
+                                    delay.clone(),
+                                    &stat
+                                )
                             );
 
                             break;
@@ -252,14 +254,22 @@ async fn watch_stats_folder(
     }
 }
 
-async fn save_clip(client: Arc<Mutex<Client>>) -> Result<(), Box<dyn std::error::Error>> {
-    client.lock().await.replay_buffer().save().await?;
+async fn save_clip(
+    client: Arc<Mutex<Client>>,
+    delay: Arc<StatDelay>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let client = client.lock().await;
+
+    tokio::time::sleep(delay.get_delay_duration()).await;
+
+    client.replay_buffer().save().await?;
     Ok(())
 }
 
 async fn save_screenshot(
     client: Arc<Mutex<Client>>,
     config: Arc<AppConfig>,
+    delay: Arc<StatDelay>,
     stat: &Stat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !config.screenshot.enabled {
@@ -283,9 +293,11 @@ async fn save_screenshot(
         file_path: &clip_path,
     };
 
+    let client = client.lock().await;
+
+    tokio::time::sleep(delay.get_delay_duration()).await;
+
     client
-        .lock()
-        .await
         .sources()
         .save_screenshot(options)
         .await
