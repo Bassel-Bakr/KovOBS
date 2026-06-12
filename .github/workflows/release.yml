@@ -7,6 +7,10 @@ on:
         description: "Release version (leave empty to use Cargo.toml)"
         required: false
 
+  push:
+    branches:
+      - main
+
 permissions:
   contents: write
 
@@ -27,11 +31,9 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ inputs.version }}"
-
           if [ -z "$VERSION" ]; then
             VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
           fi
-
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
   build:
