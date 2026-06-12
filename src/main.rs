@@ -1,5 +1,6 @@
 mod cache;
 mod config;
+mod delay;
 mod stat;
 
 use std::panic;
@@ -21,6 +22,7 @@ use tokio::sync::Mutex;
 use tokio::time;
 
 use crate::cache::Cache;
+use crate::delay::StatDelay;
 use crate::{config::AppConfig, stat::Stat};
 
 const CONFIG_FILE: &str = "config.json";
@@ -47,7 +49,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut cache = cache::Cache::new(&config.cache_file);
     cache.load();
     cache.update(&config.stats_folder);
-    println!("✅  Done");
+    println!("✅ Done");
 
     println!("⏺️ Connecting to OBS...");
     let client = Client::connect(
@@ -56,7 +58,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some(&config.obs_password),
     )
     .await?;
-    println!("✅  Done");
+    println!("✅ Done");
 
     println!("🔃 Making sure replay buffer is enabled...");
     if let Ok(true) = client.replay_buffer().status().await {
@@ -65,7 +67,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         println!("🫡 Activating...");
         client.replay_buffer().start().await?;
     }
-    println!("✅  Done");
+    println!("✅ Done");
 
     let config = Arc::new(config);
     let cache = Arc::new(Mutex::new(cache));
@@ -80,7 +82,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             println!("📦 Saving cache updates...");
             cache.clone().lock().await.save(Utc::now());
             client.lock().await.disconnect().await;
-            println!("✅  Done");
+            println!("✅ Done");
             wait_for_enter_key();
         }
         _ = listen_to_obs_events(config.clone(), client.clone(),  &mut rx) => { }
@@ -120,15 +122,15 @@ async fn listen_to_obs_events(
             })?;
 
             let clip_path = output_path.join(format!("{}.mp4", stat));
-
-            let duration_seconds = config.trim_padding_start
-                + config.trim_padding_end
-                + (stat.end_dt - stat.start_dt).as_seconds_f32();
+            
+            // Calculate duration
+            let trim_start_point = stat.start_dt - Duration::from_secs_f32(config.trim_padding_start);
+            let duration = Utc::now() - trim_start_point;
 
             let args = [
                 "-y",
                 "-sseof",
-                &format!("-{:.2}", duration_seconds),
+                &format!("-{:.2}", duration.as_seconds_f32()),
                 "-accurate_seek",
                 "-i",
                 path.to_str().unwrap(),
@@ -223,20 +225,21 @@ async fn watch_stats_folder(
                             stat_sender.send(stat.clone())?;
 
                             // Calculated wasted time
-                            let wasted_time = Utc::now() - stat.end_dt;
-                            let sleep_duration = Duration::from_secs_f32(
-                                (config.trim_padding_end - wasted_time.as_seconds_f32())
-                                    .max(0.0f32),
-                            );
-
-                            // Wait a bit before clipping
-                            time::sleep(sleep_duration).await;
+                            let delay = Arc::new(StatDelay {
+                                end_dt: stat.end_dt,
+                                duration: Duration::from_secs_f32(config.trim_padding_end),
+                            });
 
                             _ = tokio::join!(
                                 // Clip
-                                save_clip(client.clone()),
+                                save_clip(client.clone(), delay.clone()),
                                 // Screenshot
-                                save_screenshot(client.clone(), config.clone(), &stat)
+                                save_screenshot(
+                                    client.clone(),
+                                    config.clone(),
+                                    delay.clone(),
+                                    &stat
+                                )
                             );
 
                             break;
@@ -252,14 +255,22 @@ async fn watch_stats_folder(
     }
 }
 
-async fn save_clip(client: Arc<Mutex<Client>>) -> Result<(), Box<dyn std::error::Error>> {
-    client.lock().await.replay_buffer().save().await?;
+async fn save_clip(
+    client: Arc<Mutex<Client>>,
+    delay: Arc<StatDelay>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let client = client.lock().await;
+
+    tokio::time::sleep(delay.get_delay_duration()).await;
+
+    client.replay_buffer().save().await?;
     Ok(())
 }
 
 async fn save_screenshot(
     client: Arc<Mutex<Client>>,
     config: Arc<AppConfig>,
+    delay: Arc<StatDelay>,
     stat: &Stat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !config.screenshot.enabled {
@@ -283,9 +294,11 @@ async fn save_screenshot(
         file_path: &clip_path,
     };
 
+    let client = client.lock().await;
+
+    tokio::time::sleep(delay.get_delay_duration()).await;
+
     client
-        .lock()
-        .await
         .sources()
         .save_screenshot(options)
         .await
