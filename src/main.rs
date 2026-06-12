@@ -160,6 +160,11 @@ async fn listen_to_obs_events(
                 .status()
                 .await
                 .with_context(|| format!("Failed to execute ffmpeg {:?}", args))?;
+            
+            // Delete the clip if we no longer need it
+            if config.delete_after_trimming {
+                std::fs::remove_file(&clip_path)?
+            }
         }
     }
 
