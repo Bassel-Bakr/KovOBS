@@ -122,14 +122,15 @@ async fn listen_to_obs_events(
             })?;
 
             let clip_path = output_path.join(format!("{}.mp4", stat));
-
-            let duration_seconds = (config.trim_padding_start + config.trim_padding_end)
-                + (stat.end_dt - stat.start_dt).as_seconds_f32();
+            
+            // Calculate duration
+            let trim_start_point = stat.start_dt - Duration::from_secs_f32(config.trim_padding_start);
+            let duration = Utc::now() - trim_start_point;
 
             let args = [
                 "-y",
                 "-sseof",
-                &format!("-{:.2}", duration_seconds),
+                &format!("-{:.2}", duration.as_seconds_f32()),
                 "-accurate_seek",
                 "-i",
                 path.to_str().unwrap(),

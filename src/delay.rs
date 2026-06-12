@@ -8,13 +8,8 @@ pub struct StatDelay {
 
 impl StatDelay {
     pub fn get_delay_duration(&self) -> Duration {
-        let now = Utc::now();
-        let wasted_time = now - self.end_dt;
-        let millis = if self.duration.as_millis() > (wasted_time.num_milliseconds() as u128) {
-            self.duration.as_millis() - (wasted_time.num_milliseconds() as u128)
-        } else {
-            0u128
-        };
-        Duration::from_millis(millis as u64)
+        let target = self.end_dt + self.duration;
+        let delta = target - Utc::now();
+        Duration::from_millis(delta.num_milliseconds().max(0) as u64)
     }
 }
