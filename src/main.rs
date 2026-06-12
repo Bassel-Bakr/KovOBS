@@ -2,9 +2,7 @@ mod cache;
 mod config;
 mod delay;
 mod stat;
-
-use std::panic;
-use std::{sync::Arc, time::Duration};
+mod utils;
 
 use anyhow::Context;
 use chrono::Utc;
@@ -12,6 +10,8 @@ use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
 use obws::{events::Event::ReplayBufferSaved, Client};
+use std::panic;
+use std::{sync::Arc, time::Duration};
 use tokio::fs;
 use tokio::process::Command;
 use tokio::sync::broadcast;
@@ -23,6 +23,7 @@ use tokio::time;
 
 use crate::cache::Cache;
 use crate::delay::StatDelay;
+use crate::utils::Utils;
 use crate::{config::AppConfig, stat::Stat};
 
 const CONFIG_FILE: &str = "config.json";
@@ -71,34 +72,46 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Arc::new(config);
     let cache = Arc::new(Mutex::new(cache));
-    let client = Arc::new(Mutex::new(client));
+    let mut client = Arc::new(client);
 
     // Last seen stat
     let (tx, mut rx) = broadcast::channel::<Stat>(1);
 
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => {
+    let res: Result<(), Box<dyn std::error::Error>> = tokio::select! {
+        res = tokio::signal::ctrl_c() => {
             println!("🔎 Ctrl+C received. Shutting down!");
-            println!("📦 Saving cache updates...");
-            cache.clone().lock().await.save(Utc::now());
-            client.lock().await.disconnect().await;
-            println!("✅ Done");
-            wait_for_enter_key();
+            res.map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
         }
-        _ = listen_to_obs_events(config.clone(), client.clone(),  &mut rx) => { }
-        _ = watch_stats_folder(config.clone(), client.clone(), cache.clone(), &tx) => { }
+        res = listen_to_obs_events(config.clone(), client.clone(),  &mut rx) => res,
+        res = watch_stats_folder(config.clone(), client.clone(), cache.clone(), &tx) => res,
+    };
+
+    if let Err(e) = res {
+        eprintln!("❌ Error: {}", e);
     }
+
+    println!("📦 Saving cache updates...");
+    cache.clone().lock().await.save(Utc::now());
+    println!("✅ Done");
+
+    if let Some(client) = Arc::get_mut(&mut client) {
+        println!("🚫 Disconnecting from OBS...");
+        client.disconnect().await;
+        println!("✅ Done");
+    }
+
+    wait_for_enter_key();
 
     Ok(())
 }
 
 async fn listen_to_obs_events(
     config: Arc<AppConfig>,
-    client: Arc<Mutex<Client>>,
+    client: Arc<Client>,
     stat_receiver: &mut Receiver<Stat>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Obtain the event stream
-    let mut events = { client.lock().await.events()? };
+    let mut events = client.events()?;
 
     println!("🔔 Listening to OBS events");
 
@@ -122,10 +135,11 @@ async fn listen_to_obs_events(
             })?;
 
             let clip_path = output_path.join(format!("{}.mp4", stat));
-            
-            // Calculate duration
-            let trim_start_point = stat.start_dt - Duration::from_secs_f32(config.trim_padding_start);
-            let duration = Utc::now() - trim_start_point;
+
+            // Calculate duration based on the clip time and scenario end time
+            let trim_start_point =
+                stat.start_dt - Duration::from_secs_f32(config.trim_padding_start);
+            let duration = Utils::get_creation_or_modification_time(&path)? - trim_start_point;
 
             let args = [
                 "-y",
@@ -146,6 +160,11 @@ async fn listen_to_obs_events(
                 .status()
                 .await
                 .with_context(|| format!("Failed to execute ffmpeg {:?}", args))?;
+            
+            // Delete the clip if we no longer need it
+            if config.delete_after_trimming {
+                std::fs::remove_file(&clip_path)?
+            }
         }
     }
 
@@ -154,7 +173,7 @@ async fn listen_to_obs_events(
 
 async fn watch_stats_folder(
     config: Arc<AppConfig>,
-    client: Arc<Mutex<Client>>,
+    client: Arc<Client>,
     cache: Arc<Mutex<Cache>>,
     stat_sender: &Sender<Stat>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -256,11 +275,9 @@ async fn watch_stats_folder(
 }
 
 async fn save_clip(
-    client: Arc<Mutex<Client>>,
+    client: Arc<Client>,
     delay: Arc<StatDelay>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let client = client.lock().await;
-
     tokio::time::sleep(delay.get_delay_duration()).await;
 
     client.replay_buffer().save().await?;
@@ -268,7 +285,7 @@ async fn save_clip(
 }
 
 async fn save_screenshot(
-    client: Arc<Mutex<Client>>,
+    client: Arc<Client>,
     config: Arc<AppConfig>,
     delay: Arc<StatDelay>,
     stat: &Stat,
@@ -293,8 +310,6 @@ async fn save_screenshot(
         compression_quality: Some(0),
         file_path: &clip_path,
     };
-
-    let client = client.lock().await;
 
     tokio::time::sleep(delay.get_delay_duration()).await;
 
