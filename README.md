@@ -1,55 +1,30 @@
 # KovOBS
-KovOBS watches Kovaaks stat files and integrates with OBS to automatically capture screenshots and save replay clips when notable events occur.
 
-## Configuration
+KovOBS watches KovaaK's stat files and integrates with OBS to automatically capture screenshots and save replay clips when notable events occur.
 
-We'll need to set up credentials in OBS Studio:
+## Features
 
-1. Open OBS Studio and go to `Tools` > `WebSocket Server Settings`.
-1. Enable the WebSocket server.
-1. Set a server port (default is `4455`).
-1. Optionally, set a password for added security.
-1. Save your settings.
+* Automatic replay saving
+* Automatic screenshots
+* Replay clip trimming
+* Personal-best-only mode
+* Configurable through `config.json`
 
-Before running the app, create a `config.json` file in the same folder as the executable with your OBS WebSocket password:
+## Installation
 
-1. Open the `config.json` file in the project directory.
-2. Locate the `"obs_password"` field.
-3. Set its value to the password you configured in OBS WebSocket settings. For example:
+### Configure OBS
 
-   ```json
-   {
-     "obs_password": "your_password_here"
-   }
-   ```
+1. Open OBS Studio.
+2. Go to **Tools → WebSocket Server Settings**.
+3. Enable the WebSocket server.
+4. Use the default port (`4455`) or choose another one.
+5. Optionally set a password.
 
-4. Save the file.
+### Create `config.json`
+
+Create a `config.json` file alongside the executable.
 
 Example:
-```json
-{
-  "stats_folder": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\FPSAimTrainer\\FPSAimTrainer\\stats",
-  "clips_folder": "E:\\OBS\\KovOBS",
-  "obs_host": "localhost",
-  "obs_port": 4455,
-  "obs_password": "blablabla",
-  "obs_replay_folder": "E:\\OBS",
-  "obs_source_name": "KovaaK's",
-  "trim_padding_start": 1,
-  "trim_padding_end": 5,
-  "delete_after_trimming": false,
-  "only_pb": false,
-  "cache_version": "1.0.0",
-  "cache_file": "cache.json",
-  "screenshot": {
-    "enabled": true
-  }
-}
-```
-
-## config.json
-
-KovOBS is configured through a JSON file:
 
 ```json
 {
@@ -71,96 +46,12 @@ KovOBS is configured through a JSON file:
 }
 ```
 
-### `stats_folder`
+## Documentation
 
-Path to the KovaaK's stats folder. KovOBS watches this folder for newly created stats files.
+Detailed documentation is available in the [Wiki](../../wiki).
 
-### `clips_folder`
+## Legacy Python Implementation
 
-Directory where trimmed clips and screenshots will be saved.
-
-### `obs_host`
-
-Hostname or IP address of the OBS WebSocket server.
-
-Usually:
-
-```json
-"localhost"
-```
-
-### `obs_port`
-
-Port used by OBS WebSocket.
-
-Default:
-
-```json
-4455
-```
-
-### `obs_password`
-
-Password configured in OBS WebSocket settings.
-
-### `obs_replay_folder`
-
-Folder where OBS stores replay buffer recordings.
-
-### `obs_source_name`
-
-Name of the OBS source used when taking screenshots.
-
-This must exactly match the source name in OBS.
-
-Example:
-
-```json
-"KovaaK's"
-```
-
-### `trim_padding_start`
-
-Number of seconds to include before the event when trimming replay clips.
-
-### `trim_padding_end`
-
-Number of seconds to include after the event when trimming replay clips.
-
-For example:
-
-```json
-"trim_padding_start": 1,
-"trim_padding_end": 5
-```
-
-will create clips containing 1 second before and 5 seconds after the score was achieved.
-
-### `only_pb`
-
-Controls when clips are created.
-
-* `true`: only save clips for personal best scores.
-* `false`: save clips for every run.
-
-### `cache_version`
-
-Internal cache format version.
-
-Normally, this should not be changed.
-
-### `cache_file`
-
-Path to the cache file used to prevent processing the same stats file multiple times.
-
-### `screenshot.enabled`
-
-Enables or disables automatic screenshots.
-
-* `true`: save screenshots.
-* `false`: disable screenshots.
-
-## Legacy Python implemenation
 [OBS-KovaaKs-Auto-Clipper](https://github.com/Bassel-Bakr/OBS-KovaaKs-Auto-Clipper)
 
 ## Contributing
