@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use rayon::prelude::*;
 
 use crate::stat::Stat;
+use crate::utils::Utils;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CachedDataValue {
@@ -73,8 +74,9 @@ impl Cache {
         let stat_files: Vec<_> = glob::glob(glob_path.as_str())
             .expect("Failed to read stats folder")
             .filter(|res| {
-                res.as_ref()
-                    .is_ok_and(|p| Stat::get_creation_or_modification_time(&p) > last_update_time)
+                res.as_ref().is_ok_and(|p| {
+                    Utils::get_creation_or_modification_time(p).unwrap() > last_update_time
+                })
             })
             .collect::<Result<_, _>>()
             .expect("Failed to collect stat files");

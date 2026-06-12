@@ -2,26 +2,28 @@ mod cache;
 mod config;
 mod delay;
 mod stat;
+mod utils;
 
 use anyhow::Context;
 use chrono::Utc;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{Client, events::Event::ReplayBufferSaved};
+use obws::{events::Event::ReplayBufferSaved, Client};
 use std::panic;
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
 use tokio::process::Command;
-use tokio::sync::Mutex;
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc::channel;
+use tokio::sync::Mutex;
 use tokio::time;
 
 use crate::cache::Cache;
 use crate::delay::StatDelay;
+use crate::utils::Utils;
 use crate::{config::AppConfig, stat::Stat};
 
 const CONFIG_FILE: &str = "config.json";
@@ -134,10 +136,10 @@ async fn listen_to_obs_events(
 
             let clip_path = output_path.join(format!("{}.mp4", stat));
 
-            // Calculate duration
+            // Calculate duration based on the clip time and scenario end time
             let trim_start_point =
                 stat.start_dt - Duration::from_secs_f32(config.trim_padding_start);
-            let duration = Utc::now() - trim_start_point;
+            let duration = Utils::get_creation_or_modification_time(&path)? - trim_start_point;
 
             let args = [
                 "-y",

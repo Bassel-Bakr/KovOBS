@@ -2,11 +2,12 @@ use chrono::{DateTime, Duration, Local, NaiveDateTime, TimeZone, Timelike, Utc};
 use regex::Regex;
 use std::fmt::Display;
 use std::{
-    fs::{self, File},
+    fs::File,
     io::{BufRead, BufReader},
     path,
 };
 
+use crate::utils::Utils;
 use num_traits::ToPrimitive;
 
 const DATE_TIME_FORMAT: &str = "%Y.%m.%d-%H.%M.%S";
@@ -26,10 +27,9 @@ impl Display for Stat {
             f,
             "{} - {} - {}",
             self.scenario,
-            self.score.to_i32().map_or_else(
-                || format!("{:.2}", self.score),
-                |int| int.to_string(),
-            ),
+            self.score
+                .to_i32()
+                .map_or_else(|| format!("{:.2}", self.score), |int| int.to_string(),),
             self.end_dt.with_timezone(&Local).format(DATE_TIME_FORMAT)
         )
     }
@@ -120,7 +120,8 @@ impl Stat {
             }
         }
 
-        Self::get_creation_or_modification_time(stat_file)
+        Utils::get_creation_or_modification_time(stat_file)
+            .expect("Failed to get creation or modification time")
     }
 
     /// Parses the challenge start time from the stats file and calculates the corresponding Duration.
@@ -141,13 +142,5 @@ impl Stat {
         } else {
             None
         }
-    }
-
-    pub fn get_creation_or_modification_time(path: &path::Path) -> DateTime<Utc> {
-        let metadata = fs::metadata(path).unwrap();
-
-        let time = metadata.created().or_else(|_| metadata.modified()).unwrap();
-
-        DateTime::<Utc>::from(time)
     }
 }
