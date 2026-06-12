@@ -9,16 +9,16 @@ use chrono::Utc;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{events::Event::ReplayBufferSaved, Client};
+use obws::{Client, events::Event::ReplayBufferSaved};
 use std::panic;
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
 use tokio::process::Command;
+use tokio::sync::Mutex;
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc::channel;
-use tokio::sync::Mutex;
 use tokio::time;
 
 use crate::cache::Cache;
@@ -117,7 +117,10 @@ async fn listen_to_obs_events(
 
     // 2. Listen to events as they occur
     while let Some(event) = events.next().await {
-        if let ReplayBufferSaved { path } = event {
+        if let ReplayBufferSaved {
+            path: replay_buffer,
+        } = event
+        {
             let stat = match stat_receiver.try_recv() {
                 Ok(stat) => stat,
                 Err(_) => {
@@ -139,7 +142,8 @@ async fn listen_to_obs_events(
             // Calculate duration based on the clip time and scenario end time
             let trim_start_point =
                 stat.start_dt - Duration::from_secs_f32(config.trim_padding_start);
-            let duration = Utils::get_creation_or_modification_time(&path)? - trim_start_point;
+            let duration =
+                Utils::get_creation_or_modification_time(&replay_buffer)? - trim_start_point;
 
             let args = [
                 "-y",
@@ -147,7 +151,7 @@ async fn listen_to_obs_events(
                 &format!("-{:.2}", duration.as_seconds_f32()),
                 "-accurate_seek",
                 "-i",
-                path.to_str().unwrap(),
+                replay_buffer.to_str().unwrap(),
                 "-c",
                 "copy",
                 "-avoid_negative_ts",
@@ -160,10 +164,10 @@ async fn listen_to_obs_events(
                 .status()
                 .await
                 .with_context(|| format!("Failed to execute ffmpeg {:?}", args))?;
-            
-            // Delete the clip if we no longer need it
+
+            // Delete the replay buffer clip if we no longer need it
             if config.delete_after_trimming {
-                std::fs::remove_file(&clip_path)?
+                std::fs::remove_file(&replay_buffer)?
             }
         }
     }
