@@ -14,5 +14,11 @@
   "cache_file": "cache.json",
   "screenshot": {
     "enabled": true
-  }
+  },
+  "ffmpeg_args": [
+    "-c",
+    "copy",
+    "-avoid_negative_ts",
+    "make_zero"
+  ]
 }

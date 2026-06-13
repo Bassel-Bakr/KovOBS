@@ -16,24 +16,16 @@ pub struct AppConfig {
     pub cache_version: String,
     pub cache_file: String,
     pub screenshot: ScreenshotConfig,
+    pub ffmpeg_args: Vec<String>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct ScreenshotConfig {
     pub enabled: bool,
-    // pub region: ScreenRegion,
 }
 
-// #[derive(Debug, serde::Serialize, serde::Deserialize)]
-// pub struct ScreenRegion {
-//     pub top: u32,
-//     pub left: u32,
-//     pub width: u32,
-//     pub height: u32,
-// }
-
 impl AppConfig {
-    pub fn load(config_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn load(config_name: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let config_file = File::with_name(config_name);
         let settings = Config::builder().add_source(config_file).build()?;
         Ok(settings.try_deserialize::<AppConfig>()?)
