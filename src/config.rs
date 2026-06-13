@@ -16,7 +16,8 @@ pub struct AppConfig {
     pub cache_version: String,
     pub cache_file: String,
     pub screenshot: ScreenshotConfig,
-    pub ffmpeg_args: Vec<String>,
+    #[serde(default)]
+    pub ffmpeg_args: Box<[String]>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
