@@ -7,12 +7,15 @@ mod utils;
 use anyhow::Context;
 use chrono::Utc;
 use futures_util::StreamExt;
+use indicatif::{ProgressBar, ProgressStyle};
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
 use obws::{Client, events::Event::ReplayBufferSaved};
 use std::panic;
+use std::process::Stdio;
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
@@ -156,6 +159,12 @@ async fn listen_to_obs_events(
                 Utils::get_creation_or_modification_time(&replay_buffer)? - trim_start_point;
 
             let mut args = vec![
+                "-hide_banner".into(),
+                "-loglevel".into(),
+                "error".into(),
+                "-nostats".into(),
+                "-progress".into(),
+                "pipe:1".into(),
                 "-y".into(),
                 "-sseof".into(),
                 format!("-{:.2}", duration.as_seconds_f32()),
@@ -168,11 +177,38 @@ async fn listen_to_obs_events(
 
             args.push(clip_path.to_string_lossy().into_owned());
 
-            Command::new("ffmpeg")
+            let pb = ProgressBar::new(duration.num_microseconds().unwrap().try_into()?);
+
+            pb.set_style(ProgressStyle::with_template(
+                "[{elapsed_precise}] {bar:40.cyan/blue} {percent}% ({eta})",
+            )?);
+
+            let mut process = Command::new("ffmpeg")
                 .args(&args)
-                .status()
-                .await
+                .stdout(Stdio::piped())
+                .spawn()
                 .with_context(|| format!("Failed to execute ffmpeg {:?}", args))?;
+
+            let reader = BufReader::new(process.stdout.take().unwrap());
+
+            let mut lines = reader.lines();
+
+            while let Some(line) = lines.next_line().await? {
+                if let Some(ms) = line.strip_prefix("out_time_ms=") {
+                    let current_ms: u64 = ms.parse()?;
+
+                    // Clamp to avoid going over 100%
+                    pb.set_position(current_ms.min(pb.duration().as_micros().try_into()?));
+                }
+            }
+
+            let status = process.wait().await?;
+
+            if status.success() {
+                pb.finish_with_message("Done");
+            } else {
+                pb.abandon_with_message("Failed");
+            }
 
             // Delete the replay buffer clip if we no longer need it
             if config.delete_after_trimming {
@@ -225,16 +261,19 @@ async fn watch_stats_folder(
             })) => {
                 let path = paths.first().with_context(|| "Failed to read path")?;
 
-                let is_stat_file = path.file_name().is_some_and(|name| {
-                    name.as_encoded_bytes()
-                        .ends_with(STAT_FILE_SUFFIX.as_bytes())
-                });
+                let Some(file_name) = path.file_name() else {
+                    continue;
+                };
+
+                let is_stat_file = file_name
+                    .as_encoded_bytes()
+                    .ends_with(STAT_FILE_SUFFIX.as_bytes());
 
                 if !is_stat_file {
                     continue;
                 }
 
-                println!("🆕 New stat file detected: {:?}", path.display());
+                println!("🆕 New stat file detected: {:?}", file_name);
 
                 // Retry multiple times just in case the file wasn't fully written to disk
                 for _ in 0..100 {
