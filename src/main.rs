@@ -15,10 +15,8 @@ use std::{sync::Arc, time::Duration};
 use tokio::fs;
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use tokio::sync::broadcast;
-use tokio::sync::broadcast::Receiver;
-use tokio::sync::broadcast::Sender;
-use tokio::sync::mpsc::channel;
+use tokio::sync::mpsc;
+use tokio::task::JoinSet;
 use tokio::time;
 
 use crate::cache::Cache;
@@ -43,7 +41,7 @@ async fn main() {
     }
 }
 
-async fn run() -> Result<(), Box<dyn std::error::Error>> {
+async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = AppConfig::load(CONFIG_FILE)?;
 
     println!("📦 Re-building cache from stat files...");
@@ -75,15 +73,27 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Arc::new(client);
 
     // Last seen stat
-    let (tx, mut rx) = broadcast::channel::<Stat>(1);
+    let (tx, rx) = mpsc::channel::<Stat>(1);
 
-    let res: Result<(), Box<dyn std::error::Error>> = tokio::select! {
+    let mut tasks = JoinSet::new();
+
+    tasks.spawn(listen_to_obs_events(config.clone(), client.clone(), rx));
+    tasks.spawn(watch_stats_folder(
+        config.clone(),
+        client.clone(),
+        cache.clone(),
+        tx,
+    ));
+
+    let res: Result<(), Box<dyn std::error::Error + Send + Sync>> = tokio::select! {
         res = tokio::signal::ctrl_c() => {
             println!("🔎 Ctrl+C received. Shutting down!");
-            res.map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+            tasks.shutdown().await;
+            res.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
         }
-        res = listen_to_obs_events(config.clone(), client.clone(),  &mut rx) => res,
-        res = watch_stats_folder(config.clone(), client.clone(), cache.clone(), &tx) => res,
+        res = tasks.join_next() => {
+           res.unwrap().map_err(|e|Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?
+        }
     };
 
     if let Err(e) = res {
@@ -108,8 +118,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 async fn listen_to_obs_events(
     config: Arc<AppConfig>,
     client: Arc<Client>,
-    stat_receiver: &mut Receiver<Stat>,
-) -> Result<(), Box<dyn std::error::Error>> {
+    mut stat_receiver: mpsc::Receiver<Stat>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 1. Obtain the event stream
     let mut events = client.events()?;
 
@@ -145,29 +155,35 @@ async fn listen_to_obs_events(
             let duration =
                 Utils::get_creation_or_modification_time(&replay_buffer)? - trim_start_point;
 
-            let args = [
-                "-y",
-                "-sseof",
-                &format!("-{:.2}", duration.as_seconds_f32()),
-                "-accurate_seek",
-                "-i",
-                replay_buffer.to_str().unwrap(),
-                "-c",
-                "copy",
-                "-avoid_negative_ts",
-                "make_zero",
-                clip_path.to_str().unwrap(),
+            let mut args = vec![
+                "-y".into(),
+                "-sseof".into(),
+                format!("-{:.2}", duration.as_seconds_f32()),
+                "-accurate_seek".into(),
+                "-i".into(),
+                replay_buffer.to_string_lossy().into_owned(),
             ];
 
+            args.extend(config.ffmpeg_args.iter().cloned());
+
+            args.push(clip_path.to_string_lossy().into_owned());
+
             Command::new("ffmpeg")
-                .args(args)
+                .args(&args)
                 .status()
                 .await
                 .with_context(|| format!("Failed to execute ffmpeg {:?}", args))?;
 
             // Delete the replay buffer clip if we no longer need it
             if config.delete_after_trimming {
-                std::fs::remove_file(&replay_buffer)?
+                tokio::fs::remove_file(&replay_buffer)
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "Failed to delete replay buffer after trimming: {}",
+                            replay_buffer.display()
+                        )
+                    })?;
             }
         }
     }
@@ -179,9 +195,9 @@ async fn watch_stats_folder(
     config: Arc<AppConfig>,
     client: Arc<Client>,
     cache: Arc<Mutex<Cache>>,
-    stat_sender: &Sender<Stat>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let (tx, mut rx) = channel(10);
+    stat_sender: mpsc::Sender<Stat>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let (tx, mut rx) = mpsc::channel(1);
 
     let mut watcher = RecommendedWatcher::new(
         move |res: Result<notify::Event, notify::Error>| {
@@ -245,7 +261,7 @@ async fn watch_stats_folder(
                                 }
                             }
 
-                            stat_sender.send(stat.clone())?;
+                            stat_sender.send(stat.clone()).await?;
 
                             // Calculated wasted time
                             let delay = Arc::new(StatDelay {
@@ -253,17 +269,17 @@ async fn watch_stats_folder(
                                 duration: Duration::from_secs_f32(config.trim_padding_end),
                             });
 
-                            _ = tokio::join!(
-                                // Clip
-                                save_clip(client.clone(), delay.clone()),
-                                // Screenshot
-                                save_screenshot(
-                                    client.clone(),
-                                    config.clone(),
-                                    delay.clone(),
-                                    &stat
-                                )
-                            );
+                            let mut tasks = JoinSet::new();
+
+                            tasks.spawn(save_clip(client.clone(), delay.clone()));
+                            tasks.spawn(save_screenshot(
+                                client.clone(),
+                                config.clone(),
+                                delay.clone(),
+                                stat,
+                            ));
+
+                            tasks.join_all().await;
 
                             break;
                         }
@@ -281,7 +297,7 @@ async fn watch_stats_folder(
 async fn save_clip(
     client: Arc<Client>,
     delay: Arc<StatDelay>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tokio::time::sleep(delay.get_delay_duration()).await;
 
     client.replay_buffer().save().await?;
@@ -292,8 +308,8 @@ async fn save_screenshot(
     client: Arc<Client>,
     config: Arc<AppConfig>,
     delay: Arc<StatDelay>,
-    stat: &Stat,
-) -> Result<(), Box<dyn std::error::Error>> {
+    stat: Stat,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if !config.screenshot.enabled {
         return Ok(());
     }

@@ -1,6 +1,7 @@
 # KovOBS
 
-KovOBS watches KovaaK's stat files and integrates with OBS to automatically capture screenshots and save replay clips when notable events occur.
+KovOBS watches KovaaK's stat files and integrates with OBS to automatically capture screenshots and save replay clips
+when notable events occur.
 
 ## Features
 
@@ -32,17 +33,24 @@ Example:
   "clips_folder": "E:\\OBS\\KovOBS",
   "obs_host": "localhost",
   "obs_port": 4455,
-  "obs_password": "your_password",
+  "obs_password": "YOUR_PASSWORD",
   "obs_replay_folder": "E:\\OBS",
   "obs_source_name": "KovaaK's",
-  "trim_padding_start": 1,
+  "trim_padding_start": 0,
   "trim_padding_end": 5,
+  "delete_after_trimming": true,
   "only_pb": false,
   "cache_version": "1.0.0",
   "cache_file": "cache.json",
   "screenshot": {
     "enabled": true
-  }
+  },
+  "ffmpeg_args": [
+    "-c",
+    "copy",
+    "-avoid_negative_ts",
+    "make_zero"
+  ]
 }
 ```
 
