@@ -67,7 +67,6 @@ impl Stat {
 
         let end_dt = Self::get_end_dt(stat_file);
         let start_dt = Self::compute_start_time(end_dt, challenge_duration);
-        println!("{end_dt}");
 
         Ok(Self {
             scenario,
