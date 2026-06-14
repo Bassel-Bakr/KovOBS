@@ -33,7 +33,12 @@ jobs:
         id: version
         shell: bash
         run: |
-          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          VERSION="${{ inputs.version }}"
+
+          if [ -z "$VERSION" ]; then
+            VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Check whether release already exists
