@@ -21,7 +21,6 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
-use tokio::time;
 
 use crate::cache::Cache;
 use crate::delay::StatDelay;
@@ -32,12 +31,12 @@ async fn main() {
     // Register panic handler
     panic::set_hook(Box::new(|info| {
         eprintln!("💥 App crashed: {}", info);
-        wait_for_enter_key();
+        utils::wait_for_enter_key();
     }));
 
     if let Err(err) = run().await {
         eprintln!("🛑 Error: {}", err);
-        wait_for_enter_key();
+        utils::wait_for_enter_key();
     }
 }
 
@@ -114,7 +113,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         println!("✅ Done");
     }
 
-    wait_for_enter_key();
+    utils::wait_for_enter_key();
 
     Ok(())
 }
@@ -276,61 +275,56 @@ async fn watch_stats_folder(
 
                 println!("🆕 New stat file detected: {:?}", file_name);
 
-                // Retry multiple times just in case the file wasn't fully written to disk
-                for _ in 0..100 {
-                    match Stat::parse(path) {
-                        Ok(stat) => {
-                            let (new_pb, old_high_score, new_score) = {
-                                let mut cache = cache.lock().await;
-                                cache.push(&stat)
-                            };
+                // Wait until it's stable
+                utils::wait_for_file(path).await?;
 
-                            if new_pb {
-                                println!(
-                                    "😃 New high score! Scenario: {}, Old: {}, New: {}",
-                                    stat.scenario, old_high_score, new_score
-                                );
-                            } else {
-                                println!(
-                                    "😔 No new high score. Scenario: {}, Old: {}, New: {}",
-                                    stat.scenario, old_high_score, new_score
-                                );
+                let Ok(stat) = Stat::parse(path) else {
+                    continue;
+                };
 
-                                if config.only_pb {
-                                    break;
-                                }
-                            }
+                let (new_pb, old_high_score, new_score) = {
+                    let mut cache = cache.lock().await;
+                    cache.push(&stat)
+                };
 
-                            stat_sender.send(stat.clone()).await?;
+                if new_pb {
+                    println!(
+                        "😃 New high score! Scenario: {}, Old: {}, New: {}",
+                        stat.scenario, old_high_score, new_score
+                    );
+                } else {
+                    println!(
+                        "😔 No new high score. Scenario: {}, Old: {}, New: {}",
+                        stat.scenario, old_high_score, new_score
+                    );
 
-                            // Calculated wasted time
-                            let delay = Arc::new(StatDelay {
-                                end_dt: stat.end_dt,
-                                duration: Duration::from_secs_f32(config.trim_padding_end),
-                            });
-
-                            let mut tasks = JoinSet::new();
-
-                            tasks.spawn(save_clip(client.clone(), delay.clone()));
-                            tasks.spawn(save_screenshot(
-                                client.clone(),
-                                config.clone(),
-                                delay.clone(),
-                                stat,
-                            ));
-
-                            tasks.join_all().await;
-
-                            break;
-                        }
-                        Err(_) => time::sleep(Duration::from_millis(100)).await,
+                    if config.only_pb {
+                        continue;
                     }
                 }
+
+                stat_sender.send(stat.clone()).await?;
+
+                let delay = Arc::new(StatDelay {
+                    end_dt: stat.end_dt,
+                    duration: Duration::from_secs_f32(config.trim_padding_end),
+                });
+
+                let mut tasks = JoinSet::new();
+
+                tasks.spawn(save_clip(client.clone(), delay.clone()));
+                tasks.spawn(save_screenshot(
+                    client.clone(),
+                    config.clone(),
+                    delay.clone(),
+                    stat,
+                ));
+
+                tasks.join_all().await;
             }
             Some(Err(e)) => return Err(Box::from(e)),
-            None => return Ok(()),
             _ => (),
-        }
+        };
     }
 }
 
@@ -339,7 +333,6 @@ async fn save_clip(
     delay: Arc<StatDelay>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tokio::time::sleep(delay.get_delay_duration()).await;
-
     client.replay_buffer().save().await?;
     Ok(())
 }
@@ -385,10 +378,4 @@ async fn save_screenshot(
         })?;
 
     Ok(())
-}
-
-fn wait_for_enter_key() {
-    println!("👋 Bye! Press Enter key to exit");
-    let mut s = String::new();
-    std::io::stdin().read_line(&mut s).unwrap();
 }
