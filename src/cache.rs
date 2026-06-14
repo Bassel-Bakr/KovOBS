@@ -53,14 +53,15 @@ impl Cache {
         (is_new_high_score, old_high_score, new_score)
     }
 
-    pub fn load(&mut self) {
-        if self.file_path.exists() {
-            let json = fs::read_to_string(&self.file_path).unwrap();
-
-            self.data = serde_json::from_str(&json).unwrap();
+    pub fn load(&mut self) -> Result<(), std::io::Error> {
+        self.data = if self.file_path.exists() {
+            let json = fs::read_to_string(&self.file_path)?;
+            serde_json::from_str(&json)?
         } else {
-            self.data = Self::default_data();
-        }
+            Self::default_data()
+        };
+
+        Ok(())
     }
 
     pub fn update(&mut self, stats_folder: &str) {

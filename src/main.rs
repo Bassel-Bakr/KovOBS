@@ -48,7 +48,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut cache = Cache::new(&config.cache_file);
     let cache_rebuild_duration = {
         let instant = std::time::Instant::now();
-        cache.load();
+        cache.load()?;
         cache.update(&config.stats_folder);
         instant.elapsed()
     };
