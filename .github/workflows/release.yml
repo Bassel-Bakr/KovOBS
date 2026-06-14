@@ -10,16 +10,19 @@ on:
   push:
     branches:
       - main
+    paths:
+      - Cargo.toml
 
 permissions:
   contents: write
 
 jobs:
-  version:
+  prepare:
     runs-on: ubuntu-latest
 
     outputs:
       version: ${{ steps.version.outputs.version }}
+      should_release: ${{ steps.check.outputs.should_release }}
 
     steps:
       - uses: actions/checkout@v4
@@ -30,14 +33,26 @@ jobs:
         id: version
         shell: bash
         run: |
-          VERSION="${{ inputs.version }}"
-          if [ -z "$VERSION" ]; then
-            VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
-          fi
+          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Check whether release already exists
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "Release v$VERSION already exists"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
-    needs: version
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
 
     strategy:
       fail-fast: false
@@ -58,7 +73,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     env:
-      VERSION: ${{ needs.version.outputs.version }}
+      VERSION: ${{ needs.prepare.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -89,8 +104,10 @@ jobs:
 
   release:
     needs:
-      - version
+      - prepare
       - build
+
+    if: needs.prepare.outputs.should_release == 'true'
 
     runs-on: ubuntu-latest
 
@@ -102,14 +119,13 @@ jobs:
       - name: List files
         run: ls -la
 
-      - name: Create Release
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.version.outputs.version }}
-          name: v${{ needs.version.outputs.version }}
+          tag_name: v${{ needs.prepare.outputs.version }}
+          name: v${{ needs.prepare.outputs.version }}
           generate_release_notes: true
-          overwrite_files: true
           files: |
-            KovOBS-linux-v${{ needs.version.outputs.version }}
-            KovOBS-windows-v${{ needs.version.outputs.version }}.exe
-            KovOBS-macos-v${{ needs.version.outputs.version }}
+            KovOBS-linux-v${{ needs.prepare.outputs.version }}
+            KovOBS-windows-v${{ needs.prepare.outputs.version }}.exe
+            KovOBS-macos-v${{ needs.prepare.outputs.version }}
