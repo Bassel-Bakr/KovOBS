@@ -1,4 +1,4 @@
-use crate::utils::Utils;
+use crate::utils;
 use chrono::{DateTime, Duration, Local, Timelike, Utc};
 use num_traits::ToPrimitive;
 use std::fmt::Display;
@@ -76,6 +76,16 @@ impl Stat {
         })
     }
 
+    /// Computes the start timestamp from the replay end time and the
+    /// challenge duration recorded by KovaaK's.
+    ///
+    /// KovaaK's stores the challenge duration as a clock value (`HH:MM:SS`)
+    /// rather than as an elapsed duration. This function therefore replaces
+    /// the hour, minute, and second components of `end_dt` with those from
+    /// `duration`.
+    ///
+    /// If the resulting timestamp falls after `end_dt`, it is assumed that
+    /// the challenge started on the previous day.
     pub fn compute_start_time(end_dt: DateTime<Utc>, duration: Duration) -> DateTime<Utc> {
         let total_seconds = duration.num_seconds();
 
@@ -101,7 +111,7 @@ impl Stat {
             start_dt
         }
     }
-    /// Returns the end time of a Kovaaks stats file in UTC.
+    /// Returns the end time of a KovaaK's stats file in UTC.
     ///
     /// Attempts to extract and parse the timestamp embedded in the file name,
     /// which is expected to have the form:
@@ -122,9 +132,9 @@ impl Stat {
             .to_string_lossy()
             .strip_suffix(consts::STAT_FILE_SUFFIX)
             .and_then(|s| s.get(s.len() - consts::STAT_DATE_TIME_LEN..))
-            .and_then(Utils::parse_local_datetime)
+            .and_then(utils::parse_local_datetime)
             .unwrap_or_else(|| {
-                Utils::get_creation_or_modification_time(stat_file)
+                utils::get_creation_or_modification_time(stat_file)
                     .expect("Failed to get creation or modification time")
             })
     }
