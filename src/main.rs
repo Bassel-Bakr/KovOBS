@@ -11,15 +11,15 @@ use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{events::Event::ReplayBufferSaved, Client};
+use obws::{Client, events::Event::ReplayBufferSaved};
 use std::panic;
 use std::process::Stdio;
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
-use tokio::sync::mpsc;
 use tokio::sync::Mutex;
+use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 use tokio::time;
 
@@ -96,7 +96,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             res.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
         }
         res = tasks.join_next() => {
-           res.unwrap().map_err(|e|Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?
+            res.transpose()?.transpose().map(|_| ())
         }
     };
 
@@ -105,7 +105,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     println!("📦 Saving cache updates...");
-    cache.clone().lock().await.save(Utc::now());
+    cache.clone().lock().await.save(Utc::now())?;
     println!("✅ Done");
 
     if let Some(client) = Arc::get_mut(&mut client) {
