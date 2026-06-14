@@ -49,7 +49,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let cache_rebuild_duration = {
         let instant = std::time::Instant::now();
         cache.load()?;
-        cache.update(&config.stats_folder);
+        cache.update(&config.stats_folder)?;
         instant.elapsed()
     };
     println!("✅ Done in {:.2}s", cache_rebuild_duration.as_secs_f32());

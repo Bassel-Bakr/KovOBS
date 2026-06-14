@@ -64,7 +64,7 @@ impl Cache {
         Ok(())
     }
 
-    pub fn update(&mut self, stats_folder: &str) {
+    pub fn update(&mut self, stats_folder: &str) -> Result<(), std::io::Error> {
         let last_update_timestamp = self.data.last_update;
 
         let last_update_time = DateTime::from_timestamp(last_update_timestamp, 0).unwrap();
@@ -84,26 +84,22 @@ impl Cache {
 
         let stats: Vec<Stat> = stat_files
             .par_iter()
-            .map(|path| Stat::parse(&path).unwrap())
+            .map(|path| Stat::parse(path).unwrap())
             .collect();
 
         for stat in stats {
             self.push(&stat);
         }
 
-        self.save(current_update_time);
+        self.save(current_update_time)?;
+
+        Ok(())
     }
 
-    pub fn save(&mut self, update_time: DateTime<Utc>) {
-        let previous_update = self.data.last_update;
-
+    pub fn save(&mut self, update_time: DateTime<Utc>) -> Result<(), std::io::Error> {
         self.data.last_update = update_time.timestamp();
-
-        let json = serde_json::to_string_pretty(&self.data).unwrap();
-
-        fs::write(&self.file_path, json).unwrap();
-
-        self.data.last_update = previous_update;
+        fs::write(&self.file_path, serde_json::to_string_pretty(&self.data)?)?;
+        Ok(())
     }
 
     fn default_data() -> CacheData {
