@@ -11,21 +11,20 @@ use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{Client, events::Event::ReplayBufferSaved};
+use obws::{events::Event::ReplayBufferSaved, Client};
 use std::panic;
 use std::process::Stdio;
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
-use tokio::sync::Mutex;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tokio::task::JoinSet;
 use tokio::time;
 
 use crate::cache::Cache;
 use crate::delay::StatDelay;
-use crate::utils::Utils;
 use crate::{config::AppConfig, stat::Stat};
 
 #[tokio::main]
@@ -158,7 +157,7 @@ async fn listen_to_obs_events(
             let trim_start_point =
                 stat.start_dt - Duration::from_secs_f32(config.trim_padding_start);
             let duration =
-                Utils::get_creation_or_modification_time(&replay_buffer)? - trim_start_point;
+                utils::get_creation_or_modification_time(&replay_buffer)? - trim_start_point;
 
             let mut args = vec![
                 "-hide_banner".into(),

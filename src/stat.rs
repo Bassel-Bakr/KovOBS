@@ -1,4 +1,4 @@
-use crate::utils::Utils;
+use crate::utils;
 use chrono::{DateTime, Duration, Local, Timelike, Utc};
 use num_traits::ToPrimitive;
 use std::fmt::Display;
@@ -122,9 +122,9 @@ impl Stat {
             .to_string_lossy()
             .strip_suffix(consts::STAT_FILE_SUFFIX)
             .and_then(|s| s.get(s.len() - consts::STAT_DATE_TIME_LEN..))
-            .and_then(Utils::parse_local_datetime)
+            .and_then(utils::parse_local_datetime)
             .unwrap_or_else(|| {
-                Utils::get_creation_or_modification_time(stat_file)
+                utils::get_creation_or_modification_time(stat_file)
                     .expect("Failed to get creation or modification time")
             })
     }

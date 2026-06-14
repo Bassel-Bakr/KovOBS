@@ -1,10 +1,10 @@
-use std::{collections::HashMap, fs, path};
+use std::{collections, fs, path};
 
 use chrono::{DateTime, Utc};
 use rayon::prelude::*;
 
 use crate::stat::Stat;
-use crate::utils::Utils;
+use crate::utils;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CachedDataValue {
@@ -16,7 +16,7 @@ pub struct CachedDataValue {
 pub struct CacheData {
     version: String,
     last_update: i64,
-    scenarios: std::collections::HashMap<String, CachedDataValue>,
+    scenarios: collections::HashMap<String, CachedDataValue>,
 }
 
 pub struct Cache {
@@ -55,7 +55,7 @@ impl Cache {
 
     pub fn load(&mut self) {
         if self.file_path.exists() {
-            let json = std::fs::read_to_string(&self.file_path).unwrap();
+            let json = fs::read_to_string(&self.file_path).unwrap();
 
             self.data = serde_json::from_str(&json).unwrap();
         } else {
@@ -75,7 +75,7 @@ impl Cache {
             .expect("Failed to read stats folder")
             .filter(|res| {
                 res.as_ref().is_ok_and(|p| {
-                    Utils::get_creation_or_modification_time(p).unwrap() > last_update_time
+                    utils::get_creation_or_modification_time(p).unwrap() > last_update_time
                 })
             })
             .collect::<Result<_, _>>()
@@ -109,7 +109,7 @@ impl Cache {
         CacheData {
             version: "1.0.0".into(),
             last_update: 0,
-            scenarios: HashMap::new(),
+            scenarios: collections::HashMap::new(),
         }
     }
 
