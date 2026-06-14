@@ -1,5 +1,6 @@
-use chrono::{DateTime, Duration, Local, NaiveDateTime, TimeZone, Timelike, Utc};
-use regex::Regex;
+use crate::utils::Utils;
+use chrono::{DateTime, Duration, Local, Timelike, Utc};
+use num_traits::ToPrimitive;
 use std::fmt::Display;
 use std::{
     fs::File,
@@ -7,10 +8,7 @@ use std::{
     path,
 };
 
-use crate::utils::Utils;
-use num_traits::ToPrimitive;
-
-const DATE_TIME_FORMAT: &str = "%Y.%m.%d-%H.%M.%S";
+use crate::consts;
 
 #[derive(Debug, Clone)]
 pub struct Stat {
@@ -30,7 +28,9 @@ impl Display for Stat {
             self.score
                 .to_i32()
                 .map_or_else(|| format!("{:.2}", self.score), |int| int.to_string(),),
-            self.end_dt.with_timezone(&Local).format(DATE_TIME_FORMAT)
+            self.end_dt
+                .with_timezone(&Local)
+                .format(consts::STAT_DATE_TIME_FORMAT)
         )
     }
 }
@@ -67,12 +67,13 @@ impl Stat {
 
         let end_dt = Self::get_end_dt(stat_file);
         let start_dt = Self::compute_start_time(end_dt, challenge_duration);
+        println!("{end_dt}");
 
         Ok(Self {
             scenario,
             score,
-            start_dt: start_dt,
-            end_dt: end_dt,
+            start_dt,
+            end_dt,
         })
     }
 
@@ -101,27 +102,32 @@ impl Stat {
             start_dt
         }
     }
-
-    /// Extracts the end time from the filename if it matches the pattern
-    /// "YYYY.MM.DD-HH.MM.SS".
+    /// Returns the end time of a Kovaaks stats file in UTC.
     ///
-    /// If the pattern is not found, or the timestamp cannot be converted to a
-    /// local time, falls back to the file's creation or modification time.
+    /// Attempts to extract and parse the timestamp embedded in the file name,
+    /// which is expected to have the form:
+    ///
+    /// `SCENARIO_NAME - Challenge - YYYY.MM.DD-HH.MM.SS Stats.csv`
+    ///
+    /// The parsed timestamp is interpreted as local time and converted to UTC.
+    ///
+    /// If the file name does not contain a valid timestamp, falls back to the
+    /// file's creation time or, if unavailable, its last modification time.
+    ///
+    /// # Panics
+    ///
+    /// Panics if neither a valid timestamp can be parsed from the file name nor
+    /// a creation or modification time can be obtained for the file.
     pub fn get_end_dt(stat_file: &path::Path) -> DateTime<Utc> {
-        let file_name = stat_file.file_name().and_then(|s| s.to_str()).unwrap_or("");
-
-        let re = Regex::new(r"\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}").unwrap();
-
-        if let Some(m) = re.find(file_name) {
-            if let Ok(naive) = NaiveDateTime::parse_from_str(m.as_str(), DATE_TIME_FORMAT) {
-                if let Some(dt) = Local.from_local_datetime(&naive).earliest() {
-                    return dt.to_utc();
-                }
-            }
-        }
-
-        Utils::get_creation_or_modification_time(stat_file)
-            .expect("Failed to get creation or modification time")
+        stat_file
+            .to_string_lossy()
+            .strip_suffix(consts::STAT_FILE_SUFFIX)
+            .and_then(|s| s.get(s.len() - consts::STAT_DATE_TIME_LEN..))
+            .and_then(Utils::parse_local_datetime)
+            .unwrap_or_else(|| {
+                Utils::get_creation_or_modification_time(stat_file)
+                    .expect("Failed to get creation or modification time")
+            })
     }
 
     /// Parses the challenge start time from the stats file and calculates the corresponding Duration.

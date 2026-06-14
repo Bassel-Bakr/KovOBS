@@ -1,5 +1,6 @@
 mod cache;
 mod config;
+mod consts;
 mod delay;
 mod stat;
 mod utils;
@@ -27,9 +28,6 @@ use crate::delay::StatDelay;
 use crate::utils::Utils;
 use crate::{config::AppConfig, stat::Stat};
 
-const CONFIG_FILE: &str = "config.json";
-const STAT_FILE_SUFFIX: &str = "Stats.csv";
-
 #[tokio::main]
 async fn main() {
     // Register panic handler
@@ -45,13 +43,17 @@ async fn main() {
 }
 
 async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let config = AppConfig::load(CONFIG_FILE)?;
+    let config = AppConfig::load(consts::CONFIG_FILE)?;
 
     println!("📦 Re-building cache from stat files...");
-    let mut cache = cache::Cache::new(&config.cache_file);
-    cache.load();
-    cache.update(&config.stats_folder);
-    println!("✅ Done");
+    let mut cache = Cache::new(&config.cache_file);
+    let cache_rebuild_duration = {
+        let instant = std::time::Instant::now();
+        cache.load();
+        cache.update(&config.stats_folder);
+        instant.elapsed()
+    };
+    println!("✅ Done in {:.2}s", cache_rebuild_duration.as_secs_f32());
 
     println!("⏺️ Connecting to OBS...");
     let client = Client::connect(
@@ -267,7 +269,7 @@ async fn watch_stats_folder(
 
                 let is_stat_file = file_name
                     .as_encoded_bytes()
-                    .ends_with(STAT_FILE_SUFFIX.as_bytes());
+                    .ends_with(consts::STAT_FILE_SUFFIX.as_bytes());
 
                 if !is_stat_file {
                     continue;
