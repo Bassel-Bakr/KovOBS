@@ -1,18 +1,78 @@
-<h2>Cache</h2>
-<button (click)="clearCache()">Clear</button>
-
-<h2>Config</h2>
-<button (click)="refreshConfig()">Refresh</button>
-
 @let form = configForm;
-<form>
-    <div>
-        <input type="text" [value]="form.stats_folder().value()" readonly>
-        <button type="button" (click)="browseStats()">Browse</button>
-    </div>
-    <input type="text" [formField]="form.obs_host">
+<form class="form">
+
+    <mat-card appearance="outlined">
+        <mat-card-header>
+            <mat-card-title>Required Folders/Files</mat-card-title>
+        </mat-card-header>
+        <mat-form-field>
+            <mat-label>Stats Folder</mat-label>
+            <input matInput [value]="form.stats_folder().value()" readonly>
+            <button matIconButton matSuffix type="button" (click)="browse(form.stats_folder)">
+                <mat-icon>folder_open</mat-icon>
+            </button>
+        </mat-form-field>
+
+        <mat-form-field>
+            <mat-label>Clips Folder</mat-label>
+            <input matInput [value]="form.clips_folder().value()" readonly>
+            <button matIconButton matSuffix type="button" (click)="browse(form.stats_folder)">
+                <mat-icon>folder_open</mat-icon>
+            </button>
+        </mat-form-field>
+
+        <mat-form-field>
+            <mat-label>Cache File</mat-label>
+            <input matInput [formField]="form.cache_file">
+        </mat-form-field>
+    </mat-card>
+
+    <mat-card appearance="outlined">
+        <mat-card-header>
+            <mat-card-title>OBS</mat-card-title>
+        </mat-card-header>
+
+        <mat-form-field>
+            <mat-label>OBS Host</mat-label>
+            <input matInput [formField]="form.obs_host">
+        </mat-form-field>
+
+        <mat-form-field>
+            <mat-label>OBS Password</mat-label>
+            <input matInput [formField]="form.obs_password">
+        </mat-form-field>
+
+        <mat-form-field>
+            <mat-label>OBS Port</mat-label>
+            <input matInput type="number" [formField]="form.obs_port">
+        </mat-form-field>
+
+        <mat-form-field>
+            <mat-label>OBS Source</mat-label>
+            <input matInput [formField]="form.obs_source_name">
+        </mat-form-field>
+
+        <mat-form-field>
+            <mat-label>OBS Replay Folder</mat-label>
+            <input matInput [value]="form.obs_replay_folder().value()" readonly>
+            <button matIconButton matSuffix type="button" (click)="browse(form.stats_folder)">
+                <mat-icon>folder_open</mat-icon>
+            </button>
+        </mat-form-field>
+    </mat-card>
+
+    <mat-card appearance="outlined">
+        <mat-card-header>
+            <mat-card-title>Trimming</mat-card-title>
+        </mat-card-header>
+        <mat-form-field>
+            <mat-label>Start Padding (seconds)</mat-label>
+            <input matInput type="number" [formField]="form.trim_padding_start">
+        </mat-form-field>
+
+        <mat-form-field>
+            <mat-label>End Padding (seconds)</mat-label>
+            <input matInput type="number" [formField]="form.trim_padding_end">
+        </mat-form-field>
+    </mat-card>
 </form>
-
-<code class="code">{{ config.value() | json }}</code>
-
-<h2>Output</h2>

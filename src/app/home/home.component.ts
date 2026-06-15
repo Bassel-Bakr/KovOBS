@@ -2,13 +2,27 @@ import { Component, inject, signal } from '@angular/core';
 import { ConfigService } from '../services/config.service';
 import { CacheService } from '../services/cache.service';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { JsonPipe } from '@angular/common';
-import { form, FormField } from '@angular/forms/signals';
+import { FieldTree, form, FormField } from '@angular/forms/signals';
 import { open } from '@tauri-apps/plugin-dialog';
+import { MatFormField, MatInput, MatLabel, MatSuffix } from '@angular/material/input';
+import { MatIconButton } from '@angular/material/button';
+import { MatIcon } from '@angular/material/icon';
+import { MatCard, MatCardHeader, MatCardTitle } from '@angular/material/card';
 
 @Component({
   selector: 'app-home',
-  imports: [JsonPipe, FormField],
+  imports: [
+    FormField,
+    MatFormField,
+    MatInput,
+    MatSuffix,
+    MatLabel,
+    MatIconButton,
+    MatIcon,
+    MatCardTitle,
+    MatCardHeader,
+    MatCard,
+  ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
 })
@@ -26,18 +40,14 @@ export default class HomeComponent {
 
   protected readonly configForm = form(this.config.value);
 
-  protected browseStats(): void {
+  protected browse(field: FieldTree<string, string>): void {
     open({
       directory: true,
       multiple: false,
-    }).then((path) => this.configForm.stats_folder().value.set(path ?? ''));
+    }).then((path) => field().value.set(path ?? ''));
   }
 
   protected clearCache(): void {
     this.cacheService.clearCache().subscribe();
-  }
-
-  protected refreshConfig(): void {
-    this.refresh.set(new Date().toISOString());
   }
 }
