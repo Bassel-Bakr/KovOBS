@@ -18,9 +18,12 @@
   -webkit-text-size-adjust: 100%;
 }
 
-.uiui {
+.container {
   display: flex;
   flex-direction: column;
-
   align-items: flex-start;
+}
+
+.code {
+  white-space: pre;
 }

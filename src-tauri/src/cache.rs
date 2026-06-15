@@ -102,6 +102,11 @@ impl Cache {
         Ok(())
     }
 
+    pub fn clear(&mut self) {
+        self.data.last_update = Utc::now().timestamp();
+        self.data = Self::default_data();
+    }
+
     fn default_data() -> CacheData {
         CacheData {
             version: "1.0.0".into(),

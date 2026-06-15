@@ -1,27 +1,26 @@
-use crate::log::APP_HANDLE;
+use crate::consts::APP_HANDLE;
 use std::path::PathBuf;
 
 mod cache;
+mod cmds;
 mod config;
 mod consts;
 mod delay;
+mod events;
 mod ffmpeg;
 mod kovobs;
-mod log;
+mod macros;
 mod stat;
 mod utils;
-
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Events!", name)
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![
+            cmds::get_config,
+            cmds::clear_cache
+        ])
         .setup(|app| {
             APP_HANDLE.set(app.handle().clone()).unwrap();
 
@@ -31,7 +30,7 @@ pub fn run() {
                 )?;
             }
 
-            tauri::async_runtime::spawn(async {
+            _ = tauri::async_runtime::spawn(async {
                 if let Err(e) = kovobs::start().await {
                     eprintln!("{e:?}");
                 }

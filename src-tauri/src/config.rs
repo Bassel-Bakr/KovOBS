@@ -32,3 +32,25 @@ impl AppConfig {
         Ok(settings.try_deserialize::<AppConfig>()?)
     }
 }
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            obs_host: "".into(),
+            obs_port: 0,
+            obs_password: "".into(),
+            obs_replay_folder: "".into(),
+            obs_source_name: "".into(),
+            clips_folder: "".into(),
+            stats_folder: "".into(),
+            trim_padding_start: 0.0,
+            trim_padding_end: 5.0,
+            delete_after_trimming: false,
+            only_pb: false,
+            cache_version: "".into(),
+            cache_file: "".into(),
+            screenshot: ScreenshotConfig { enabled: true },
+            ffmpeg_args: Box::new([]),
+        }
+    }
+}

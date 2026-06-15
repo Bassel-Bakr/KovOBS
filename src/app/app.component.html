@@ -1,13 +1,21 @@
 <main class="container">
-  <h1>KovOBS</h1>
+    <h2>Cache</h2>
+    <button (click)="clearCache()">Clear</button>
 
-  <div class="uiui">
-    @for (x of info(); track x) {
-      <div>
-        {{ x }}
-      </div>
-    }
-  </div>
+    <h2>Config</h2>
+    <button (click)="refreshConfig()">Refresh</button>
 
-  <router-outlet />
+    <code class="code">{{ config.value() | json }}</code>
+
+    <h2>Output</h2>
+
+    <div class="uiui">
+        @for (x of info(); track x) {
+            <div>
+                {{ x }}
+            </div>
+        }
+    </div>
+
+    <router-outlet/>
 </main>

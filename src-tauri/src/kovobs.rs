@@ -1,20 +1,20 @@
-use crate::ui_println;
 use anyhow::Context;
 use chrono::Utc;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{events::Event::ReplayBufferSaved, Client};
+use obws::{Client, events::Event::ReplayBufferSaved};
 use std::{panic, path};
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
-use tokio::sync::mpsc;
 use tokio::sync::Mutex;
+use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 
 use crate::cache::Cache;
+use crate::consts::{APP_CACHE, APP_CONFIG};
 use crate::delay::StatDelay;
-use crate::{config::AppConfig, consts, ffmpeg, stat::Stat, utils};
+use crate::{config::AppConfig, consts, ffmpeg, stat::Stat, ui_println, utils};
 
 pub async fn start() -> Result<(), anyhow::Error> {
     // Register panic handler
@@ -65,6 +65,14 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = Arc::new(config);
     let cache = Arc::new(Mutex::new(cache));
     let mut client = Arc::new(client);
+
+    APP_CONFIG
+        .set(config.clone())
+        .map_err(|_| anyhow::anyhow!("Failed to create a global ref to app config"))?;
+
+    APP_CACHE
+        .set(cache.clone())
+        .map_err(|_| anyhow::anyhow!("Failed to create the global ref to app cache"))?;
 
     // Last seen stat
     let (tx, rx) = mpsc::channel::<Stat>(1);
@@ -224,12 +232,16 @@ async fn watch_stats_folder(
                 if new_pb {
                     ui_println!(
                         "😃 New high score! Scenario: {}, Old: {}, New: {}",
-                        stat.scenario, old_high_score, new_score
+                        stat.scenario,
+                        old_high_score,
+                        new_score
                     );
                 } else {
                     ui_println!(
                         "😔 No new high score. Scenario: {}, Old: {}, New: {}",
-                        stat.scenario, old_high_score, new_score
+                        stat.scenario,
+                        old_high_score,
+                        new_score
                     );
 
                     if config.only_pb {
