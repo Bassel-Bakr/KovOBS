@@ -8,6 +8,8 @@ import { MatFormField, MatInput, MatLabel, MatSuffix } from '@angular/material/i
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatCard, MatCardHeader, MatCardTitle } from '@angular/material/card';
+import { MatOption, MatSelect } from '@angular/material/select';
+import { ObsService } from '../services/obs.service';
 
 @Component({
   selector: 'app-home',
@@ -22,6 +24,8 @@ import { MatCard, MatCardHeader, MatCardTitle } from '@angular/material/card';
     MatCardTitle,
     MatCardHeader,
     MatCard,
+    MatSelect,
+    MatOption,
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
@@ -29,8 +33,14 @@ import { MatCard, MatCardHeader, MatCardTitle } from '@angular/material/card';
 export default class HomeComponent {
   private readonly configService = inject(ConfigService);
   private readonly cacheService = inject(CacheService);
+  private readonly obsService = inject(ObsService);
 
   private readonly refresh = signal('');
+
+  protected readonly sources = rxResource({
+    stream: () => this.obsService.getSources(),
+    defaultValue: [],
+  });
 
   protected readonly config = rxResource({
     params: () => ({ refresh: this.refresh() }),

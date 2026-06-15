@@ -35,5 +35,6 @@ indicatif = "0.18.4"
 config = { version = "0.15.23", features = ["json"] }
 tauri-plugin-dialog = "2.7.1"
 tokio-util = { version = "0.7.18", features = ["rt"] }
+futures = "0.3.32"
 
 

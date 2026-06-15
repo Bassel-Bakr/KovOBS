@@ -24,7 +24,8 @@ pub fn run() {
             cmds::start_app,
             cmds::stop_app,
             cmds::get_config,
-            cmds::clear_cache
+            cmds::clear_cache,
+            cmds::get_obs_sources,
         ])
         .setup(|app| {
             APP_HANDLE.set(app.handle().clone()).unwrap();

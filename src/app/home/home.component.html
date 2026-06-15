@@ -49,7 +49,11 @@
 
         <mat-form-field>
             <mat-label>OBS Source</mat-label>
-            <input matInput [formField]="form.obs_source_name">
+            <mat-select [formField]="form.obs_source_name">
+                @for (source of sources.value(); track source) {
+                    <mat-option [value]="source">{{ source }}</mat-option>
+                }
+            </mat-select>
         </mat-form-field>
 
         <mat-form-field>

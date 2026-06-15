@@ -1,19 +1,19 @@
 use crate::cache::Cache;
 use crate::delay::StatDelay;
-use crate::globals::APP_IS_READY;
 use crate::globals::{APP_CACHE, APP_CONFIG};
+use crate::globals::{APP_IS_READY, APP_OBS};
 use crate::{config::AppConfig, consts, ffmpeg, stat::Stat, ui_println, utils};
 use anyhow::Context;
 use chrono::Utc;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{Client, events::Event::ReplayBufferSaved};
+use obws::{events::Event::ReplayBufferSaved, Client};
 use std::{panic, path};
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
-use tokio::sync::Mutex;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tokio::task::JoinSet;
 
 pub async fn start() -> Result<(), anyhow::Error> {
@@ -73,6 +73,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     APP_CACHE
         .set(cache.clone())
         .map_err(|_| anyhow::anyhow!("Failed to create the global ref to app cache"))?;
+
+    APP_OBS
+        .set(client.clone())
+        .map_err(|_| anyhow::anyhow!("Failed to create the global ref to app client"))?;
 
     // We're ready to display the UI now
     APP_IS_READY.lock().await.clone_from(&true);
