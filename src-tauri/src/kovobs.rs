@@ -1,30 +1,22 @@
-mod cache;
-mod config;
-mod consts;
-mod delay;
-mod ffmpeg;
-mod stat;
-mod utils;
-
+use crate::ui_println;
 use anyhow::Context;
 use chrono::Utc;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{Client, events::Event::ReplayBufferSaved};
+use obws::{events::Event::ReplayBufferSaved, Client};
 use std::{panic, path};
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
-use tokio::sync::Mutex;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tokio::task::JoinSet;
 
 use crate::cache::Cache;
 use crate::delay::StatDelay;
-use crate::{config::AppConfig, stat::Stat};
+use crate::{config::AppConfig, consts, ffmpeg, stat::Stat, utils};
 
-#[tokio::main]
-async fn main() {
+pub async fn start() -> Result<(), anyhow::Error> {
     // Register panic handler
     panic::set_hook(Box::new(|info| {
         eprintln!("💥 App crashed: {}", info);
@@ -35,12 +27,14 @@ async fn main() {
         eprintln!("🛑 Error: {}", err);
         utils::wait_for_enter_key();
     }
+
+    Ok(())
 }
 
 async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = AppConfig::load(consts::CONFIG_FILE)?;
 
-    println!("📦 Re-building cache from stat files...");
+    ui_println!("📦 Re-building cache from stat files...");
     let mut cache = Cache::new(&config.cache_file);
     let cache_rebuild_duration = {
         let instant = std::time::Instant::now();
@@ -48,25 +42,25 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         cache.update(&config.stats_folder)?;
         instant.elapsed()
     };
-    println!("✅ Done in {:.2}s", cache_rebuild_duration.as_secs_f32());
+    ui_println!("✅ Done in {:.2}s", cache_rebuild_duration.as_secs_f32());
 
-    println!("⏺️ Connecting to OBS...");
+    ui_println!("⏺️ Connecting to OBS...");
     let client = Client::connect(
         &config.obs_host,
         config.obs_port,
         Some(&config.obs_password),
     )
     .await?;
-    println!("✅ Done");
+    ui_println!("✅ Done");
 
-    println!("🔃 Making sure replay buffer is enabled...");
+    ui_println!("🔃 Making sure replay buffer is enabled...");
     if let Ok(true) = client.replay_buffer().status().await {
-        println!("😃 Already active!");
+        ui_println!("😃 Already active!");
     } else {
-        println!("🫡 Activating...");
+        ui_println!("🫡 Activating...");
         client.replay_buffer().start().await?;
     }
-    println!("✅ Done");
+    ui_println!("✅ Done");
 
     let config = Arc::new(config);
     let cache = Arc::new(Mutex::new(cache));
@@ -87,7 +81,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let res: Result<(), Box<dyn std::error::Error + Send + Sync>> = tokio::select! {
         res = tokio::signal::ctrl_c() => {
-            println!("🔎 Ctrl+C received. Shutting down!");
+            ui_println!("🔎 Ctrl+C received. Shutting down!");
             tasks.shutdown().await;
             res.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
         }
@@ -100,14 +94,14 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         eprintln!("❌ Error: {}", e);
     }
 
-    println!("📦 Saving cache updates...");
+    ui_println!("📦 Saving cache updates...");
     cache.clone().lock().await.save(Utc::now())?;
-    println!("✅ Done");
+    ui_println!("✅ Done");
 
     if let Some(client) = Arc::get_mut(&mut client) {
-        println!("🚫 Disconnecting from OBS...");
+        ui_println!("🚫 Disconnecting from OBS...");
         client.disconnect().await;
-        println!("✅ Done");
+        ui_println!("✅ Done");
     }
 
     utils::wait_for_enter_key();
@@ -123,7 +117,7 @@ async fn listen_to_obs_events(
     // 1. Obtain the event stream
     let mut events = client.events()?;
 
-    println!("🔔 Listening to OBS events");
+    ui_println!("🔔 Listening to OBS events");
 
     // 2. Listen to events as they occur
     while let Some(event) = events.next().await {
@@ -134,7 +128,7 @@ async fn listen_to_obs_events(
             let stat = match stat_receiver.try_recv() {
                 Ok(stat) => stat,
                 Err(_) => {
-                    println!("ℹ️ Ignoring external ReplayBufferSaved event");
+                    ui_println!("ℹ️ Ignoring external ReplayBufferSaved event");
                     continue;
                 }
             };
@@ -190,7 +184,7 @@ async fn watch_stats_folder(
         )
         .with_context(|| "Failed to watch stats folder")?;
 
-    println!("📁 Watching stats folder");
+    ui_println!("📁 Watching stats folder");
 
     loop {
         match rx.recv().await {
@@ -213,7 +207,7 @@ async fn watch_stats_folder(
                     continue;
                 }
 
-                println!("🆕 New stat file detected: {:?}", file_name);
+                ui_println!("🆕 New stat file detected: {:?}", file_name);
 
                 // Wait until it's stable
                 utils::wait_for_file(path).await?;
@@ -228,12 +222,12 @@ async fn watch_stats_folder(
                 };
 
                 if new_pb {
-                    println!(
+                    ui_println!(
                         "😃 New high score! Scenario: {}, Old: {}, New: {}",
                         stat.scenario, old_high_score, new_score
                     );
                 } else {
-                    println!(
+                    ui_println!(
                         "😔 No new high score. Scenario: {}, Old: {}, New: {}",
                         stat.scenario, old_high_score, new_score
                     );

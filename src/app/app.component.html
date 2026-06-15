@@ -1,0 +1,13 @@
+<main class="container">
+  <h1>KovOBS</h1>
+
+  <div class="uiui">
+    @for (x of info(); track x) {
+      <div>
+        {{ x }}
+      </div>
+    }
+  </div>
+
+  <router-outlet />
+</main>
