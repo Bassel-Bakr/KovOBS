@@ -4,6 +4,7 @@ use obws::Client;
 use std::sync::{Arc, LazyLock, OnceLock};
 use tauri::AppHandle;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 
 pub static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
@@ -18,6 +19,8 @@ pub struct AppState {
     pub cache: Option<Arc<Mutex<Cache>>>,
     pub config: Option<Arc<AppConfig>>,
     pub client: Option<Arc<Client>>,
+    pub cancellation_token: Option<Arc<CancellationToken>>,
+    pub task_tracker: TaskTracker,
 }
 
 impl AppState {
@@ -28,6 +31,8 @@ impl AppState {
             cache: None,
             config: None,
             client: None,
+            cancellation_token: None,
+            task_tracker: TaskTracker::new(),
         }
     }
 

@@ -5,6 +5,7 @@ use crate::globals::APP_STATE;
 use crate::globals::APP_TASK_TRACKER;
 use crate::kovobs;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 #[tauri::command]
 pub async fn is_ready() -> bool {
@@ -13,7 +14,9 @@ pub async fn is_ready() -> bool {
 }
 
 #[tauri::command]
-pub fn start_app() {
+pub async fn start_app() {
+    let state = &mut APP_STATE.lock().await;
+
     let task_tracker = &APP_TASK_TRACKER;
 
     // If it's still running, do nothing
@@ -26,8 +29,16 @@ pub fn start_app() {
         task_tracker.reopen();
     }
 
-    let startup_task = async {
-        if let Err(e) = kovobs::start().await {
+    let cancellation_token = Arc::new(CancellationToken::new());
+    state.cancellation_token.replace(cancellation_token.clone());
+
+    let startup_task = async move {
+        let res = tokio::select! {
+            res = cancellation_token.cancelled() => Ok(res),
+            res = kovobs::start() => res,
+        };
+
+        if let Err(e) = res {
             eprintln!("{e:?}");
         }
     };
@@ -44,11 +55,15 @@ pub async fn stop_app() -> Result<(), String> {
         return Err(String::from("App state is not ready"));
     }
 
-    state.clear();
-
     let task_tracker = &APP_TASK_TRACKER;
 
+    if let Some(cancellation_token) = state.cancellation_token.take() {
+        cancellation_token.cancel();
+    }
+
+    state.clear();
     task_tracker.close();
+
     task_tracker.wait().await;
 
     Ok(())

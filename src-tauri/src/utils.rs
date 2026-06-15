@@ -18,12 +18,6 @@ pub fn parse_local_datetime(date_time_str: &str) -> Option<DateTime<Utc>> {
         .map(|d| d.to_utc())
 }
 
-pub fn wait_for_enter_key() {
-    println!("👋 Bye! Press Enter key to exit");
-    let mut s = String::new();
-    std::io::stdin().read_line(&mut s).unwrap();
-}
-
 /// Waits until the file is stable (fully written to disk)
 pub async fn wait_for_file(path: &path::Path) -> Result<(), std::io::Error> {
     let mut prev_len = 0;

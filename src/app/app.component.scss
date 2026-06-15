@@ -43,5 +43,11 @@
 }
 
 app-logs {
-  flex: 1;
+  height: 10ex;
+}
+
+mat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
