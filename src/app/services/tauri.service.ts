@@ -16,7 +16,7 @@ export class TauriService {
     return this.stop().pipe(switchMap(() => this.start()));
   }
 
-  call<R>(cmd: string, args?: InvokeArgs): Observable<R> {
+  callWhenReady<R>(cmd: string, args?: InvokeArgs): Observable<R> {
     return this.waitUntilReady().pipe(switchMap(() => invoke<R>(cmd, args)));
   }
 
@@ -25,6 +25,10 @@ export class TauriService {
   }
 
   private isReady(): Observable<boolean> {
-    return from(invoke<boolean>('is_ready'));
+    return this.call('is_ready');
+  }
+
+  private call<R>(cmd: string, args?: InvokeArgs): Observable<R> {
+    return from(invoke<R>(cmd, args));
   }
 }

@@ -1,14 +1,15 @@
 // Learn more about Tauri cmds at https://tauri.app/develop/calling-rust/
 
 use crate::config::AppConfig;
-use crate::globals::{APP_CACHE, APP_CONFIG};
-use crate::globals::{APP_IS_READY, APP_TASK_TRACKER};
+use crate::globals::APP_STATE;
+use crate::globals::APP_TASK_TRACKER;
 use crate::kovobs;
 use std::sync::Arc;
 
 #[tauri::command]
 pub async fn is_ready() -> bool {
-    *APP_IS_READY.lock().await
+    let state = &APP_STATE.lock().await;
+    state.is_ready
 }
 
 #[tauri::command]
@@ -36,24 +37,44 @@ pub fn start_app() {
 }
 
 #[tauri::command]
-pub async fn stop_app() {
-    APP_IS_READY.lock().await.clone_from(&false);
+pub async fn stop_app() -> Result<(), String> {
+    let state = &mut APP_STATE.lock().await;
+
+    if !state.is_ready {
+        return Err(String::from("App state is not ready"));
+    }
+
+    state.clear();
 
     let task_tracker = &APP_TASK_TRACKER;
 
     task_tracker.close();
     task_tracker.wait().await;
+
+    Ok(())
 }
 
 #[tauri::command]
-pub fn get_config() -> Arc<AppConfig> {
-    APP_CONFIG.get().cloned().unwrap_or_default()
+pub async fn get_config() -> Result<Arc<AppConfig>, String> {
+    let state = &APP_STATE.lock().await;
+
+    if !state.is_ready {
+        return Err(String::from("App state is not ready"));
+    }
+
+    Ok(state.config.as_ref().cloned().unwrap_or_default())
 }
 
 #[tauri::command]
 pub async fn clear_cache() -> Result<(), String> {
-    let config = APP_CONFIG.get().unwrap();
-    let cache = APP_CACHE.get().unwrap();
+    let state = &APP_STATE.lock().await;
+
+    if !state.is_ready {
+        return Err(String::from("App state is not ready"));
+    }
+
+    let config = state.config.as_ref().unwrap();
+    let cache = state.cache.as_ref().unwrap();
     cache.lock().await.clear();
     tokio::fs::remove_file(&config.cache_file)
         .await

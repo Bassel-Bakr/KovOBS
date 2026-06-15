@@ -7,6 +7,6 @@ export class CacheService {
   private readonly tauriService = inject(TauriService);
 
   clearCache(): Observable<void> {
-    return this.tauriService.call<void>('clear_cache');
+    return this.tauriService.callWhenReady<void>('clear_cache');
   }
 }

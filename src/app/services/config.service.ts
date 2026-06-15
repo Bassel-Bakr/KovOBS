@@ -8,7 +8,7 @@ export class ConfigService {
   private readonly tauriService = inject(TauriService);
 
   getConfig(): Observable<Config> {
-    return this.tauriService.call<Config>('get_config');
+    return this.tauriService.callWhenReady<Config>('get_config');
   }
 
   getEmptyConfig(): Config {

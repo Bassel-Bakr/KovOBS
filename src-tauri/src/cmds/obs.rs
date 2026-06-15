@@ -1,11 +1,17 @@
 // Learn more about Tauri cmds at https://tauri.app/develop/calling-rust/
 
-use crate::globals::APP_OBS;
+use crate::globals::APP_STATE;
 use std::collections::BTreeSet;
 
 #[tauri::command]
 pub async fn get_obs_sources() -> Result<Vec<String>, String> {
-    let client = APP_OBS.get().unwrap();
+    let state = &APP_STATE.lock().await;
+
+    if !state.is_ready {
+        return Err(String::from("App state is not ready"));
+    }
+
+    let client = state.client.as_ref().unwrap();
 
     let sources: BTreeSet<String> = client
         .inputs()
