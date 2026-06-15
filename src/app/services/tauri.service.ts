@@ -1,15 +1,30 @@
 import { Service } from '@angular/core';
 import { invoke, InvokeArgs } from '@tauri-apps/api/core';
-import { Observable, ReplaySubject, switchMap, take } from 'rxjs';
+import { EMPTY, expand, from, Observable, switchMap } from 'rxjs';
 
 @Service()
 export class TauriService {
-  readonly isReady = new ReplaySubject<boolean>(1);
+  start(): Observable<void> {
+    return this.call('start_app');
+  }
+
+  stop(): Observable<void> {
+    return this.call('stop_app');
+  }
+
+  restart(): Observable<void> {
+    return this.stop().pipe(switchMap(() => this.start()));
+  }
 
   call<R>(cmd: string, args?: InvokeArgs): Observable<R> {
-    return this.isReady.pipe(
-      take(1),
-      switchMap(() => invoke<R>(cmd, args))
-    );
+    return this.waitUntilReady().pipe(switchMap(() => invoke<R>(cmd, args)));
+  }
+
+  private waitUntilReady(): Observable<boolean> {
+    return this.isReady().pipe(expand((isReady) => (isReady ? EMPTY : this.isReady())));
+  }
+
+  private isReady(): Observable<boolean> {
+    return from(invoke<boolean>('is_ready'));
   }
 }

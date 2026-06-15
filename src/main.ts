@@ -11,14 +11,11 @@ let injector: EnvironmentInjector | undefined;
 bootstrapApplication(AppComponent, appConfig)
   .then((app) => {
     injector = app.injector;
+    const tauriService = injector.get(TauriService);
+    tauriService?.start().subscribe();
   })
   .catch((err) => console.error(err));
 
 void listen<string>('message', (event) => {
   injector?.get(EventsService)?.subject.next(event.payload);
-});
-
-// Wait for ready status
-void listen<string>('ready', (event) => {
-  injector?.get(TauriService).isReady.next(true);
 });

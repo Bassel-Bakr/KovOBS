@@ -1,4 +1,4 @@
-use crate::consts::APP_HANDLE;
+use crate::globals::APP_HANDLE;
 use std::path::PathBuf;
 
 mod cache;
@@ -8,6 +8,7 @@ mod consts;
 mod delay;
 mod events;
 mod ffmpeg;
+mod globals;
 mod kovobs;
 mod macros;
 mod stat;
@@ -19,23 +20,21 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            cmds::is_ready,
+            cmds::start_app,
+            cmds::stop_app,
             cmds::get_config,
             cmds::clear_cache
         ])
         .setup(|app| {
             APP_HANDLE.set(app.handle().clone()).unwrap();
 
+            // Make debug config reference the root folder instead of Tauri's
             if cfg!(debug_assertions) {
                 std::env::set_current_dir(
                     PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap(),
                 )?;
             }
-
-            _ = tauri::async_runtime::spawn(async {
-                if let Err(e) = kovobs::start().await {
-                    eprintln!("{e:?}");
-                }
-            });
 
             Ok(())
         })

@@ -9,13 +9,14 @@
 }
 
 .form {
-  --gap: 1ch;
+  --gap: 1rem;
   display: grid;
   gap: var(--gap);
   padding: var(--gap);
 
+  grid-template-columns: 1fr 1fr;
+
   mat-card {
-    display: grid;
     gap: var(--gap);
     padding: var(--gap);
   }

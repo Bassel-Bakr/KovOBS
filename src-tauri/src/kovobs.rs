@@ -1,3 +1,8 @@
+use crate::cache::Cache;
+use crate::delay::StatDelay;
+use crate::globals::APP_IS_READY;
+use crate::globals::{APP_CACHE, APP_CONFIG};
+use crate::{config::AppConfig, consts, ffmpeg, stat::Stat, ui_println, utils};
 use anyhow::Context;
 use chrono::Utc;
 use futures_util::StreamExt;
@@ -10,11 +15,6 @@ use tokio::fs;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
-
-use crate::cache::Cache;
-use crate::consts::{APP_CACHE, APP_CONFIG};
-use crate::delay::StatDelay;
-use crate::{config::AppConfig, consts, ffmpeg, stat::Stat, ui_println, utils};
 
 pub async fn start() -> Result<(), anyhow::Error> {
     // Register panic handler
@@ -73,9 +73,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     APP_CACHE
         .set(cache.clone())
         .map_err(|_| anyhow::anyhow!("Failed to create the global ref to app cache"))?;
-    
+
     // We're ready to display the UI now
-    crate::events::ready()?;
+    APP_IS_READY.lock().await.clone_from(&true);
 
     // Last seen stat
     let (tx, rx) = mpsc::channel::<Stat>(1);
