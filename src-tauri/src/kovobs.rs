@@ -73,6 +73,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     APP_CACHE
         .set(cache.clone())
         .map_err(|_| anyhow::anyhow!("Failed to create the global ref to app cache"))?;
+    
+    // We're ready to display the UI now
+    crate::events::ready()?;
 
     // Last seen stat
     let (tx, rx) = mpsc::channel::<Stat>(1);
