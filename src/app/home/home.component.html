@@ -1,0 +1,18 @@
+<h2>Cache</h2>
+<button (click)="clearCache()">Clear</button>
+
+<h2>Config</h2>
+<button (click)="refreshConfig()">Refresh</button>
+
+@let form = configForm;
+<form>
+    <div>
+        <input type="text" [value]="form.stats_folder().value()" readonly>
+        <button type="button" (click)="browseStats()">Browse</button>
+    </div>
+    <input type="text" [formField]="form.obs_host">
+</form>
+
+<code class="code">{{ config.value() | json }}</code>
+
+<h2>Output</h2>

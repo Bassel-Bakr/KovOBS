@@ -1,0 +1,7 @@
+<div #logsContainer class="logs">
+    @for (logMessage of logs(); track $index) {
+        <div class="log__message">
+            {{ logMessage }}
+        </div>
+    }
+</div>

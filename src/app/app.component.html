@@ -1,21 +1,7 @@
 <main class="container">
-    <h2>Cache</h2>
-    <button (click)="clearCache()">Clear</button>
-
-    <h2>Config</h2>
-    <button (click)="refreshConfig()">Refresh</button>
-
-    <code class="code">{{ config.value() | json }}</code>
-
-    <h2>Output</h2>
-
-    <div class="uiui">
-        @for (x of info(); track x) {
-            <div>
-                {{ x }}
-            </div>
-        }
+    <div class="router-outlet__container">
+        <router-outlet/>
     </div>
 
-    <router-outlet/>
+    <app-logs/>
 </main>
