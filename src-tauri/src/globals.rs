@@ -14,6 +14,7 @@ pub static APP_TASK_TRACKER: LazyLock<TaskTracker> = LazyLock::new(TaskTracker::
 
 pub struct AppState {
     pub is_ready: bool,
+    pub is_running: bool,
     pub cache: Option<Arc<Mutex<Cache>>>,
     pub config: Option<Arc<AppConfig>>,
     pub client: Option<Arc<Client>>,
@@ -23,14 +24,24 @@ impl AppState {
     pub fn new() -> Self {
         Self {
             is_ready: false,
+            is_running: false,
             cache: None,
             config: None,
             client: None,
         }
     }
 
+    pub fn start(&mut self) {
+        self.is_running = true;
+    }
+
+    pub fn stop(&mut self) {
+        self.is_running = false;
+    }
+
     pub fn clear(&mut self) {
         self.is_ready = false;
+        self.is_running = false;
         self.cache.take();
         self.config.take();
         self.client.take();

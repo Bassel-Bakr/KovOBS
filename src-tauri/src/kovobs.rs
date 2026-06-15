@@ -7,24 +7,22 @@ use chrono::Utc;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{Client, events::Event::ReplayBufferSaved};
+use obws::{events::Event::ReplayBufferSaved, Client};
 use std::{panic, path};
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
-use tokio::sync::Mutex;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tokio::task::JoinSet;
 
 pub async fn start() -> Result<(), anyhow::Error> {
     // Register panic handler
     panic::set_hook(Box::new(|info| {
         eprintln!("💥 App crashed: {}", info);
-        utils::wait_for_enter_key();
     }));
 
     if let Err(err) = run().await {
         eprintln!("🛑 Error: {}", err);
-        utils::wait_for_enter_key();
     }
 
     Ok(())
@@ -114,8 +112,6 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         client.disconnect().await;
         ui_println!("✅ Done");
     }
-
-    utils::wait_for_enter_key();
 
     Ok(())
 }
