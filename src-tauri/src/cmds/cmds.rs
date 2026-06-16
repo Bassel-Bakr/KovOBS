@@ -1,6 +1,7 @@
 // Learn more about Tauri cmds at https://tauri.app/develop/calling-rust/
 
 use crate::config::AppConfig;
+use crate::consts::CONFIG_FILE;
 use crate::globals::APP_STATE;
 use crate::globals::APP_TASK_TRACKER;
 use crate::kovobs;
@@ -78,6 +79,21 @@ pub async fn get_config() -> Result<Arc<AppConfig>, String> {
     }
 
     Ok(state.config.as_ref().cloned().unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn save_config(config: AppConfig) -> Result<(), String> {
+    let state = &APP_STATE.lock().await;
+
+    if !state.is_ready {
+        return Err(String::from("App state is not ready"));
+    }
+
+    AppConfig::save(CONFIG_FILE, config)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
 }
 
 #[tauri::command]

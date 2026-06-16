@@ -31,6 +31,12 @@ impl AppConfig {
         let settings = Config::builder().add_source(config_file).build()?;
         Ok(settings.try_deserialize::<AppConfig>()?)
     }
+
+    pub async fn save(config_name: &str, config: AppConfig) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let contents = serde_json::to_string_pretty(&config)?;
+        tokio::fs::write(config_name, contents).await?;
+        Ok(())
+    }
 }
 
 impl Default for AppConfig {

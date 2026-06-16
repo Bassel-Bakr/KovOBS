@@ -11,6 +11,10 @@ export class ConfigService {
     return this.tauriService.callWhenReady<Config>('get_config');
   }
 
+  saveConfig(config: Config): Observable<Config> {
+    return this.tauriService.callWhenReady<Config>('save_config', { config });
+  }
+
   getEmptyConfig(): Config {
     return {
       stats_folder: '',

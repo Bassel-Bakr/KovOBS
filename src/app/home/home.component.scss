@@ -14,10 +14,17 @@
   gap: var(--gap);
   padding: var(--gap);
 
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(40ch, 1fr));
 
   mat-card {
     gap: var(--gap);
     padding: var(--gap);
   }
+}
+
+mat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1ch;
 }
