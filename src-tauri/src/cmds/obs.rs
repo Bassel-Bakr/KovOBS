@@ -5,13 +5,11 @@ use std::collections::BTreeSet;
 
 #[tauri::command]
 pub async fn get_obs_sources() -> Result<Vec<String>, String> {
-    let state = &APP_STATE.lock().await;
+    let state = &APP_STATE.wait().await.lock().await;
 
-    if !state.is_ready {
-        return Err(String::from("App state is not ready"));
-    }
-
-    let client = state.client.as_ref().unwrap();
+    let Some(client) = state.client.as_ref() else {
+        return Err(String::from("Not connected to OBS"));
+    };
 
     let sources: BTreeSet<String> = client
         .inputs()

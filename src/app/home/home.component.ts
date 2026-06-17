@@ -15,7 +15,6 @@ import { MatTooltip } from '@angular/material/tooltip';
 import { MatToolbar } from '@angular/material/toolbar';
 import { TauriService } from '../services/tauri.service';
 import { CacheService } from '../services/cache.service';
-import { switchMap } from 'rxjs';
 
 @Component({
   selector: 'app-home',
@@ -46,8 +45,6 @@ export default class HomeComponent {
   private readonly tauriService = inject(TauriService);
   private readonly cacheService = inject(CacheService);
 
-  private readonly refresh = signal('');
-
   protected readonly ffmpegForm = form(signal({ args: '' }));
 
   protected readonly sources = rxResource({
@@ -56,14 +53,20 @@ export default class HomeComponent {
   });
 
   protected readonly config = rxResource({
-    params: () => ({ refresh: this.refresh() }),
     stream: () => this.configService.getConfig(),
-    defaultValue: this.configService.getEmptyConfig(),
   });
 
-  protected readonly configForm = form(this.config.value);
+  protected readonly formModel = signal(this.configService.getEmptyConfig());
+  protected readonly configForm = form(this.formModel);
 
   constructor() {
+    effect(() => {
+      const value = this.config.value();
+      if (value) {
+        this.formModel.set(value);
+      }
+    });
+
     effect(() => {
       const form = this.configForm();
       const args = form.value().ffmpeg_args.join('\n');
@@ -86,10 +89,11 @@ export default class HomeComponent {
   }
 
   protected save(): void {
-    this.configService
-      .saveConfig(this.configForm().value())
-      .pipe(switchMap(() => this.tauriService.restart()))
-      .subscribe();
+    this.configService.saveConfig(this.configForm().value()).subscribe();
+  }
+
+  protected restart(): void {
+    this.tauriService.restart().subscribe();
   }
 
   protected browse(field: FieldTree<string, string>): void {

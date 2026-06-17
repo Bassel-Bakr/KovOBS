@@ -12,7 +12,8 @@ bootstrapApplication(AppComponent, appConfig)
   .then((app) => {
     injector = app.injector;
     const tauriService = injector.get(TauriService);
-    tauriService?.start().subscribe();
+    // Must be called once to init the app
+    tauriService?.init().subscribe();
   })
   .catch((err) => console.error(err));
 

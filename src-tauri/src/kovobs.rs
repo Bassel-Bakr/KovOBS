@@ -1,6 +1,6 @@
 use crate::cache::Cache;
 use crate::delay::StatDelay;
-use crate::globals::APP_STATE;
+use crate::globals::{AppState, APP_STATE};
 use crate::{config::AppConfig, consts, ffmpeg, stat::Stat, ui_println, utils};
 use anyhow::Context;
 use chrono::Utc;
@@ -28,8 +28,26 @@ pub async fn start() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub async fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = AppConfig::load(consts::CONFIG_FILE)?;
+
+    // Set app state
+    let mut app_state = AppState::new();
+    app_state.config.replace(Arc::new(config));
+    app_state.is_ready = true;
+
+    APP_STATE
+        .set(Mutex::new(app_state))
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let config = {
+        let app_state = &mut APP_STATE.wait().await.lock().await;
+        app_state.config.clone().unwrap()
+    };
 
     ui_println!("📦 Re-building cache from stat files...");
     let mut cache = Cache::new(&config.cache_file);
@@ -59,20 +77,19 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
     ui_println!("✅ Done");
 
-    let config = Arc::new(config);
-    let cache = Arc::new(Mutex::new(cache));
     let mut client = Arc::new(client);
+    let mut cache = Arc::new(Mutex::new(cache));
 
     // Update app state
     {
-        let app_state = &mut APP_STATE.lock().await;
+        let app_state = &mut APP_STATE.wait().await.lock().await;
 
-        app_state.config.replace(config.clone());
         app_state.cache.replace(cache.clone());
         app_state.client.replace(client.clone());
 
         // We're ready to display the UI now
         app_state.is_ready = true;
+        app_state.is_running = true;
     }
 
     // Last seen stat

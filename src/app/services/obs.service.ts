@@ -7,6 +7,6 @@ export class ObsService {
   private readonly tauriService = inject(TauriService);
 
   getSources(): Observable<string[]> {
-    return this.tauriService.callWhenReady('get_obs_sources');
+    return this.tauriService.call('get_obs_sources');
   }
 }

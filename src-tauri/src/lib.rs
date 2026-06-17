@@ -21,6 +21,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             cmds::is_ready,
+            cmds::is_running,
+            cmds::init_app,
             cmds::start_app,
             cmds::stop_app,
             cmds::get_config,

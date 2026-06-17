@@ -3,31 +3,39 @@
 use crate::config::AppConfig;
 use crate::consts::CONFIG_FILE;
 use crate::globals::APP_STATE;
-use crate::globals::APP_TASK_TRACKER;
 use crate::kovobs;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 #[tauri::command]
 pub async fn is_ready() -> bool {
-    let state = &APP_STATE.lock().await;
+    let state = &APP_STATE.wait().await.lock().await;
     state.is_ready
 }
 
 #[tauri::command]
-pub async fn start_app() {
-    let state = &mut APP_STATE.lock().await;
+pub async fn is_running() -> bool {
+    let state = &APP_STATE.wait().await.lock().await;
+    state.is_running
+}
 
-    let task_tracker = &APP_TASK_TRACKER;
+#[tauri::command]
+pub async fn init_app() -> Result<(), String> {
+    kovobs::init().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn start_app() {
+    let state = &mut APP_STATE.wait().await.lock().await;
 
     // If it's still running, do nothing
-    if !task_tracker.is_empty() {
+    if !state.task_tracker.is_empty() {
         return;
     }
 
     // If it's closed, reopen it
-    if task_tracker.is_closed() {
-        task_tracker.reopen();
+    if state.task_tracker.is_closed() {
+        state.task_tracker.reopen();
     }
 
     let cancellation_token = Arc::new(CancellationToken::new());
@@ -45,64 +53,51 @@ pub async fn start_app() {
     };
 
     let handle = tauri::async_runtime::handle();
-    task_tracker.spawn_on(startup_task, handle.inner());
+    state.task_tracker.spawn_on(startup_task, handle.inner());
 }
 
 #[tauri::command]
 pub async fn stop_app() -> Result<(), String> {
-    let state = &mut APP_STATE.lock().await;
-
-    if !state.is_ready {
-        return Err(String::from("App state is not ready"));
-    }
-
-    let task_tracker = &APP_TASK_TRACKER;
+    let state = &mut APP_STATE.wait().await.lock().await;
 
     if let Some(cancellation_token) = state.cancellation_token.take() {
         cancellation_token.cancel();
     }
 
-    state.clear();
-    task_tracker.close();
+    state.stop();
+    state.task_tracker.close();
 
-    task_tracker.wait().await;
+    state.task_tracker.wait().await;
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn get_config() -> Result<Arc<AppConfig>, String> {
-    let state = &APP_STATE.lock().await;
+    let state = &APP_STATE.wait().await.lock().await;
 
-    if !state.is_ready {
-        return Err(String::from("App state is not ready"));
-    }
+    let config = state.config.as_ref().cloned().unwrap_or_default();
 
-    Ok(state.config.as_ref().cloned().unwrap_or_default())
+    Ok(config)
 }
 
 #[tauri::command]
 pub async fn save_config(config: AppConfig) -> Result<(), String> {
-    let state = &APP_STATE.lock().await;
-
-    if !state.is_ready {
-        return Err(String::from("App state is not ready"));
-    }
+    let state = &mut APP_STATE.wait().await.lock().await;
 
     AppConfig::save(CONFIG_FILE, config)
         .await
         .map_err(|e| e.to_string())?;
+
+    let config = AppConfig::load(CONFIG_FILE).map_err(|e| e.to_string())?;
+    state.config.replace(Arc::new(config));
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn clear_cache() -> Result<(), String> {
-    let state = &APP_STATE.lock().await;
-
-    if !state.is_ready {
-        return Err(String::from("App state is not ready"));
-    }
+    let state = &APP_STATE.wait().await.lock().await;
 
     let config = state.config.as_ref().unwrap();
     let cache = state.cache.as_ref().unwrap();

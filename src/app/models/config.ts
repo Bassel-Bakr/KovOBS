@@ -4,7 +4,6 @@ export type Config = {
   obs_host: string;
   obs_port: number;
   obs_password: string;
-  obs_replay_folder: string;
   obs_source_name: string;
   trim_padding_start: number;
   trim_padding_end: number;

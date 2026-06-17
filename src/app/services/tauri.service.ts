@@ -1,9 +1,17 @@
 import { Service } from '@angular/core';
 import { invoke, InvokeArgs } from '@tauri-apps/api/core';
-import { EMPTY, expand, from, Observable, switchMap } from 'rxjs';
+import { from, Observable, switchMap } from 'rxjs';
 
 @Service()
 export class TauriService {
+  call<R>(cmd: string, args?: InvokeArgs): Observable<R> {
+    return from(invoke<R>(cmd, args));
+  }
+
+  init(): Observable<void> {
+    return this.call('init_app');
+  }
+
   start(): Observable<void> {
     return this.call('start_app');
   }
@@ -14,21 +22,5 @@ export class TauriService {
 
   restart(): Observable<void> {
     return this.stop().pipe(switchMap(() => this.start()));
-  }
-
-  callWhenReady<R>(cmd: string, args?: InvokeArgs): Observable<R> {
-    return this.waitUntilReady().pipe(switchMap(() => invoke<R>(cmd, args)));
-  }
-
-  private waitUntilReady(): Observable<boolean> {
-    return this.isReady().pipe(expand((isReady) => (isReady ? EMPTY : this.isReady())));
-  }
-
-  private isReady(): Observable<boolean> {
-    return this.call('is_ready');
-  }
-
-  private call<R>(cmd: string, args?: InvokeArgs): Observable<R> {
-    return from(invoke<R>(cmd, args));
   }
 }

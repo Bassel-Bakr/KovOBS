@@ -8,11 +8,11 @@ export class ConfigService {
   private readonly tauriService = inject(TauriService);
 
   getConfig(): Observable<Config> {
-    return this.tauriService.callWhenReady<Config>('get_config');
+    return this.tauriService.call<Config>('get_config');
   }
 
   saveConfig(config: Config): Observable<Config> {
-    return this.tauriService.callWhenReady<Config>('save_config', { config });
+    return this.tauriService.call<Config>('save_config', { config });
   }
 
   getEmptyConfig(): Config {
@@ -22,18 +22,17 @@ export class ConfigService {
       obs_host: 'localhost',
       obs_port: 4455,
       obs_password: '',
-      obs_replay_folder: '',
-      obs_source_name: '',
+      obs_source_name: "KovaaK's",
       trim_padding_start: 0,
-      trim_padding_end: 0,
+      trim_padding_end: 5,
       delete_after_trimming: false,
       only_pb: false,
-      cache_version: '',
-      cache_file: '',
+      cache_version: '1.0.0',
+      cache_file: 'cache.json',
       screenshot: {
         enabled: false,
       },
-      ffmpeg_args: [],
+      ffmpeg_args: ['-c', 'copy'],
     };
   }
 }
