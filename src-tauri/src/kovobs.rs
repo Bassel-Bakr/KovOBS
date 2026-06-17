@@ -1,18 +1,18 @@
 use crate::cache::Cache;
 use crate::delay::StatDelay;
-use crate::globals::{AppState, APP_STATE};
+use crate::globals::{APP_STATE, AppState};
 use crate::{config::AppConfig, consts, ffmpeg, stat::Stat, ui_println, utils};
 use anyhow::Context;
 use chrono::Utc;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{events::Event::ReplayBufferSaved, Client};
+use obws::{Client, events::Event::ReplayBufferSaved};
 use std::{panic, path};
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
-use tokio::sync::mpsc;
 use tokio::sync::Mutex;
+use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 
 pub async fn start() -> Result<(), anyhow::Error> {
@@ -78,7 +78,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     ui_println!("✅ Done");
 
     let mut client = Arc::new(client);
-    let mut cache = Arc::new(Mutex::new(cache));
+    let cache = Arc::new(Mutex::new(cache));
 
     // Update app state
     {
