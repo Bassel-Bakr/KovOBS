@@ -15,6 +15,7 @@ import { MatTooltip } from '@angular/material/tooltip';
 import { MatToolbar } from '@angular/material/toolbar';
 import { TauriService } from '../services/tauri.service';
 import { CacheService } from '../services/cache.service';
+import { EventsService } from '../services/events.service';
 
 @Component({
   selector: 'app-home',
@@ -44,15 +45,23 @@ export default class HomeComponent {
   private readonly obsService = inject(ObsService);
   private readonly tauriService = inject(TauriService);
   private readonly cacheService = inject(CacheService);
+  private readonly eventsService = inject(EventsService);
+  private readonly refresh = signal(new Date());
 
   protected readonly ffmpegForm = form(signal({ args: '' }));
 
-  protected readonly sources = rxResource({
-    stream: () => this.obsService.getSources(),
-    defaultValue: [],
+  protected readonly isRunning = rxResource({
+    stream: () => this.eventsService.isRunning(),
+    defaultValue: false,
+  });
+
+  protected readonly sources = rxResource<string[] | null, unknown>({
+    stream: () => this.eventsService.obsSources(),
+    defaultValue: null,
   });
 
   protected readonly config = rxResource({
+    params: () => ({ refresh: this.refresh() }),
     stream: () => this.configService.getConfig(),
   });
 
@@ -89,11 +98,15 @@ export default class HomeComponent {
   }
 
   protected save(): void {
-    this.configService.saveConfig(this.configForm().value()).subscribe();
+    this.configService.saveConfig(this.configForm().value()).subscribe(() => this.refresh.set(new Date()));
   }
 
-  protected restart(): void {
-    this.tauriService.restart().subscribe();
+  protected start(): void {
+    this.tauriService.start().subscribe();
+  }
+
+  protected stop(): void {
+    this.tauriService.stop().subscribe();
   }
 
   protected browse(field: FieldTree<string, string>): void {

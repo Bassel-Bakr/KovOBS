@@ -8,6 +8,18 @@ import { TauriService } from './app/services/tauri.service';
 
 let injector: EnvironmentInjector | undefined;
 
+void listen<string>('message', (event) => {
+  injector?.get(EventsService)?.messageSubject.next(event.payload);
+});
+
+void listen<boolean>('running', (event) => {
+  injector?.get(EventsService)?.runningSubject.next(event.payload);
+});
+
+void listen<string[]>('obs_sources', (event) => {
+  injector?.get(EventsService)?.obsSourcesSubject.next(event.payload);
+});
+
 bootstrapApplication(AppComponent, appConfig)
   .then((app) => {
     injector = app.injector;
@@ -16,7 +28,3 @@ bootstrapApplication(AppComponent, appConfig)
     tauriService?.init().subscribe();
   })
   .catch((err) => console.error(err));
-
-void listen<string>('message', (event) => {
-  injector?.get(EventsService)?.subject.next(event.payload);
-});

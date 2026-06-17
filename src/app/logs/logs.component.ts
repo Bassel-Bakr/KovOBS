@@ -18,7 +18,7 @@ export default class LogsComponent {
   }
 
   constructor() {
-    this.eventsService.message().subscribe((message) => this.updateMessage(message));
+    this.eventsService.messages().subscribe((message) => this.updateMessage(message));
 
     // Scroll to the bottom on update
     effect(() => {

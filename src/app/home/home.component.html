@@ -7,9 +7,15 @@
         Save
     </button>
 
-    <button matButton="filled" (click)="restart()">
-        Restart
-    </button>
+    @if (isRunning.value()) {
+        <button matIconButton matTooltip="Stop" (click)="stop()">
+            <mat-icon>stop</mat-icon>
+        </button>
+    } @else {
+        <button matIconButton matTooltip="Start" (click)="start()">
+            <mat-icon>play_arrow</mat-icon>
+        </button>
+    }
 </mat-toolbar>
 
 @let form = configForm;
@@ -60,7 +66,7 @@
             <input matInput type="number" [formField]="form.obs_port">
         </mat-form-field>
 
-        @if (sources.error()) {
+        @if (!sources.value()) {
             <mat-form-field>
                 <mat-label>OBS Source</mat-label>
                 <input matInput [formField]="form.obs_source_name">
@@ -94,16 +100,6 @@
 
     <mat-card appearance="outlined">
         <mat-card-header>
-            <mat-card-title>Conditions</mat-card-title>
-        </mat-card-header>
-
-        <mat-checkbox [formField]="form.only_pb">Only PBs</mat-checkbox>
-
-        <mat-checkbox [formField]="form.delete_after_trimming">Auto delete saved buffer</mat-checkbox>
-    </mat-card>
-
-    <mat-card appearance="outlined">
-        <mat-card-header>
             <mat-card-title>
                 FFmpeg
                 <button matIconButton matTooltip="Docs" (click)="openFFmpegHelp()">
@@ -118,5 +114,21 @@
                       [formField]="ffmpegForm.args">
             </textarea>
         </mat-form-field>
+    </mat-card>
+
+    <mat-card appearance="outlined">
+        <mat-card-header>
+            <mat-card-title>Automation</mat-card-title>
+        </mat-card-header>
+
+        <mat-checkbox [formField]="form.only_pb" matTooltip="Clips all VODs otherwise">Personal Best (PB)</mat-checkbox>
+
+        <mat-checkbox [formField]="form.delete_after_trimming" matTooltip="Deletes saved replay buffers from OBS">Delete
+            saved buffer
+        </mat-checkbox>
+
+        <mat-checkbox [formField]="form.screenshot.enabled" matTooltip="Takes a screen after saving any clip">
+            Screenshot
+        </mat-checkbox>
     </mat-card>
 </form>

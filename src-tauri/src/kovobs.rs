@@ -1,18 +1,18 @@
 use crate::cache::Cache;
 use crate::delay::StatDelay;
-use crate::globals::{APP_STATE, AppState};
-use crate::{config::AppConfig, consts, ffmpeg, stat::Stat, ui_println, utils};
+use crate::globals::{AppState, APP_STATE};
+use crate::{cmds, config::AppConfig, consts, events, ffmpeg, stat::Stat, ui_println, utils};
 use anyhow::Context;
 use chrono::Utc;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{Client, events::Event::ReplayBufferSaved};
+use obws::{events::Event::ReplayBufferSaved, Client};
 use std::{panic, path};
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
-use tokio::sync::Mutex;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tokio::task::JoinSet;
 
 pub async fn start() -> Result<(), anyhow::Error> {
@@ -91,6 +91,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         app_state.is_ready = true;
         app_state.is_running = true;
     }
+
+    let obs_sources = cmds::get_obs_sources().await?;
+    events::emit(events::AppEvent::ObsSources(obs_sources.into()))?;
 
     // Last seen stat
     let (tx, rx) = mpsc::channel::<Stat>(1);

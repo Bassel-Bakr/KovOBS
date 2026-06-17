@@ -3,9 +3,19 @@ import { Observable, Subject } from 'rxjs';
 
 @Service()
 export class EventsService {
-  subject = new Subject<string>();
+  messageSubject = new Subject<string>();
+  runningSubject = new Subject<boolean>();
+  obsSourcesSubject = new Subject<string[]>();
 
-  message(): Observable<string> {
-    return this.subject.asObservable();
+  messages(): Observable<string> {
+    return this.messageSubject.asObservable();
+  }
+
+  isRunning(): Observable<boolean> {
+    return this.runningSubject.asObservable();
+  }
+
+  obsSources(): Observable<string[]> {
+    return this.obsSourcesSubject.asObservable();
   }
 }

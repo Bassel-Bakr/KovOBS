@@ -5,6 +5,6 @@ macro_rules! ui_println {
     };
     ($($arg:tt)*) => {{
         let msg = format!($($arg)*);
-        $crate::events::message(&msg)?
+        $crate::events::emit($crate::events::AppEvent::Message(msg))?
     }};
 }

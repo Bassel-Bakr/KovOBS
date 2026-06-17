@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 
 import { routes } from './app.routes';
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS, MatFormFieldDefaultOptions } from '@angular/material/form-field';
+import { MAT_TOOLTIP_DEFAULT_OPTIONS, MatTooltipDefaultOptions } from '@angular/material/tooltip';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -15,6 +16,12 @@ export const appConfig: ApplicationConfig = {
         appearance: 'outline',
         subscriptSizing: 'dynamic',
       } satisfies MatFormFieldDefaultOptions,
+    },
+    {
+      provide: MAT_TOOLTIP_DEFAULT_OPTIONS,
+      useValue: {
+        showDelay: 500,
+      } satisfies Partial<MatTooltipDefaultOptions>,
     },
   ],
 };

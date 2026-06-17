@@ -2,8 +2,9 @@
 
 use crate::config::AppConfig;
 use crate::consts::CONFIG_FILE;
+use crate::events::AppEvent;
 use crate::globals::APP_STATE;
-use crate::kovobs;
+use crate::{events, kovobs};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
@@ -25,12 +26,12 @@ pub async fn init_app() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn start_app() {
+pub async fn start_app() -> Result<(), String> {
     let state = &mut APP_STATE.wait().await.lock().await;
 
     // If it's still running, do nothing
-    if !state.task_tracker.is_empty() {
-        return;
+    if state.is_running {
+        return Err(String::from("Already running"));
     }
 
     // If it's closed, reopen it
@@ -54,6 +55,7 @@ pub async fn start_app() {
 
     let handle = tauri::async_runtime::handle();
     state.task_tracker.spawn_on(startup_task, handle.inner());
+    events::emit(AppEvent::Running(true))
 }
 
 #[tauri::command]
@@ -65,6 +67,7 @@ pub async fn stop_app() -> Result<(), String> {
     }
 
     state.stop();
+    events::emit(AppEvent::Running(false))?;
     state.task_tracker.close();
 
     state.task_tracker.wait().await;
