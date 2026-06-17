@@ -52,28 +52,28 @@
         </mat-card-header>
 
         <mat-form-field>
-            <mat-label>OBS Host</mat-label>
+            <mat-label>Host</mat-label>
             <input matInput [formField]="form.obs_host">
         </mat-form-field>
 
         <mat-form-field>
-            <mat-label>OBS Password</mat-label>
+            <mat-label>Password</mat-label>
             <input matInput type="password" [formField]="form.obs_password">
         </mat-form-field>
 
         <mat-form-field>
-            <mat-label>OBS Port</mat-label>
+            <mat-label>Port</mat-label>
             <input matInput type="number" [formField]="form.obs_port">
         </mat-form-field>
 
         @if (!sources.value()) {
             <mat-form-field>
-                <mat-label>OBS Source</mat-label>
+                <mat-label>Source</mat-label>
                 <input matInput [formField]="form.obs_source_name">
             </mat-form-field>
         } @else {
             <mat-form-field>
-                <mat-label>OBS Source</mat-label>
+                <mat-label>Source</mat-label>
                 <mat-select [formField]="form.obs_source_name">
                     @for (source of sources.value(); track source) {
                         <mat-option [value]="source">{{ source }}</mat-option>
