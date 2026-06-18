@@ -18,4 +18,11 @@ export type Config = {
     enabled: boolean;
   };
   ffmpeg_args: string[];
+  processes: {
+    scan_interval_secs: number;
+    paths: {
+      obs: string;
+      kovaaks: string;
+    };
+  };
 };

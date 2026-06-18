@@ -45,12 +45,23 @@ export default class HomeComponent {
   private readonly tauriService = inject(TauriService);
   private readonly cacheService = inject(CacheService);
   private readonly eventsService = inject(EventsService);
+
   private readonly refresh = signal(new Date());
 
   protected readonly ffmpegForm = form(signal({ args: '' }));
 
   protected readonly isRunning = rxResource({
     stream: () => this.eventsService.isRunning(),
+    defaultValue: false,
+  });
+
+  protected readonly isObsRunning = rxResource({
+    stream: () => this.eventsService.isObsRunning(),
+    defaultValue: false,
+  });
+
+  protected readonly isKovaaksRunning = rxResource({
+    stream: () => this.eventsService.isKovaaksRunning(),
     defaultValue: false,
   });
 
@@ -124,6 +135,10 @@ export default class HomeComponent {
       directory: true,
       multiple: false,
     }).then((path) => field().value.set(path ?? ''));
+  }
+
+  protected browseFile(field: FieldTree<string, string>): void {
+    open({ multiple: false }).then((path) => field().value.set(path ?? ''));
   }
 
   protected openFFmpegHelp(): void {

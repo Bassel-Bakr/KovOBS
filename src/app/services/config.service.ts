@@ -36,6 +36,13 @@ export class ConfigService {
         enabled: false,
       },
       ffmpeg_args: ['-c', 'copy'],
+      processes: {
+        scan_interval_secs: 1,
+        paths: {
+          obs: 'obs64.exe',
+          kovaaks: 'FPSAimTrainer-Win64-Shipping.exe',
+        },
+      },
     };
   }
 }

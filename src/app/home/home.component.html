@@ -1,4 +1,9 @@
 <mat-toolbar>
+    [OBS {{ isObsRunning.value() ? 'running' : 'closed' }}]
+    [KovaaK's {{ isKovaaksRunning.value() ? 'running' : 'closed' }}]
+
+    <span data-spacer></span>
+
     <button matButton="outlined" (click)="clearCache()">
         Clear Cache
     </button>
@@ -132,5 +137,32 @@
         <mat-checkbox [formField]="form.screenshot.enabled" matTooltip="Takes a screen after saving any clip">
             Screenshot
         </mat-checkbox>
+    </mat-card>
+
+    <mat-card appearance="outlined">
+        <mat-card-header>
+            <mat-card-title>Processes</mat-card-title>
+        </mat-card-header>
+
+        <mat-form-field matTooltip="How often should we scan active processes">
+            <mat-label>Scan interval (seconds)</mat-label>
+            <input matInput type="number" [formField]="form.processes.scan_interval_secs">
+        </mat-form-field>
+
+        <mat-form-field>
+            <mat-label>OBS</mat-label>
+            <input matInput [value]="form.processes.paths.obs().value()" readonly>
+            <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.obs)">
+                <mat-icon>terminal</mat-icon>
+            </button>
+        </mat-form-field>
+
+        <mat-form-field>
+            <mat-label>KovaaK's</mat-label>
+            <input matInput [value]="form.processes.paths.kovaaks().value()" readonly>
+            <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.kovaaks)">
+                <mat-icon>terminal</mat-icon>
+            </button>
+        </mat-form-field>
     </mat-card>
 </form>

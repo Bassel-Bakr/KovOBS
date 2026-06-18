@@ -15,6 +15,7 @@ pub struct AppConfig {
     pub screenshot: ScreenshotConfig,
     #[serde(default)]
     pub ffmpeg_args: Box<[String]>,
+    pub processes: ProcessesConfig,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -28,6 +29,18 @@ pub struct ObsConfig {
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct ScreenshotConfig {
     pub enabled: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProcessesConfig {
+    pub scan_interval_secs: u64,
+    pub paths: ProcessPaths,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProcessPaths {
+    pub obs: String,
+    pub kovaaks: String,
 }
 
 impl AppConfig {
@@ -67,6 +80,13 @@ impl Default for AppConfig {
             cache_file: "".into(),
             screenshot: ScreenshotConfig { enabled: true },
             ffmpeg_args: Box::new([]),
+            processes: ProcessesConfig {
+                scan_interval_secs: 1,
+                paths: ProcessPaths {
+                    obs: "".into(),
+                    kovaaks: "".into(),
+                },
+            },
         }
     }
 }

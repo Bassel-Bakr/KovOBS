@@ -20,6 +20,14 @@ void listen<string[]>('obs_sources', (event) => {
   injector?.get(EventsService)?.obsSourcesSubject.next(event.payload);
 });
 
+void listen<boolean>('obs_running', (event) => {
+  injector?.get(EventsService)?.obsRunningSubject.next(event.payload);
+});
+
+void listen<boolean>('kovaaks_running', (event) => {
+  injector?.get(EventsService)?.kovaaksRunningSubject.next(event.payload);
+});
+
 bootstrapApplication(AppComponent, appConfig)
   .then((app) => {
     injector = app.injector;
