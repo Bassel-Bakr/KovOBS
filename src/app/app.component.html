@@ -1,4 +1,26 @@
 <main class="container">
+  <mat-toolbar data-tauri-drag-region>
+    <h1 data-tauri-drag-region>
+      {{ title() }}
+    </h1>
+
+    <span class="spacer"></span>
+
+    <div class="window-controls">
+      <button matIconButton (click)="minimize()">
+        <mat-icon>remove</mat-icon>
+      </button>
+
+      <button matIconButton (click)="toggleMaximize()">
+        <mat-icon>crop_square</mat-icon>
+      </button>
+
+      <button matIconButton color="warn" (click)="close()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+  </mat-toolbar>
+
   <div class="router-outlet__container">
     <router-outlet />
   </div>

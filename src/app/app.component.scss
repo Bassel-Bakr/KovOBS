@@ -45,3 +45,10 @@
 app-logs {
   height: 10ex;
 }
+.window-controls {
+  -webkit-app-region: no-drag;
+}
+
+.spacer {
+  flex: 1;
+}
