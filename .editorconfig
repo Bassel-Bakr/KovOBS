@@ -16,9 +16,6 @@ max_line_length = 120
 # ij_visual_guides = 
 # ij_wrap_on_typing = false
 
-[*.html]
-indent_size = 4
-
 [*.rs]
 indent_size = 4
 # max_line_length = 100

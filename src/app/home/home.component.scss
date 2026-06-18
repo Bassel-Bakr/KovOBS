@@ -35,6 +35,8 @@ mat-toolbar {
 }
 
 .process-status {
+  cursor: pointer !important;
+
   &[data-running='true'] {
     @include mat.chips-overrides(
       (
@@ -53,5 +55,10 @@ mat-toolbar {
         hover-state-layer-color: red,
       )
     );
+  }
+
+  &__label {
+    display: flex;
+    align-items: center;
   }
 }

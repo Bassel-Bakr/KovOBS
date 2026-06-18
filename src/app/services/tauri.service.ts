@@ -29,4 +29,8 @@ export class TauriService {
   setAutoStart(state: boolean): Observable<void> {
     return from(state ? enableAutoStart() : disableAutoStart());
   }
+
+  runExe(exe: 'obs' | 'kovaaks'): Observable<void> {
+    return this.call('run_' + exe);
+  }
 }

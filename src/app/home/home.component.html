@@ -1,177 +1,194 @@
 <mat-toolbar>
-    OBS
-    @let obsIsRunning = isObsRunning.value();
-    <mat-chip class="process-status" [attr.data-running]="obsIsRunning">
-        {{ obsIsRunning ? 'running' : 'closed' }}
-    </mat-chip>
+  OBS
+  @let obsIsRunning = isObsRunning.value();
+  <mat-chip
+    class="process-status"
+    [matTooltip]="obsIsRunning ? null : 'Start'"
+    [attr.data-running]="obsIsRunning"
+    (click)="!obsIsRunning && runExe('obs')"
+  >
+    <span class="process-status__label">
+      @if (obsIsRunning) {
+        running
+      } @else {
+        Start <mat-icon>play_arrow</mat-icon>
+      }
+    </span>
+  </mat-chip>
 
-    KovaaK's
-    @let kovaaksIsRunning = isKovaaksRunning.value();
-    <mat-chip class="process-status" [attr.data-running]="kovaaksIsRunning">
-        {{ kovaaksIsRunning ? 'running' : 'closed' }}
-    </mat-chip>
+  KovaaK's
+  @let kovaaksIsRunning = isKovaaksRunning.value();
+  <mat-chip
+    class="process-status"
+    [matTooltip]="kovaaksIsRunning ? null : 'Start'"
+    [attr.data-running]="kovaaksIsRunning"
+    (click)="!kovaaksIsRunning && runExe('kovaaks')"
+  >
+    <span class="process-status__label">
+      @if (kovaaksIsRunning) {
+        running
+      } @else {
+        Start <mat-icon>play_arrow</mat-icon>
+      }
+    </span>
+  </mat-chip>
 
-    <span data-spacer></span>
+  <span data-spacer></span>
 
-    <button matButton="outlined" (click)="clearCache()">
-        Clear Cache
+  <button matButton="outlined" (click)="clearCache()">Clear Cache</button>
+
+  <button matButton="tonal" (click)="save()">Save</button>
+
+  @if (isRunning.value()) {
+    <button matIconButton matTooltip="Stop" (click)="stop()">
+      <mat-icon>stop</mat-icon>
     </button>
-
-    <button matButton="tonal" (click)="save()">
-        Save
+  } @else {
+    <button matIconButton matTooltip="Start" (click)="start()">
+      <mat-icon>play_arrow</mat-icon>
     </button>
-
-    @if (isRunning.value()) {
-        <button matIconButton matTooltip="Stop" (click)="stop()">
-            <mat-icon>stop</mat-icon>
-        </button>
-    } @else {
-        <button matIconButton matTooltip="Start" (click)="start()">
-            <mat-icon>play_arrow</mat-icon>
-        </button>
-    }
+  }
 </mat-toolbar>
 
 @let form = configForm;
 <form class="form">
-    <mat-card appearance="outlined">
-        <mat-card-header>
-            <mat-card-title>Required Folders/Files</mat-card-title>
-        </mat-card-header>
-        <mat-form-field>
-            <mat-label>Stats Folder</mat-label>
-            <input matInput [value]="form.stats_folder().value()" readonly>
-            <button matIconButton matSuffix type="button" (click)="browse(form.stats_folder)">
-                <mat-icon>folder_open</mat-icon>
-            </button>
-        </mat-form-field>
+  <mat-card appearance="outlined">
+    <mat-card-header>
+      <mat-card-title>Required Folders/Files</mat-card-title>
+    </mat-card-header>
+    <mat-form-field>
+      <mat-label>Stats Folder</mat-label>
+      <input matInput [value]="form.stats_folder().value()" readonly />
+      <button matIconButton matSuffix type="button" (click)="browse(form.stats_folder)">
+        <mat-icon>folder_open</mat-icon>
+      </button>
+    </mat-form-field>
 
-        <mat-form-field>
-            <mat-label>Clips Folder</mat-label>
-            <input matInput [value]="form.clips_folder().value()" readonly>
-            <button matIconButton matSuffix type="button" (click)="browse(form.clips_folder)">
-                <mat-icon>folder_open</mat-icon>
-            </button>
-        </mat-form-field>
+    <mat-form-field>
+      <mat-label>Clips Folder</mat-label>
+      <input matInput [value]="form.clips_folder().value()" readonly />
+      <button matIconButton matSuffix type="button" (click)="browse(form.clips_folder)">
+        <mat-icon>folder_open</mat-icon>
+      </button>
+    </mat-form-field>
 
-        <mat-form-field>
-            <mat-label>Cache File</mat-label>
-            <input matInput [formField]="form.cache_file">
-        </mat-form-field>
-    </mat-card>
+    <mat-form-field>
+      <mat-label>Cache File</mat-label>
+      <input matInput [formField]="form.cache_file" />
+    </mat-form-field>
+  </mat-card>
 
-    <mat-card appearance="outlined">
-        <mat-card-header>
-            <mat-card-title>OBS</mat-card-title>
-        </mat-card-header>
+  <mat-card appearance="outlined">
+    <mat-card-header>
+      <mat-card-title>OBS</mat-card-title>
+    </mat-card-header>
 
-        <mat-form-field>
-            <mat-label>Host</mat-label>
-            <input matInput [formField]="form.obs.host">
-        </mat-form-field>
+    <mat-form-field>
+      <mat-label>Host</mat-label>
+      <input matInput [formField]="form.obs.host" />
+    </mat-form-field>
 
-        <mat-form-field>
-            <mat-label>Password</mat-label>
-            <input matInput type="password" [formField]="form.obs.password">
-        </mat-form-field>
+    <mat-form-field>
+      <mat-label>Password</mat-label>
+      <input matInput type="password" [formField]="form.obs.password" />
+    </mat-form-field>
 
-        <mat-form-field>
-            <mat-label>Port</mat-label>
-            <input matInput type="number" [formField]="form.obs.port">
-        </mat-form-field>
+    <mat-form-field>
+      <mat-label>Port</mat-label>
+      <input matInput type="number" [formField]="form.obs.port" />
+    </mat-form-field>
 
-        @if (!sources.value()) {
-            <mat-form-field>
-                <mat-label>Source</mat-label>
-                <input matInput [formField]="form.obs.source_name">
-            </mat-form-field>
-        } @else {
-            <mat-form-field>
-                <mat-label>Source</mat-label>
-                <mat-select [formField]="form.obs.source_name">
-                    @for (source of sources.value(); track source) {
-                        <mat-option [value]="source">{{ source }}</mat-option>
-                    }
-                </mat-select>
-            </mat-form-field>
-        }
-    </mat-card>
+    @if (!sources.value()) {
+      <mat-form-field>
+        <mat-label>Source</mat-label>
+        <input matInput [formField]="form.obs.source_name" />
+      </mat-form-field>
+    } @else {
+      <mat-form-field>
+        <mat-label>Source</mat-label>
+        <mat-select [formField]="form.obs.source_name">
+          @for (source of sources.value(); track source) {
+            <mat-option [value]="source">{{ source }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    }
+  </mat-card>
 
-    <mat-card appearance="outlined">
-        <mat-card-header>
-            <mat-card-title>Trimming</mat-card-title>
-        </mat-card-header>
-        <mat-form-field>
-            <mat-label>Start Padding (seconds)</mat-label>
-            <input matInput type="number" [formField]="form.trim_padding_start">
-        </mat-form-field>
+  <mat-card appearance="outlined">
+    <mat-card-header>
+      <mat-card-title>Trimming</mat-card-title>
+    </mat-card-header>
+    <mat-form-field>
+      <mat-label>Start Padding (seconds)</mat-label>
+      <input matInput type="number" [formField]="form.trim_padding_start" />
+    </mat-form-field>
 
-        <mat-form-field>
-            <mat-label>End Padding (seconds)</mat-label>
-            <input matInput type="number" [formField]="form.trim_padding_end">
-        </mat-form-field>
-    </mat-card>
+    <mat-form-field>
+      <mat-label>End Padding (seconds)</mat-label>
+      <input matInput type="number" [formField]="form.trim_padding_end" />
+    </mat-form-field>
+  </mat-card>
 
-    <mat-card appearance="outlined">
-        <mat-card-header>
-            <mat-card-title>
-                FFmpeg
-                <button matIconButton matTooltip="Docs" (click)="openFFmpegHelp()">
-                    <mat-icon>info</mat-icon>
-                </button>
-            </mat-card-title>
-        </mat-card-header>
+  <mat-card appearance="outlined">
+    <mat-card-header>
+      <mat-card-title>
+        FFmpeg
+        <button matIconButton matTooltip="Docs" (click)="openFFmpegHelp()">
+          <mat-icon>info</mat-icon>
+        </button>
+      </mat-card-title>
+    </mat-card-header>
 
-        <mat-form-field>
-            <mat-label>Args</mat-label>
-            <textarea matInput placeholder="Line-separated output args" type="text" rows="4"
-                      [formField]="ffmpegForm.args">
-            </textarea>
-        </mat-form-field>
-    </mat-card>
+    <mat-form-field>
+      <mat-label>Args</mat-label>
+      <textarea matInput placeholder="Line-separated output args" type="text" rows="4" [formField]="ffmpegForm.args">
+      </textarea>
+    </mat-form-field>
+  </mat-card>
 
-    <mat-card appearance="outlined">
-        <mat-card-header>
-            <mat-card-title>Automation</mat-card-title>
-        </mat-card-header>
+  <mat-card appearance="outlined">
+    <mat-card-header>
+      <mat-card-title>Automation</mat-card-title>
+    </mat-card-header>
 
-        <mat-checkbox [formField]="form.auto_start" matTooltip="Auto start on boot">Auto start</mat-checkbox>
+    <mat-checkbox [formField]="form.auto_start" matTooltip="Auto start on boot">Auto start</mat-checkbox>
 
-        <mat-checkbox [formField]="form.only_pb" matTooltip="Clips all VODs otherwise">Personal Best (PB)</mat-checkbox>
+    <mat-checkbox [formField]="form.only_pb" matTooltip="Clips all VODs otherwise">Personal Best (PB)</mat-checkbox>
 
-        <mat-checkbox [formField]="form.delete_after_trimming" matTooltip="Deletes saved replay buffers from OBS">Delete
-            saved buffer
-        </mat-checkbox>
+    <mat-checkbox [formField]="form.delete_after_trimming" matTooltip="Deletes saved replay buffers from OBS"
+      >Delete saved buffer
+    </mat-checkbox>
 
-        <mat-checkbox [formField]="form.screenshot.enabled" matTooltip="Takes a screen after saving any clip">
-            Screenshot
-        </mat-checkbox>
-    </mat-card>
+    <mat-checkbox [formField]="form.screenshot.enabled" matTooltip="Takes a screen after saving any clip">
+      Screenshot
+    </mat-checkbox>
+  </mat-card>
 
-    <mat-card appearance="outlined">
-        <mat-card-header>
-            <mat-card-title>Processes</mat-card-title>
-        </mat-card-header>
+  <mat-card appearance="outlined">
+    <mat-card-header>
+      <mat-card-title>Processes</mat-card-title>
+    </mat-card-header>
 
-        <mat-form-field matTooltip="How often should we scan active processes">
-            <mat-label>Scan interval (seconds)</mat-label>
-            <input matInput type="number" [formField]="form.processes.scan_interval_secs">
-        </mat-form-field>
+    <mat-form-field matTooltip="How often should we scan active processes">
+      <mat-label>Scan interval (seconds)</mat-label>
+      <input matInput type="number" [formField]="form.processes.scan_interval_secs" />
+    </mat-form-field>
 
-        <mat-form-field>
-            <mat-label>OBS</mat-label>
-            <input matInput [value]="form.processes.paths.obs().value()" readonly>
-            <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.obs)">
-                <mat-icon>terminal</mat-icon>
-            </button>
-        </mat-form-field>
+    <mat-form-field>
+      <mat-label>OBS</mat-label>
+      <input matInput [value]="form.processes.paths.obs().value()" readonly />
+      <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.obs)">
+        <mat-icon>terminal</mat-icon>
+      </button>
+    </mat-form-field>
 
-        <mat-form-field>
-            <mat-label>KovaaK's</mat-label>
-            <input matInput [value]="form.processes.paths.kovaaks().value()" readonly>
-            <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.kovaaks)">
-                <mat-icon>terminal</mat-icon>
-            </button>
-        </mat-form-field>
-    </mat-card>
+    <mat-form-field>
+      <mat-label>KovaaK's</mat-label>
+      <input matInput [value]="form.processes.paths.kovaaks().value()" readonly />
+      <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.kovaaks)">
+        <mat-icon>terminal</mat-icon>
+      </button>
+    </mat-form-field>
+  </mat-card>
 </form>

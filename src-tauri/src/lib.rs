@@ -34,6 +34,8 @@ pub fn run() {
             cmds::save_config,
             cmds::clear_cache,
             cmds::get_obs_sources,
+            cmds::run_obs,
+            cmds::run_kovaaks,
         ])
         .setup(|app| {
             APP_HANDLE.set(app.handle().clone()).unwrap();

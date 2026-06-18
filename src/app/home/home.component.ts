@@ -146,4 +146,8 @@ export default class HomeComponent {
   protected openFFmpegHelp(): void {
     void openUrl('https://ffmpeg.org/ffmpeg.html');
   }
+
+  protected runExe(...params: Parameters<typeof this.tauriService.runExe>): void {
+    this.tauriService.runExe(...params);
+  }
 }
