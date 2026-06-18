@@ -1,6 +1,15 @@
 <mat-toolbar>
-    [OBS {{ isObsRunning.value() ? 'running' : 'closed' }}]
-    [KovaaK's {{ isKovaaksRunning.value() ? 'running' : 'closed' }}]
+    OBS
+    @let obsIsRunning = isObsRunning.value();
+    <mat-chip class="process-status" [attr.data-running]="obsIsRunning">
+        {{ obsIsRunning ? 'running' : 'closed' }}
+    </mat-chip>
+
+    KovaaK's
+    @let kovaaksIsRunning = isKovaaksRunning.value();
+    <mat-chip class="process-status" [attr.data-running]="kovaaksIsRunning">
+        {{ kovaaksIsRunning ? 'running' : 'closed' }}
+    </mat-chip>
 
     <span data-spacer></span>
 

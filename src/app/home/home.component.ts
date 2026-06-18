@@ -16,6 +16,7 @@ import { TauriService } from '../services/tauri.service';
 import { CacheService } from '../services/cache.service';
 import { EventsService } from '../services/events.service';
 import { switchMap } from 'rxjs';
+import { MatChip } from '@angular/material/chips';
 
 @Component({
   selector: 'app-home',
@@ -36,6 +37,7 @@ import { switchMap } from 'rxjs';
     MatTooltip,
     MatButton,
     MatToolbar,
+    MatChip,
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',

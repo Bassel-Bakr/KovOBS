@@ -1,3 +1,5 @@
+@use '@angular/material' as mat;
+
 :host {
   height: 100%;
   width: 100%;
@@ -29,5 +31,27 @@ mat-toolbar {
 
   [data-spacer] {
     flex: 1;
+  }
+}
+
+.process-status {
+  &[data-running='true'] {
+    @include mat.chips-overrides(
+      (
+        label-text-color: green,
+        outline-color: green,
+        hover-state-layer-color: green,
+      )
+    );
+  }
+
+  &[data-running='false'] {
+    @include mat.chips-overrides(
+      (
+        label-text-color: red,
+        outline-color: red,
+        hover-state-layer-color: red,
+      )
+    );
   }
 }
