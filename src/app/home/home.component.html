@@ -35,6 +35,10 @@
 
   <span data-spacer></span>
 
+  <button matIconButton matTooltip="Toggle Logs" (click)="globalService.showLogs.update((s) => !s)">
+    <mat-icon>history_toggle_off</mat-icon>
+  </button>
+
   <button matButton="outlined" (click)="clearCache()">Clear Cache</button>
 
   <button matButton="tonal" (click)="save()">Save</button>

@@ -17,6 +17,7 @@ import { CacheService } from '../services/cache.service';
 import { EventsService } from '../services/events.service';
 import { switchMap } from 'rxjs';
 import { MatChip } from '@angular/material/chips';
+import { GlobalService } from '../services/global.service';
 
 @Component({
   selector: 'app-home',
@@ -47,6 +48,7 @@ export default class HomeComponent {
   private readonly tauriService = inject(TauriService);
   private readonly cacheService = inject(CacheService);
   private readonly eventsService = inject(EventsService);
+  protected readonly globalService = inject(GlobalService);
 
   private readonly refresh = signal(new Date());
 

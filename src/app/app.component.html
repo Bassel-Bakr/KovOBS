@@ -3,5 +3,7 @@
     <router-outlet />
   </div>
 
-  <app-logs />
+  @if (globalService.showLogs()) {
+    <app-logs />
+  }
 </main>
