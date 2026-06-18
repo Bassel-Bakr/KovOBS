@@ -1,0 +1,9 @@
+<main class="container">
+  <div class="router-outlet__container">
+    <router-outlet />
+  </div>
+
+  @if (globalService.showLogs()) {
+    <app-logs />
+  }
+</main>

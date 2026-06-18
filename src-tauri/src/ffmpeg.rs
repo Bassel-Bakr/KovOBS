@@ -1,3 +1,4 @@
+use crate::ui_println;
 use anyhow::Context;
 use chrono::TimeDelta;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -85,6 +86,8 @@ pub async fn trim(
     } else {
         pb.abandon_with_message("Failed");
     }
+
+    ui_println!("🗃️ Saved clip: {}", out_file.to_string_lossy());
 
     Ok(())
 }

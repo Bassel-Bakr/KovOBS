@@ -1,4 +1,7 @@
 .idea
+.angular
 /target
+/node_modules
 cache.json
+config.json
 *.exe

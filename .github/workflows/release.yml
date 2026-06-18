@@ -11,7 +11,7 @@ on:
     branches:
       - main
     paths:
-      - Cargo.toml
+      - src-tauri/Cargo.toml
 
 permissions:
   contents: write
@@ -36,7 +36,11 @@ jobs:
           VERSION="${{ inputs.version }}"
 
           if [ -z "$VERSION" ]; then
-            VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+            VERSION=$(cargo metadata \
+              --manifest-path src-tauri/Cargo.toml \
+              --no-deps \
+              --format-version 1 \
+              | jq -r '.packages[0].version')
           fi
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -46,7 +50,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
-        shell: bash
         run: |
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             echo "Release v$VERSION already exists"
@@ -64,16 +67,13 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            binary: KovOBS
-            asset: KovOBS-linux
+            platform: linux
 
           - os: windows-latest
-            binary: KovOBS.exe
-            asset: KovOBS-windows
+            platform: windows
 
           - os: macos-latest
-            binary: KovOBS
-            asset: KovOBS-macos
+            platform: macos
 
     runs-on: ${{ matrix.os }}
 
@@ -85,27 +85,74 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Build
-        run: cargo build --release
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
-      - name: Prepare artifact (Unix)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --locked
+
+      - name: Build
+        run: cargo tauri build
+
+      - name: Prepare release assets (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          cp target/release/${{ matrix.binary }} \
-             "${{ matrix.asset }}-v${VERSION}"
+          mkdir release-assets
 
-      - name: Prepare artifact (Windows)
+          find target/release/bundle -type f \
+            \( \
+              -name "*.AppImage" -o \
+              -name "*.deb" -o \
+              -name "*.dmg" -o \
+              -name "*.app.tar.gz" \
+            \) \
+            -exec cp {} release-assets/ \;
+
+          cd release-assets
+
+          for f in *; do
+            ext="${f##*.}"
+            mv "$f" "KovOBS-${{ matrix.platform }}-v${VERSION}.${ext}"
+          done
+
+      - name: Prepare release assets (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Copy-Item target/release/${{ matrix.binary }} `
-                    "${{ matrix.asset }}-v${env:VERSION}.exe"
+          New-Item -ItemType Directory release-assets | Out-Null
+
+          Get-ChildItem target/release/bundle -Recurse -Include *.msi,*setup*.exe |
+            Copy-Item -Destination release-assets
+
+          Get-ChildItem release-assets | ForEach-Object {
+            if ($_.Extension -eq ".msi") {
+              Rename-Item $_.FullName "KovOBS-windows-v$env:VERSION.msi"
+            }
+            elseif ($_.Name -like "*setup*.exe") {
+              Rename-Item $_.FullName "KovOBS-windows-v$env:VERSION-setup.exe"
+            }
+          }
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset }}-v${{ env.VERSION }}
-          path: ${{ matrix.asset }}-v*
+          name: bundles-${{ matrix.platform }}
+          path: release-assets/*
 
   release:
     needs:
@@ -122,7 +169,7 @@ jobs:
           merge-multiple: true
 
       - name: List files
-        run: ls -la
+        run: find . -type f
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -131,6 +178,4 @@ jobs:
           name: v${{ needs.prepare.outputs.version }}
           generate_release_notes: true
           files: |
-            KovOBS-linux-v${{ needs.prepare.outputs.version }}
-            KovOBS-windows-v${{ needs.prepare.outputs.version }}.exe
-            KovOBS-macos-v${{ needs.prepare.outputs.version }}
+            *
