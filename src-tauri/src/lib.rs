@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tauri::menu::{Menu, MenuItem};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WindowEvent};
 
 mod cache;
@@ -22,7 +22,7 @@ mod stat;
 mod utils;
 
 thread_local! {
-    static TRAY_ICON: RefCell<Option<tray_icon::TrayIcon>> = RefCell::new(None);
+    static TRAY_ICON: RefCell<Option<TrayIcon>> = RefCell::new(None);
 }
 
 // static TRAY_ICON:
