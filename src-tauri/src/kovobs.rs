@@ -320,7 +320,7 @@ async fn save_screenshot(
         .await
         .with_context(|| format!("Failed to create clip directory '{}'", clip_path.display()))?;
 
-    let clip_path = clip_path.join(format!("{}.png", stat));
+    let sc_path = clip_path.join(format!("{}.png", stat));
 
     let options = SaveScreenshot {
         source: obws::requests::sources::SourceId::Name(&config.obs.source_name),
@@ -328,7 +328,7 @@ async fn save_screenshot(
         width: None,
         height: None,
         compression_quality: Some(0),
-        file_path: &clip_path,
+        file_path: &sc_path,
     };
 
     tokio::time::sleep(delay.get_delay_duration()).await;
@@ -340,9 +340,11 @@ async fn save_screenshot(
         .with_context(|| {
             format!(
                 "Failed to save screenshot with options {}",
-                clip_path.display()
+                sc_path.display()
             )
         })?;
+
+    ui_println!("🗃️ Saved screenshot: {}", sc_path.to_string_lossy());
 
     Ok(())
 }
