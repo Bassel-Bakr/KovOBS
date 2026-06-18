@@ -17,12 +17,15 @@ export class ConfigService {
 
   getEmptyConfig(): Config {
     return {
+      auto_start: false,
       stats_folder: '',
       clips_folder: '',
-      obs_host: 'localhost',
-      obs_port: 4455,
-      obs_password: '',
-      obs_source_name: "KovaaK's",
+      obs: {
+        host: 'localhost',
+        port: 4455,
+        password: '',
+        source_name: "KovaaK's",
+      },
       trim_padding_start: 0,
       trim_padding_end: 5,
       delete_after_trimming: false,

@@ -2,11 +2,8 @@ use config::{Config, File};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct AppConfig {
-    pub obs_host: String,
-    pub obs_port: u16,
-    pub obs_password: String,
-    pub obs_replay_folder: String,
-    pub obs_source_name: String,
+    pub auto_start: bool,
+    pub obs: ObsConfig,
     pub clips_folder: String,
     pub stats_folder: String,
     pub trim_padding_start: f32,
@@ -21,6 +18,14 @@ pub struct AppConfig {
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct ObsConfig {
+    pub host: String,
+    pub port: u16,
+    pub password: String,
+    pub source_name: String,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct ScreenshotConfig {
     pub enabled: bool,
 }
@@ -32,7 +37,10 @@ impl AppConfig {
         Ok(settings.try_deserialize::<AppConfig>()?)
     }
 
-    pub async fn save(config_name: &str, config: AppConfig) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn save(
+        config_name: &str,
+        config: AppConfig,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let contents = serde_json::to_string_pretty(&config)?;
         tokio::fs::write(config_name, contents).await?;
         Ok(())
@@ -42,11 +50,13 @@ impl AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            obs_host: "".into(),
-            obs_port: 0,
-            obs_password: "".into(),
-            obs_replay_folder: "".into(),
-            obs_source_name: "".into(),
+            auto_start: false,
+            obs: ObsConfig {
+                host: "".into(),
+                port: 0,
+                password: "".into(),
+                source_name: "".into(),
+            },
             clips_folder: "".into(),
             stats_folder: "".into(),
             trim_padding_start: 0.0,

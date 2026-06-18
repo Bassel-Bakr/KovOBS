@@ -61,9 +61,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     ui_println!("⏺️ Connecting to OBS...");
     let client = Client::connect(
-        &config.obs_host,
-        config.obs_port,
-        Some(&config.obs_password),
+        &config.obs.host,
+        config.obs.port,
+        Some(&config.obs.password),
     )
     .await?;
     ui_println!("✅ Done");
@@ -321,7 +321,7 @@ async fn save_screenshot(
     let clip_path = clip_path.join(format!("{}.png", stat));
 
     let options = SaveScreenshot {
-        source: obws::requests::sources::SourceId::Name(&config.obs_source_name),
+        source: obws::requests::sources::SourceId::Name(&config.obs.source_name),
         format: "png",
         width: None,
         height: None,

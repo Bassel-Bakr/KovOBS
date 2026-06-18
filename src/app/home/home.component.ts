@@ -9,13 +9,13 @@ import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatCard, MatCardHeader, MatCardTitle } from '@angular/material/card';
 import { MatOption, MatSelect } from '@angular/material/select';
-import { ObsService } from '../services/obs.service';
 import { MatCheckbox } from '@angular/material/checkbox';
 import { MatTooltip } from '@angular/material/tooltip';
 import { MatToolbar } from '@angular/material/toolbar';
 import { TauriService } from '../services/tauri.service';
 import { CacheService } from '../services/cache.service';
 import { EventsService } from '../services/events.service';
+import { switchMap } from 'rxjs';
 
 @Component({
   selector: 'app-home',
@@ -42,7 +42,6 @@ import { EventsService } from '../services/events.service';
 })
 export default class HomeComponent {
   private readonly configService = inject(ConfigService);
-  private readonly obsService = inject(ObsService);
   private readonly tauriService = inject(TauriService);
   private readonly cacheService = inject(CacheService);
   private readonly eventsService = inject(EventsService);
@@ -98,7 +97,18 @@ export default class HomeComponent {
   }
 
   protected save(): void {
-    this.configService.saveConfig(this.configForm().value()).subscribe(() => this.refresh.set(new Date()));
+    this.configService
+      .saveConfig(this.configForm().value())
+      .pipe(
+        switchMap(() => {
+          const autoStart = this.configForm.auto_start().value();
+          return this.tauriService.setAutoStart(autoStart);
+        })
+      )
+      .subscribe(() => {
+        // Handle auto start
+        this.refresh.set(new Date());
+      });
   }
 
   protected start(): void {
