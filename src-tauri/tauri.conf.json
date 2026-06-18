@@ -15,6 +15,7 @@
         "title": "KovOBS",
         "width": 800,
         "height": 600,
+        "minWidth": 660,
         "titleBarStyle": "Overlay",
         "decorations": false
       }
