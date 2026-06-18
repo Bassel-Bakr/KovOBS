@@ -1,10 +1,9 @@
 use crate::config::ProcessesConfig;
 use crate::events::AppEvent;
 use crate::globals::{APP_HANDLE, APP_STATE};
-use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::Duration;
-use sysinfo::{ProcessesToUpdate, System};
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
 mod cache;
 mod cmds;
@@ -57,7 +56,9 @@ pub fn run() {
 fn observe_processes() {
     tauri::async_runtime::spawn(async move {
         let mut system = System::new();
-        let mut previous = HashSet::new();
+
+        let mut obs_running = false;
+        let mut kovaaks_running = false;
 
         loop {
             let config_processes: ProcessesConfig = {
@@ -65,36 +66,38 @@ fn observe_processes() {
                 app_state.config.as_ref().unwrap().processes.clone()
             };
 
-            system.refresh_processes(ProcessesToUpdate::All, true);
+            system.refresh_processes_specifics(
+                ProcessesToUpdate::All,
+                true,
+                ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet),
+            );
 
-            let running: HashSet<_> = system
-                .processes()
-                .values()
-                .filter_map(|p| p.exe().map(|p| p.to_string_lossy().into_owned()))
-                .filter(|p| {
-                    *p == config_processes.paths.obs || *p == config_processes.paths.kovaaks
-                })
-                .collect();
+            let mut new_obs_running = false;
+            let mut new_kovaaks_running = false;
 
-            // Newly started processes
-            for process in running.difference(&previous) {
-                if *process == config_processes.paths.kovaaks {
-                    _ = events::emit(AppEvent::KovaaksRunning(true));
-                } else {
-                    _ = events::emit(AppEvent::ObsRunning(true));
+            for process in system.processes().values() {
+                let Some(exe_path) = process.exe() else {
+                    continue;
+                };
+
+                new_obs_running = new_obs_running || exe_path == &config_processes.paths.obs;
+                new_kovaaks_running =
+                    new_kovaaks_running || exe_path == &config_processes.paths.kovaaks;
+
+                if new_obs_running && new_kovaaks_running {
+                    break;
                 }
             }
 
-            // Newly stopped processes
-            for process in previous.difference(&running) {
-                if *process == config_processes.paths.kovaaks {
-                    _ = events::emit(AppEvent::KovaaksRunning(false));
-                } else {
-                    _ = events::emit(AppEvent::ObsRunning(false));
-                }
+            if new_obs_running != obs_running {
+                obs_running = new_obs_running;
+                _ = events::emit(AppEvent::ObsRunning(obs_running));
             }
 
-            previous = running;
+            if new_kovaaks_running != kovaaks_running {
+                kovaaks_running = new_kovaaks_running;
+                _ = events::emit(AppEvent::KovaaksRunning(kovaaks_running));
+            }
 
             tokio::time::sleep(Duration::from_secs(config_processes.scan_interval_secs)).await;
         }

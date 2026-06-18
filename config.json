@@ -1,5 +1,5 @@
 {
-  "auto_start": true,
+  "auto_start": false,
   "obs": {
     "host": "localhost",
     "port": 4455,
