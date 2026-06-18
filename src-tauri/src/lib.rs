@@ -57,8 +57,16 @@ pub fn run() {
             }
 
             let window = app.get_webview_window("main").unwrap();
-            let window_clone = window.clone();
 
+            // If it was NOT auto started, make the window visible
+            let autostart = std::env::args().any(|arg| arg == "--autostart");
+            if !autostart {
+                window.show()?;
+                window.set_focus()?;
+            }
+
+            // Minimize to the tray when closing the window
+            let window_clone = window.clone();
             window.on_window_event(move |event| {
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
@@ -66,6 +74,7 @@ pub fn run() {
                 }
             });
 
+            // Create tray menus
             let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
