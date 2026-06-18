@@ -1,7 +1,7 @@
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { ConfigService } from '../services/config.service';
-import { rxResource } from '@angular/core/rxjs-interop';
+import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FieldTree, form, FormField } from '@angular/forms/signals';
 import { open } from '@tauri-apps/plugin-dialog';
 import { MatFormField, MatInput, MatLabel, MatSuffix } from '@angular/material/input';
@@ -14,8 +14,8 @@ import { MatTooltip } from '@angular/material/tooltip';
 import { MatToolbar } from '@angular/material/toolbar';
 import { TauriService } from '../services/tauri.service';
 import { CacheService } from '../services/cache.service';
-import { EventsService } from '../services/events.service';
-import { switchMap } from 'rxjs';
+import { EventService } from '../services/event.service';
+import { combineLatest, switchMap, tap } from 'rxjs';
 import { MatChip } from '@angular/material/chips';
 import { GlobalService } from '../services/global.service';
 
@@ -47,7 +47,7 @@ export default class HomeComponent {
   private readonly configService = inject(ConfigService);
   private readonly tauriService = inject(TauriService);
   private readonly cacheService = inject(CacheService);
-  private readonly eventsService = inject(EventsService);
+  private readonly eventService = inject(EventService);
   protected readonly globalService = inject(GlobalService);
 
   private readonly refresh = signal(new Date());
@@ -55,22 +55,22 @@ export default class HomeComponent {
   protected readonly ffmpegForm = form(signal({ args: '' }));
 
   protected readonly isRunning = rxResource({
-    stream: () => this.eventsService.isRunning(),
+    stream: () => this.eventService.isRunning(),
     defaultValue: false,
   });
 
   protected readonly isObsRunning = rxResource({
-    stream: () => this.eventsService.isObsRunning(),
+    stream: () => this.eventService.isObsRunning(),
     defaultValue: false,
   });
 
   protected readonly isKovaaksRunning = rxResource({
-    stream: () => this.eventsService.isKovaaksRunning(),
+    stream: () => this.eventService.isKovaaksRunning(),
     defaultValue: false,
   });
 
   protected readonly sources = rxResource<string[] | null, unknown>({
-    stream: () => this.eventsService.obsSources(),
+    stream: () => this.eventService.obsSources(),
     defaultValue: null,
   });
 
@@ -105,6 +105,8 @@ export default class HomeComponent {
         this.configForm.ffmpeg_args().value.set(args);
       });
     });
+
+    this.runAutoStartHandler().pipe(takeUntilDestroyed()).subscribe();
   }
 
   protected clearCache(): void {
@@ -151,5 +153,36 @@ export default class HomeComponent {
 
   protected runExe(...params: Parameters<typeof this.tauriService.runExe>): void {
     this.tauriService.runExe(...params);
+  }
+
+  protected runAutoStartHandler() {
+    return combineLatest([
+      this.eventService.isKovaaksRunning(),
+      this.eventService.isObsRunning(),
+      this.eventService.isRunning(),
+      this.eventService.config(),
+    ]).pipe(
+      tap(([isKovaaksRunning, isObsRunning, isRunning, config]) => {
+        // Don't proceed unless auto start is enabled.
+        if (!config.auto_start) {
+          return;
+        }
+
+        // If KovaaK's isn't running, there is nothing to do.
+        if (!isKovaaksRunning) {
+          return;
+        }
+
+        // If OBS is not running, open it.
+        if (!isObsRunning) {
+          return this.runExe('obs');
+        }
+
+        // If we're not running, what are we waiting for?!
+        if (!isRunning) {
+          return this.start();
+        }
+      })
+    );
   }
 }

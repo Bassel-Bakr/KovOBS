@@ -1,16 +1,22 @@
 import { Service } from '@angular/core';
-import { Observable, Subject } from 'rxjs';
+import { Observable, ReplaySubject } from 'rxjs';
+import { Config } from '../models/config';
 
 @Service()
-export class EventsService {
-  messageSubject = new Subject<string>();
-  runningSubject = new Subject<boolean>();
-  obsSourcesSubject = new Subject<string[]>();
-  obsRunningSubject = new Subject<boolean>();
-  kovaaksRunningSubject = new Subject<boolean>();
+export class EventService {
+  messageSubject = new ReplaySubject<string>(1000);
+  configSubject = new ReplaySubject<Config>(1000);
+  runningSubject = new ReplaySubject<boolean>();
+  obsSourcesSubject = new ReplaySubject<string[]>();
+  obsRunningSubject = new ReplaySubject<boolean>();
+  kovaaksRunningSubject = new ReplaySubject<boolean>();
 
   messages(): Observable<string> {
     return this.messageSubject.asObservable();
+  }
+
+  config(): Observable<Config> {
+    return this.configSubject.asObservable();
   }
 
   isRunning(): Observable<boolean> {

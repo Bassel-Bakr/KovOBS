@@ -1,5 +1,6 @@
-import { Component, effect, ElementRef, inject, signal } from '@angular/core';
-import { EventsService } from '../services/events.service';
+import { Component, effect, ElementRef, inject } from '@angular/core';
+import { EventService } from '../services/event.service';
+import { LogService } from '../services/log.service';
 
 @Component({
   selector: 'app-logs',
@@ -8,18 +9,14 @@ import { EventsService } from '../services/events.service';
   styleUrl: './logs.component.scss',
 })
 export default class LogsComponent {
-  private readonly eventsService = inject(EventsService);
+  private readonly eventsService = inject(EventService);
+  private readonly logService = inject(LogService);
 
-  protected readonly logs = signal<string[]>([]);
   private readonly host = inject(ElementRef<HTMLElement>);
 
-  private updateMessage(message: string) {
-    this.logs.update((x) => [...x, message]);
-  }
+  protected readonly logs = this.logService.logs;
 
   constructor() {
-    this.eventsService.messages().subscribe((message) => this.updateMessage(message));
-
     // Scroll to the bottom on update
     effect(() => {
       if (this.logs().length > 0) {

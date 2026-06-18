@@ -9,7 +9,6 @@ use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 
 pub static APP_HANDLE: SetOnce<AppHandle> = SetOnce::const_new();
-
 pub static APP_STATE: SetOnce<Mutex<AppState>> = SetOnce::const_new();
 
 pub struct AppState {

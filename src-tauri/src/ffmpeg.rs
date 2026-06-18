@@ -1,7 +1,6 @@
 use crate::ui_println;
 use anyhow::Context;
 use chrono::TimeDelta;
-use indicatif::{ProgressBar, ProgressStyle};
 use std::path;
 use std::process::Stdio;
 use tokio::fs;
@@ -12,8 +11,7 @@ use tokio::process::Command;
 /// `out_file` using FFmpeg.
 ///
 /// Additional FFmpeg arguments are appended after the input arguments and
-/// before the output path. Progress is tracked using FFmpeg's `-progress`
-/// output and displayed via an `indicatif::ProgressBar`.
+/// before the output path.
 ///
 /// The output directory is created automatically if it does not already
 /// exist.
@@ -54,12 +52,6 @@ pub async fn trim(
 
     args.push(out_file.to_string_lossy().into_owned());
 
-    let pb = ProgressBar::new(trailing_duration.num_microseconds().unwrap().try_into()?);
-
-    pb.set_style(ProgressStyle::with_template(
-        "[{elapsed_precise}] {bar:40.cyan/blue} {percent}% ({eta})",
-    )?);
-
     let mut process = Command::new("ffmpeg")
         .args(&args)
         .stdout(Stdio::piped())
@@ -70,22 +62,19 @@ pub async fn trim(
 
     let mut lines = reader.lines();
 
+    let duration_micros = trailing_duration.num_microseconds().unwrap().try_into()?;
     while let Some(line) = lines.next_line().await? {
         if let Some(ms) = line.strip_prefix("out_time_ms=") {
             let current_ms: u64 = ms.parse()?;
 
             // Clamp to avoid going over 100%
-            pb.set_position(current_ms.min(pb.duration().as_micros().try_into()?));
+            let current_micros = current_ms.min(duration_micros);
+            let progress_percent = 100f32 * current_micros as f32 / duration_micros as f32;
+            ui_println!("✂️ Trimming in progress ({:.2}%)", progress_percent);
         }
     }
 
-    let status = process.wait().await?;
-
-    if status.success() {
-        pb.finish_with_message("Done");
-    } else {
-        pb.abandon_with_message("Failed");
-    }
+    process.wait().await?;
 
     ui_println!("🗃️ Saved clip: {}", out_file.to_string_lossy());
 
