@@ -1,4 +1,3 @@
-use crate::config::ProcessesConfig;
 use crate::events::AppEvent;
 use crate::globals::{APP_HANDLE, APP_STATE};
 use std::path::PathBuf;
@@ -63,9 +62,12 @@ fn observe_processes() {
         let mut kovaaks_running = false;
 
         loop {
-            let config_processes: ProcessesConfig = {
+            let (config_processes, is_running) = {
                 let app_state = APP_STATE.wait().await.lock().await;
-                app_state.config.as_ref().unwrap().processes.clone()
+                (
+                    app_state.config.as_ref().unwrap().processes.clone(),
+                    app_state.is_running,
+                )
             };
 
             system.refresh_processes_specifics(
@@ -93,12 +95,18 @@ fn observe_processes() {
 
             if new_obs_running != obs_running {
                 obs_running = new_obs_running;
-                _ = events::emit(AppEvent::ObsRunning(obs_running));
             }
 
             if new_kovaaks_running != kovaaks_running {
                 kovaaks_running = new_kovaaks_running;
-                _ = events::emit(AppEvent::KovaaksRunning(kovaaks_running));
+            }
+
+            _ = events::emit(AppEvent::ObsRunning(obs_running));
+            _ = events::emit(AppEvent::KovaaksRunning(kovaaks_running));
+
+            // Resend running status in case the page was refreshed
+            if is_running {
+                _ = events::emit(AppEvent::Running(is_running));
             }
 
             tokio::time::sleep(Duration::from_secs(config_processes.scan_interval_secs)).await;
