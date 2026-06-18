@@ -101,13 +101,9 @@ fn observe_processes() {
                 kovaaks_running = new_kovaaks_running;
             }
 
+            _ = events::emit(AppEvent::Running(is_running));
             _ = events::emit(AppEvent::ObsRunning(obs_running));
             _ = events::emit(AppEvent::KovaaksRunning(kovaaks_running));
-
-            // Resend running status in case the page was refreshed
-            if is_running {
-                _ = events::emit(AppEvent::Running(is_running));
-            }
 
             tokio::time::sleep(Duration::from_secs(config_processes.scan_interval_secs)).await;
         }

@@ -1,10 +1,10 @@
 import { computed, inject, Service, signal } from '@angular/core';
-import { EventsService } from './events.service';
+import { EventService } from './event.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Service()
 export class LogService {
-  private readonly eventsService = inject(EventsService);
+  private readonly eventsService = inject(EventService);
   private readonly internalLogs = signal<string[]>([]);
 
   readonly logs = computed(() => this.internalLogs());

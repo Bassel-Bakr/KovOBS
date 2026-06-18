@@ -1,5 +1,5 @@
 import { Component, effect, ElementRef, inject } from '@angular/core';
-import { EventsService } from '../services/events.service';
+import { EventService } from '../services/event.service';
 import { LogService } from '../services/log.service';
 
 @Component({
@@ -9,7 +9,7 @@ import { LogService } from '../services/log.service';
   styleUrl: './logs.component.scss',
 })
 export default class LogsComponent {
-  private readonly eventsService = inject(EventsService);
+  private readonly eventsService = inject(EventService);
   private readonly logService = inject(LogService);
 
   private readonly host = inject(ElementRef<HTMLElement>);

@@ -121,6 +121,9 @@ pub async fn save_config(config: AppConfig) -> Result<(), String> {
     };
 
     let config = AppConfig::open(app_handle).map_err(|e| e.to_string())?;
+
+    _ = events::emit(AppEvent::Config(config.clone().into()));
+
     state.config.replace(Arc::new(config));
 
     Ok(())

@@ -1,5 +1,6 @@
 use crate::cache::Cache;
 use crate::delay::StatDelay;
+use crate::events::AppEvent;
 use crate::globals::{AppState, APP_HANDLE, APP_STATE};
 use crate::{cmds, config::AppConfig, consts, events, ffmpeg, stat::Stat, ui_println, utils};
 use anyhow::Context;
@@ -32,7 +33,7 @@ pub async fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app_handle = APP_HANDLE.get().unwrap();
 
     let config = AppConfig::open(app_handle)?;
-
+    let config_clone = config.clone();
     // Set app state
     let mut app_state = AppState::new();
     app_state.config.replace(Arc::new(config));
@@ -41,6 +42,8 @@ pub async fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     APP_STATE
         .set(Mutex::new(app_state))
         .map_err(|e| e.to_string())?;
+
+    _ = events::emit(AppEvent::Config(config_clone.into()));
 
     Ok(())
 }

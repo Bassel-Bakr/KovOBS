@@ -1,9 +1,11 @@
 import { Service } from '@angular/core';
 import { Observable, ReplaySubject } from 'rxjs';
+import { Config } from '../models/config';
 
 @Service()
-export class EventsService {
+export class EventService {
   messageSubject = new ReplaySubject<string>(1000);
+  configSubject = new ReplaySubject<Config>(1000);
   runningSubject = new ReplaySubject<boolean>();
   obsSourcesSubject = new ReplaySubject<string[]>();
   obsRunningSubject = new ReplaySubject<boolean>();
@@ -11,6 +13,10 @@ export class EventsService {
 
   messages(): Observable<string> {
     return this.messageSubject.asObservable();
+  }
+
+  config(): Observable<Config> {
+    return this.configSubject.asObservable();
   }
 
   isRunning(): Observable<boolean> {
