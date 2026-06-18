@@ -115,7 +115,7 @@ jobs:
         run: |
           mkdir release-assets
 
-          find src-tauri/target/release/bundle -type f \
+          find target/release/bundle -type f \
             \( \
               -name "*.AppImage" -o \
               -name "*.deb" -o \
@@ -137,7 +137,7 @@ jobs:
         run: |
           New-Item -ItemType Directory release-assets | Out-Null
 
-          Get-ChildItem src-tauri/target/release/bundle -Recurse -Include *.msi,*setup*.exe |
+          Get-ChildItem target/release/bundle -Recurse -Include *.msi,*setup*.exe |
             Copy-Item -Destination release-assets
 
           Get-ChildItem release-assets | ForEach-Object {
