@@ -1,7 +1,6 @@
 // Learn more about Tauri cmds at https://tauri.app/develop/calling-rust/
 
 use crate::config::AppConfig;
-use crate::consts::CONFIG_FILE;
 use crate::events::AppEvent;
 use crate::globals::{APP_HANDLE, APP_STATE};
 use crate::{events, kovobs};
@@ -93,11 +92,11 @@ pub async fn save_config(config: AppConfig) -> Result<(), String> {
 
     let auto_start = config.auto_start;
 
-    AppConfig::save(CONFIG_FILE, config)
+    let app_handle = APP_HANDLE.get().unwrap();
+    AppConfig::save(app_handle, config)
         .await
         .map_err(|e| e.to_string())?;
 
-    let app_handle = APP_HANDLE.get().unwrap();
     let auto_launch = app_handle.autolaunch();
     if auto_start {
         auto_launch.enable().map_err(|e| e.to_string())?;
@@ -105,7 +104,7 @@ pub async fn save_config(config: AppConfig) -> Result<(), String> {
         auto_launch.disable().map_err(|e| e.to_string())?;
     }
 
-    let config = AppConfig::load(CONFIG_FILE).map_err(|e| e.to_string())?;
+    let config = AppConfig::open(app_handle).map_err(|e| e.to_string())?;
     state.config.replace(Arc::new(config));
 
     Ok(())

@@ -1,6 +1,6 @@
 use crate::cache::Cache;
 use crate::delay::StatDelay;
-use crate::globals::{AppState, APP_STATE};
+use crate::globals::{AppState, APP_HANDLE, APP_STATE};
 use crate::{cmds, config::AppConfig, consts, events, ffmpeg, stat::Stat, ui_println, utils};
 use anyhow::Context;
 use chrono::Utc;
@@ -29,7 +29,9 @@ pub async fn start() -> Result<(), anyhow::Error> {
 }
 
 pub async fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let config = AppConfig::load(consts::CONFIG_FILE)?;
+    let app_handle = APP_HANDLE.get().unwrap();
+
+    let config = AppConfig::open(app_handle)?;
 
     // Set app state
     let mut app_state = AppState::new();

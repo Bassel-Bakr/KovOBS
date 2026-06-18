@@ -1,4 +1,8 @@
-use config::{Config, File};
+use crate::consts;
+use config::Config;
+use std::path::Path;
+use tauri::path::BaseDirectory;
+use tauri::{AppHandle, Manager};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct AppConfig {
@@ -44,19 +48,56 @@ pub struct ProcessPaths {
 }
 
 impl AppConfig {
-    pub fn load(config_name: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let config_file = File::with_name(config_name);
-        let settings = Config::builder().add_source(config_file).build()?;
+    pub fn open(app_handle: &AppHandle) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        if let Ok(path) = Self::get_main_config_path(app_handle)
+            && path.exists()
+        {
+            return Self::load(&path);
+        } else if let path = Path::new(consts::CONFIG_FILE_NAME)
+            && path.exists()
+        {
+            return Self::load(path);
+        } else if let Ok(path) = Self::get_default_config_path(app_handle)
+            && path.exists()
+        {
+            return Self::load(&path);
+        }
+
+        Err("Config file not found".into())
+    }
+
+    pub fn load(config_path: &Path) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let file = config::File::from(config_path);
+        println!("{:#?}", file);
+        let settings = Config::builder().add_source(file).build()?;
         Ok(settings.try_deserialize::<AppConfig>()?)
     }
 
     pub async fn save(
-        config_name: &str,
+        app_handle: &AppHandle,
         config: AppConfig,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let main_config_path = Self::get_main_config_path(app_handle)?;
         let contents = serde_json::to_string_pretty(&config)?;
-        tokio::fs::write(config_name, contents).await?;
+        tokio::fs::create_dir_all(main_config_path.parent().unwrap()).await?;
+        tokio::fs::write(main_config_path, contents).await?;
         Ok(())
+    }
+
+    fn get_main_config_path(app_handle: &AppHandle) -> Result<std::path::PathBuf, tauri::Error> {
+        app_handle
+            .path()
+            .resolve(consts::CONFIG_FILE_NAME, BaseDirectory::Config)
+            .map(|p| {
+                p.with_file_name(consts::APP_NAME)
+                    .join(consts::CONFIG_FILE_NAME)
+            })
+    }
+
+    fn get_default_config_path(app_handle: &AppHandle) -> Result<std::path::PathBuf, tauri::Error> {
+        app_handle
+            .path()
+            .resolve(consts::CONFIG_FILE_NAME, BaseDirectory::Resource)
     }
 }
 
