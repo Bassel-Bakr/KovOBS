@@ -18,11 +18,11 @@ use tokio::task::JoinSet;
 pub async fn start() -> Result<(), anyhow::Error> {
     // Register panic handler
     panic::set_hook(Box::new(|info| {
-        eprintln!("💥 App crashed: {}", info);
+        ui_println!("💥 App crashed: {}", info);
     }));
 
     if let Err(err) = run().await {
-        eprintln!("🛑 Error: {}", err);
+        ui_println!("🛑 Error: {}", err);
     }
 
     Ok(())
@@ -122,7 +122,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     };
 
     if let Err(e) = res {
-        eprintln!("❌ Error: {}", e);
+        ui_println!("❌ Error: {}", e);
     }
 
     ui_println!("📦 Saving cache updates...");

@@ -4,7 +4,7 @@ use std::path::Path;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager};
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AppConfig {
     pub auto_start: bool,
     pub obs: ObsConfig,
@@ -22,7 +22,7 @@ pub struct AppConfig {
     pub processes: ProcessesConfig,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ObsConfig {
     pub host: String,
     pub port: u16,
@@ -30,7 +30,7 @@ pub struct ObsConfig {
     pub source_name: String,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ScreenshotConfig {
     pub enabled: bool,
 }
@@ -68,7 +68,6 @@ impl AppConfig {
 
     pub fn load(config_path: &Path) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let file = config::File::from(config_path);
-        println!("{:#?}", file);
         let settings = Config::builder().add_source(file).build()?;
         Ok(settings.try_deserialize::<AppConfig>()?)
     }

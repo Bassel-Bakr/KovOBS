@@ -1,10 +1,12 @@
 #[macro_export]
 macro_rules! ui_println {
     () => {
-        $crate::events::message("")?
+        println!("");
+        _ = $crate::events::message("");
     };
     ($($arg:tt)*) => {{
         let msg = format!($($arg)*);
-        $crate::events::emit($crate::events::AppEvent::Message(msg))?
+        println!("{}", msg);
+        _ = $crate::events::emit($crate::events::AppEvent::Message(msg));
     }};
 }

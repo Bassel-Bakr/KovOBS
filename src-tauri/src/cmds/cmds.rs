@@ -3,7 +3,7 @@
 use crate::config::AppConfig;
 use crate::events::AppEvent;
 use crate::globals::{APP_HANDLE, APP_STATE};
-use crate::{events, kovobs};
+use crate::{events, kovobs, ui_println};
 use std::path::Path;
 use std::sync::Arc;
 use tauri_plugin_autostart::ManagerExt;
@@ -51,7 +51,7 @@ pub async fn start_app() -> Result<(), String> {
         };
 
         if let Err(e) = res {
-            eprintln!("{e:?}");
+            ui_println!("{e:?}");
         }
     };
 
@@ -78,10 +78,17 @@ pub async fn stop_app() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn get_config() -> Result<Arc<AppConfig>, String> {
+pub async fn get_config() -> Result<AppConfig, String> {
     let state = &APP_STATE.wait().await.lock().await;
-
     let config = state.config.as_ref().cloned().unwrap_or_default();
+    let mut config = (*config).clone();
+
+    let app_handle = APP_HANDLE.get().unwrap();
+    let auto_launch = app_handle.autolaunch();
+
+    if let Ok(status) = auto_launch.is_enabled() {
+        config.auto_start = status;
+    }
 
     Ok(config)
 }
@@ -98,11 +105,20 @@ pub async fn save_config(config: AppConfig) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     let auto_launch = app_handle.autolaunch();
-    if auto_start {
-        auto_launch.enable().map_err(|e| e.to_string())?;
-    } else {
-        auto_launch.disable().map_err(|e| e.to_string())?;
-    }
+
+    if let Ok(status) = auto_launch.is_enabled() {
+        if auto_start && !status {
+            match auto_launch.enable() {
+                Ok(()) => ui_println!("🫡 Enable auto start"),
+                Err(e) => ui_println!("👎 Failed to enable autostart: {e:?}"),
+            }
+        } else if !auto_start && status {
+            match auto_launch.disable() {
+                Ok(()) => ui_println!("🚫 Disabled auto start"),
+                Err(e) => ui_println!("👎 Failed to disable autostart: {e:?}"),
+            }
+        }
+    };
 
     let config = AppConfig::open(app_handle).map_err(|e| e.to_string())?;
     state.config.replace(Arc::new(config));
