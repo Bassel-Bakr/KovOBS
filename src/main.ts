@@ -33,6 +33,10 @@ void listen<boolean>('kovaaks_running', (event) => {
   injector?.get(EventService)?.kovaaksRunningSubject.next(event.payload);
 });
 
+window.addEventListener('beforeunload', (e) => {
+  e.preventDefault();
+});
+
 bootstrapApplication(AppComponent, appConfig)
   .then((app) => {
     injector = app.injector;

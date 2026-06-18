@@ -163,18 +163,17 @@ export default class HomeComponent {
       this.eventService.config(),
     ]).pipe(
       tap(([isKovaaksRunning, isObsRunning, isRunning, config]) => {
+        // Don't proceed unless auto start is enabled.
         if (!config.auto_start) {
           return;
         }
-
-        // Auto start is enabled
 
         // If KovaaK's isn't running, there is nothing to do.
         if (!isKovaaksRunning) {
           return;
         }
 
-        // If OBS is not running, open it
+        // If OBS is not running, open it.
         if (!isObsRunning) {
           return this.runExe('obs');
         }
