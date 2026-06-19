@@ -86,11 +86,7 @@ impl AppConfig {
     fn get_main_config_path(app_handle: &AppHandle) -> Result<std::path::PathBuf, tauri::Error> {
         app_handle
             .path()
-            .resolve(consts::CONFIG_FILE_NAME, BaseDirectory::Config)
-            .map(|p| {
-                p.with_file_name(consts::APP_NAME)
-                    .join(consts::CONFIG_FILE_NAME)
-            })
+            .resolve(consts::CONFIG_FILE_NAME, BaseDirectory::AppConfig)
     }
 
     fn get_default_config_path(app_handle: &AppHandle) -> Result<std::path::PathBuf, tauri::Error> {

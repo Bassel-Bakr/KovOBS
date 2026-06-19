@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "KovOBS",
-  "identifier": "com.bassel.kovobs",
+  "identifier": "KovOBS",
   "build": {
     "beforeDevCommand": "npm run start",
     "devUrl": "http://localhost:1420",

@@ -1,19 +1,19 @@
 use crate::cache::Cache;
 use crate::delay::StatDelay;
 use crate::events::AppEvent;
-use crate::globals::{AppState, APP_HANDLE, APP_STATE};
+use crate::globals::{APP_HANDLE, APP_STATE, AppState};
 use crate::{cmds, config::AppConfig, consts, events, ffmpeg, stat::Stat, ui_println, utils};
 use anyhow::Context;
 use chrono::Utc;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{events::Event::ReplayBufferSaved, Client};
+use obws::{Client, events::Event::ReplayBufferSaved};
 use std::{panic, path};
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
-use tokio::sync::mpsc;
 use tokio::sync::Mutex;
+use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 
 pub async fn start() -> Result<(), anyhow::Error> {
@@ -55,7 +55,11 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     };
 
     ui_println!("📦 Re-building cache from stat files...");
-    let mut cache = Cache::new(&config.cache_file);
+    let mut cache = {
+        let app_handle = APP_HANDLE.get().unwrap();
+        Cache::new(app_handle, &config.cache_file).await?
+    };
+    
     let cache_rebuild_duration = {
         let instant = std::time::Instant::now();
         cache.load()?;

@@ -109,7 +109,7 @@ pub async fn save_config(config: AppConfig) -> Result<(), String> {
     if let Ok(status) = auto_launch.is_enabled() {
         if auto_start && !status {
             match auto_launch.enable() {
-                Ok(()) => ui_println!("🫡 Enable auto start"),
+                Ok(()) => ui_println!("🫡 Enabled auto start"),
                 Err(e) => ui_println!("👎 Failed to enable autostart: {e:?}"),
             }
         } else if !auto_start && status {

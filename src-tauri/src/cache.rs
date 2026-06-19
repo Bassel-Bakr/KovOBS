@@ -1,10 +1,11 @@
-use std::{collections, fs, path};
-
-use chrono::{DateTime, Utc};
-use rayon::prelude::*;
-
 use crate::stat::Stat;
 use crate::utils;
+use chrono::{DateTime, Utc};
+use rayon::prelude::*;
+use std::path::PathBuf;
+use std::{collections, fs, path};
+use tauri::path::BaseDirectory;
+use tauri::{AppHandle, Manager};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CachedDataValue {
@@ -25,11 +26,14 @@ pub struct Cache {
 }
 
 impl Cache {
-    pub fn new(cache_file: &str) -> Self {
-        Self {
+    pub async fn new(app_handle: &AppHandle, cache_file: &str) -> Result<Self, anyhow::Error> {
+        let path = Self::get_cache_path(app_handle, cache_file)?;
+        tokio::fs::create_dir_all(&path.parent().unwrap()).await?;
+
+        Ok(Self {
             data: Self::default_data(),
-            file_path: path::PathBuf::from(cache_file),
-        }
+            file_path: path,
+        })
     }
 
     pub fn get(&mut self, scenario: &str) -> &mut CachedDataValue {
@@ -105,6 +109,12 @@ impl Cache {
     pub fn clear(&mut self) {
         self.data.last_update = Utc::now().timestamp();
         self.data = Self::default_data();
+    }
+
+    fn get_cache_path(app_handle: &AppHandle, cache_file: &str) -> Result<PathBuf, tauri::Error> {
+        app_handle
+            .path()
+            .resolve(cache_file, BaseDirectory::AppCache)
     }
 
     fn default_data() -> CacheData {
