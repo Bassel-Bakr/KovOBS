@@ -1,19 +1,19 @@
 use crate::cache::Cache;
 use crate::delay::StatDelay;
 use crate::events::AppEvent;
-use crate::globals::{APP_HANDLE, APP_STATE, AppState};
+use crate::globals::{AppState, APP_HANDLE, APP_STATE};
 use crate::{cmds, config::AppConfig, consts, events, ffmpeg, stat::Stat, ui_println, utils};
 use anyhow::Context;
 use chrono::Utc;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{Client, events::Event::ReplayBufferSaved};
+use obws::{events::Event::ReplayBufferSaved, Client};
 use std::{panic, path};
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
-use tokio::sync::Mutex;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tokio::task::JoinSet;
 
 pub async fn start() -> Result<(), anyhow::Error> {
@@ -50,7 +50,7 @@ pub async fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = {
-        let app_state = &mut APP_STATE.wait().await.lock().await;
+        let app_state = &APP_STATE.wait().await.lock().await;
         app_state.config.clone().unwrap()
     };
 
@@ -59,7 +59,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let app_handle = APP_HANDLE.get().unwrap();
         Cache::new(app_handle, &config.cache_file).await?
     };
-    
+
     let cache_rebuild_duration = {
         let instant = std::time::Instant::now();
         cache.load()?;
@@ -99,7 +99,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // We're ready to display the UI now
         app_state.is_ready = true;
         app_state.is_running = true;
-    }
+    };
+    events::emit(AppEvent::Running(true))?;
 
     let obs_sources = cmds::get_obs_sources().await?;
     events::emit(events::AppEvent::ObsSources(obs_sources.into()))?;
