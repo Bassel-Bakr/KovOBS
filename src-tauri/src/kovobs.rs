@@ -50,12 +50,16 @@ pub async fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = {
-        let app_state = &mut APP_STATE.wait().await.lock().await;
+        let app_state = &APP_STATE.wait().await.lock().await;
         app_state.config.clone().unwrap()
     };
 
     ui_println!("📦 Re-building cache from stat files...");
-    let mut cache = Cache::new(&config.cache_file);
+    let mut cache = {
+        let app_handle = APP_HANDLE.get().unwrap();
+        Cache::new(app_handle, &config.cache_file).await?
+    };
+
     let cache_rebuild_duration = {
         let instant = std::time::Instant::now();
         cache.load()?;
@@ -95,7 +99,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // We're ready to display the UI now
         app_state.is_ready = true;
         app_state.is_running = true;
-    }
+    };
+    events::emit(AppEvent::Running(true))?;
 
     let obs_sources = cmds::get_obs_sources().await?;
     events::emit(events::AppEvent::ObsSources(obs_sources.into()))?;

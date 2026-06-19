@@ -35,6 +35,10 @@ pub async fn start_app() -> Result<(), String> {
     if state.is_running {
         return Err(String::from("Already running"));
     }
+    // TODO: refactor this part
+    // Set true here to avoid 2+ threads running 2+ instances of the app
+    // because the other place for setting is_running runs after releasing the lock
+    state.is_running = true;
 
     // If it's closed, reopen it
     if state.task_tracker.is_closed() {
@@ -57,7 +61,8 @@ pub async fn start_app() -> Result<(), String> {
 
     let handle = tauri::async_runtime::handle();
     state.task_tracker.spawn_on(startup_task, handle.inner());
-    events::emit(AppEvent::Running(true))
+    
+    Ok(())
 }
 
 #[tauri::command]
@@ -69,10 +74,10 @@ pub async fn stop_app() -> Result<(), String> {
     }
 
     state.stop();
-    events::emit(AppEvent::Running(false))?;
     state.task_tracker.close();
-
     state.task_tracker.wait().await;
+    events::emit(AppEvent::Running(false))?;
+    ui_println!("⛔ Stopped");
 
     Ok(())
 }
@@ -109,7 +114,7 @@ pub async fn save_config(config: AppConfig) -> Result<(), String> {
     if let Ok(status) = auto_launch.is_enabled() {
         if auto_start && !status {
             match auto_launch.enable() {
-                Ok(()) => ui_println!("🫡 Enable auto start"),
+                Ok(()) => ui_println!("🫡 Enabled auto start"),
                 Err(e) => ui_println!("👎 Failed to enable autostart: {e:?}"),
             }
         } else if !auto_start && status {

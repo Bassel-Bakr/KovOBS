@@ -52,6 +52,12 @@ export default class HomeComponent {
 
   private readonly refresh = signal(new Date());
 
+  /**
+   * Tracks if the user hit the stop button themselves to prevent auto start from hijacking the button
+   * We only need to set it once and forget, so, no need for signals
+   */
+  private userClickedStop = false;
+
   protected readonly ffmpegForm = form(signal({ args: '' }));
 
   protected readonly isRunning = rxResource({
@@ -132,7 +138,10 @@ export default class HomeComponent {
     this.tauriService.start().subscribe();
   }
 
-  protected stop(): void {
+  protected stop(event: MouseEvent): void {
+    if (event.isTrusted) {
+      this.userClickedStop = true;
+    }
     this.tauriService.stop().subscribe();
   }
 
@@ -179,7 +188,7 @@ export default class HomeComponent {
         }
 
         // If we're not running, what are we waiting for?!
-        if (!isRunning) {
+        if (!isRunning && !this.userClickedStop) {
           return this.start();
         }
       })

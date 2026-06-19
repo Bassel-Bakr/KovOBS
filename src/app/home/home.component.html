@@ -44,7 +44,7 @@
   <button matButton="tonal" (click)="save()">Save</button>
 
   @if (isRunning.value()) {
-    <button matIconButton matTooltip="Stop" (click)="stop()">
+    <button matIconButton matTooltip="Stop" (click)="stop($event)">
       <mat-icon>stop</mat-icon>
     </button>
   } @else {

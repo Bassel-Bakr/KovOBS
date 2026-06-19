@@ -22,15 +22,19 @@ mod stat;
 mod utils;
 
 thread_local! {
-    static TRAY_ICON: RefCell<Option<TrayIcon>> = RefCell::new(None);
+    static TRAY_ICON: RefCell<Option<TrayIcon>> = const { RefCell::new(None) };
 }
 
-// static TRAY_ICON:
+const AUTO_START_ARG: &str = "--autostart";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_autostart::Builder::new().build())
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .arg(AUTO_START_ARG)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -59,7 +63,7 @@ pub fn run() {
             let window = app.get_webview_window("main").unwrap();
 
             // If it was NOT auto started, make the window visible
-            let autostart = std::env::args().any(|arg| arg == "--autostart");
+            let autostart = std::env::args().any(|arg| arg == AUTO_START_ARG);
             if !autostart {
                 window.show()?;
                 window.set_focus()?;
