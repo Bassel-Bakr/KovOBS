@@ -74,6 +74,8 @@ pub async fn stop_app() -> Result<(), String> {
 
     state.task_tracker.wait().await;
 
+    ui_println!("⛔ Stopped");
+
     Ok(())
 }
 
