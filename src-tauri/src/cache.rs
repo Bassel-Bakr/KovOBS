@@ -111,7 +111,10 @@ impl Cache {
         self.data = Self::default_data();
     }
 
-    fn get_cache_path(app_handle: &AppHandle, cache_file: &str) -> Result<PathBuf, tauri::Error> {
+    pub fn get_cache_path(
+        app_handle: &AppHandle,
+        cache_file: &str,
+    ) -> Result<PathBuf, tauri::Error> {
         app_handle
             .path()
             .resolve(cache_file, BaseDirectory::AppCache)

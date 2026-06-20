@@ -15,6 +15,7 @@ use tokio::fs;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::task::JoinSet;
+use tokio::time::Instant;
 
 pub async fn start() -> Result<(), anyhow::Error> {
     // Register panic handler
@@ -25,6 +26,10 @@ pub async fn start() -> Result<(), anyhow::Error> {
     if let Err(err) = run().await {
         ui_println!("🛑 Error: {}", err);
     }
+
+    let app_state = &mut APP_STATE.wait().await.lock().await;
+    app_state.is_running = false;
+    _ = events::emit(AppEvent::Running(app_state.is_running));
 
     Ok(())
 }
@@ -54,19 +59,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         app_state.config.clone().unwrap()
     };
 
-    ui_println!("📦 Re-building cache from stat files...");
-    let mut cache = {
+    let cache = {
         let app_handle = APP_HANDLE.get().unwrap();
         Cache::new(app_handle, &config.cache_file).await?
     };
-
-    let cache_rebuild_duration = {
-        let instant = std::time::Instant::now();
-        cache.load()?;
-        cache.update(&config.stats_folder)?;
-        instant.elapsed()
-    };
-    ui_println!("✅ Done in {:.2}s", cache_rebuild_duration.as_secs_f32());
 
     ui_println!("⏺️ Connecting to OBS...");
     let client = Client::connect(
@@ -104,6 +100,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let obs_sources = cmds::get_obs_sources().await?;
     events::emit(events::AppEvent::ObsSources(obs_sources.into()))?;
+
+    // Rebuild cache
+    tokio::spawn(rebuild_cache(config.clone(), cache.clone()));
 
     // Last seen stat
     let (tx, rx) = mpsc::channel::<Stat>(1);
@@ -353,6 +352,35 @@ async fn save_screenshot(
         })?;
 
     ui_println!("🗃️ Saved screenshot: {}", sc_path.to_string_lossy());
+
+    Ok(())
+}
+
+async fn rebuild_cache(
+    config: Arc<AppConfig>,
+    cache: Arc<Mutex<Cache>>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    ui_println!("📦 Rebuilding cache from stat files...");
+
+    let instant = Instant::now();
+
+    let mut cache = cache.lock().await;
+
+    let res = async {
+        cache.load()?;
+        cache.update(&config.stats_folder)?;
+        Ok::<_, anyhow::Error>(())
+    }
+    .await;
+
+    if let Err(e) = res {
+        ui_println!("❌ Cache rebuild failed: {}", e);
+    }
+
+    ui_println!(
+        "✅ Done rebuilding cache in {:.2}s",
+        instant.elapsed().as_secs_f32()
+    );
 
     Ok(())
 }
