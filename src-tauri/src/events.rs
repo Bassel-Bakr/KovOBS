@@ -1,6 +1,7 @@
 use crate::config::AppConfig;
 use crate::globals::APP_HANDLE;
 use tauri::Emitter;
+use crate::ffmpeg::FFmpegDownloadProgress;
 
 pub enum AppEvent {
     Running(bool),
@@ -9,6 +10,7 @@ pub enum AppEvent {
     KovaaksRunning(bool),
     ObsRunning(bool),
     ObsSources(Box<[String]>),
+    FFmpegDownloadProgress(FFmpegDownloadProgress),
 }
 
 pub fn emit(event: AppEvent) -> Result<(), String> {
@@ -23,6 +25,9 @@ pub fn emit(event: AppEvent) -> Result<(), String> {
         }
         AppEvent::ObsRunning(is_running) => Emitter::emit(app_handle, "obs_running", is_running),
         AppEvent::ObsSources(sources) => Emitter::emit(app_handle, "obs_sources", sources),
+        AppEvent::FFmpegDownloadProgress(progress) => {
+            Emitter::emit(app_handle, "ffmpeg_download_progress", progress)
+        }
     };
 
     res.map_err(|e| e.to_string())

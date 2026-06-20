@@ -1,6 +1,7 @@
 import { Service } from '@angular/core';
 import { Observable, ReplaySubject } from 'rxjs';
 import { Config } from '../models/config';
+import { FFmpegDownloadProgress } from '../models/ffmpeg-download-progress';
 
 @Service()
 export class EventService {
@@ -10,6 +11,7 @@ export class EventService {
   obsSourcesSubject = new ReplaySubject<string[]>();
   obsRunningSubject = new ReplaySubject<boolean>();
   kovaaksRunningSubject = new ReplaySubject<boolean>();
+  ffmpegDownloadProgressSubject = new ReplaySubject<FFmpegDownloadProgress>();
 
   messages(): Observable<string> {
     return this.messageSubject.asObservable();
@@ -33,5 +35,9 @@ export class EventService {
 
   isKovaaksRunning(): Observable<boolean> {
     return this.kovaaksRunningSubject.asObservable();
+  }
+
+  ffmpegDownloadProgress(): Observable<FFmpegDownloadProgress> {
+    return this.ffmpegDownloadProgressSubject.asObservable();
   }
 }

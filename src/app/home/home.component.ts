@@ -18,6 +18,8 @@ import { EventService } from '../services/event.service';
 import { combineLatest, switchMap, tap } from 'rxjs';
 import { MatChip } from '@angular/material/chips';
 import { GlobalService } from '../services/global.service';
+import { FfmpegService } from '../services/ffmpeg.service';
+import { MatProgressSpinner } from '@angular/material/progress-spinner';
 
 @Component({
   selector: 'app-home',
@@ -39,6 +41,7 @@ import { GlobalService } from '../services/global.service';
     MatButton,
     MatToolbar,
     MatChip,
+    MatProgressSpinner,
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
@@ -48,6 +51,7 @@ export default class HomeComponent {
   private readonly tauriService = inject(TauriService);
   private readonly cacheService = inject(CacheService);
   private readonly eventService = inject(EventService);
+  private readonly ffmpegService = inject(FfmpegService);
   protected readonly globalService = inject(GlobalService);
 
   private readonly refresh = signal(new Date());
@@ -59,6 +63,11 @@ export default class HomeComponent {
   private userClickedStop = false;
 
   protected readonly ffmpegForm = form(signal({ args: '' }));
+
+  protected readonly ffmpegDownloadProgress = rxResource({
+    stream: () => this.eventService.ffmpegDownloadProgress(),
+    defaultValue: { state: 'NotDone', progress: 0 },
+  });
 
   protected readonly isRunning = rxResource({
     stream: () => this.eventService.isRunning(),
@@ -158,6 +167,14 @@ export default class HomeComponent {
 
   protected openFFmpegHelp(): void {
     void openUrl('https://ffmpeg.org/ffmpeg.html');
+  }
+
+  protected downloadFFmpeg(): void {
+    this.ffmpegService.download().subscribe();
+  }
+
+  protected deleteFFmpeg(): void {
+    this.ffmpegService.remove().subscribe();
   }
 
   protected runExe(...params: Parameters<typeof this.tauriService.runExe>): void {
