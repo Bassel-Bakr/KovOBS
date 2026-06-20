@@ -1,5 +1,6 @@
 // Learn more about Tauri cmds at https://tauri.app/develop/calling-rust/
 
+use crate::cache::Cache;
 use crate::config::AppConfig;
 use crate::events::AppEvent;
 use crate::globals::{APP_HANDLE, APP_STATE};
@@ -61,7 +62,7 @@ pub async fn start_app() -> Result<(), String> {
 
     let handle = tauri::async_runtime::handle();
     state.task_tracker.spawn_on(startup_task, handle.inner());
-    
+
     Ok(())
 }
 
@@ -138,12 +139,24 @@ pub async fn save_config(config: AppConfig) -> Result<(), String> {
 pub async fn clear_cache() -> Result<(), String> {
     let state = &APP_STATE.wait().await.lock().await;
 
-    let config = state.config.as_ref().unwrap();
-    let cache = state.cache.as_ref().unwrap();
-    cache.lock().await.clear();
-    tokio::fs::remove_file(&config.cache_file)
-        .await
-        .map_err(|e| e.to_string())
+    if let Some(cache) = state.cache.as_ref() {
+        cache.lock().await.clear();
+    }
+
+    if let Some(config) = state.config.as_ref() {
+        let app_handle = APP_HANDLE.get().unwrap();
+
+        let cache_path =
+            Cache::get_cache_path(app_handle, &config.cache_file).map_err(|e| e.to_string())?;
+
+        tokio::fs::remove_file(cache_path)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    ui_println!("🗑️ Cache cleared");
+
+    Ok(())
 }
 
 #[tauri::command]
