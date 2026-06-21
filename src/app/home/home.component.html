@@ -137,10 +137,39 @@
   <mat-card appearance="outlined">
     <mat-card-header>
       <mat-card-title>
-        FFmpeg
-        <button matIconButton matTooltip="Docs" (click)="openFFmpegHelp()">
-          <mat-icon>info</mat-icon>
-        </button>
+        <div class="ffmpeg__card-title">
+          FFmpeg
+
+          @let progress = ffmpegDownloadProgress.value();
+
+          @switch (progress.state) {
+            @case ('Unknown') {}
+            @case ('Done') {
+              <button matIconButton type="button" matTooltip="Delete downloaded FFmpeg" (click)="deleteFFmpeg()">
+                <mat-icon>delete</mat-icon>
+              </button>
+            }
+            @case ('Starting')
+            @case ('Downloading')
+            @case ('Unpacking') {
+              <mat-progress-spinner
+                class="example-margin"
+                mode="determinate"
+                [diameter]="24"
+                [value]="progress.progress"
+              />
+            }
+            @case ('NotDone') {
+              <button matIconButton type="button" matTooltip="Download FFmpeg" (click)="downloadFFmpeg()">
+                <mat-icon>download</mat-icon>
+              </button>
+            }
+          }
+
+          <button matIconButton matTooltip="Docs" (click)="openFFmpegHelp()">
+            <mat-icon>info</mat-icon>
+          </button>
+        </div>
       </mat-card-title>
     </mat-card-header>
 

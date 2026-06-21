@@ -6,6 +6,7 @@ import { EnvironmentInjector } from '@angular/core';
 import { EventService } from './app/services/event.service';
 import { TauriService } from './app/services/tauri.service';
 import { Config } from './app/models/config';
+import { FFmpegDownloadProgress } from './app/models/ffmpeg-download-progress';
 
 let injector: EnvironmentInjector | undefined;
 
@@ -31,6 +32,10 @@ void listen<boolean>('obs_running', (event) => {
 
 void listen<boolean>('kovaaks_running', (event) => {
   injector?.get(EventService)?.kovaaksRunningSubject.next(event.payload);
+});
+
+void listen<FFmpegDownloadProgress>('ffmpeg_download_progress', (event) => {
+  injector?.get(EventService)?.ffmpegDownloadProgressSubject.next(event.payload);
 });
 
 window.addEventListener('beforeunload', (e) => {

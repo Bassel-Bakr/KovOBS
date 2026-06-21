@@ -1,7 +1,8 @@
 use crate::cache::Cache;
 use crate::config::AppConfig;
+use crate::ffmpeg::FFmpegDownloadProgress;
 use obws::Client;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tauri::AppHandle;
 use tokio::sync::Mutex;
 use tokio::sync::SetOnce;
@@ -10,6 +11,8 @@ use tokio_util::task::TaskTracker;
 
 pub static APP_HANDLE: SetOnce<AppHandle> = SetOnce::const_new();
 pub static APP_STATE: SetOnce<Mutex<AppState>> = SetOnce::const_new();
+pub static FFMPEG_DOWNLOAD_PROGRESS: LazyLock<Mutex<FFmpegDownloadProgress>> =
+    LazyLock::new(|| Mutex::new(FFmpegDownloadProgress::default()));
 
 pub struct AppState {
     pub is_ready: bool,

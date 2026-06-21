@@ -1,5 +1,5 @@
 use crate::events::AppEvent;
-use crate::globals::{APP_HANDLE, APP_STATE};
+use crate::globals::{APP_HANDLE, APP_STATE, FFMPEG_DOWNLOAD_PROGRESS};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -49,9 +49,26 @@ pub fn run() {
             cmds::get_obs_sources,
             cmds::run_obs,
             cmds::run_kovaaks,
+            cmds::is_ffmpeg_downloaded,
+            cmds::download_ffmpeg,
+            cmds::remove_ffmpeg,
         ])
         .setup(|app| {
             APP_HANDLE.set(app.handle().clone()).unwrap();
+
+            // Set ffmpeg-sidecar default path
+            ffmpeg::get_ffmpeg_folder_path(app.handle())
+                .map(|path| unsafe { std::env::set_var("FFMPEG_SIDECAR_DIR", path) })
+                .map_err(|e| e.to_string())?;
+
+            let is_ffmpeg_downloaded = ffmpeg::get_ffmpeg_path(app.handle());
+            let downloaded = is_ffmpeg_downloaded.map(|p| p.exists()).unwrap_or(false);
+
+            {
+                let mut ffmpeg_status = FFMPEG_DOWNLOAD_PROGRESS.blocking_lock();
+                let data = &mut *ffmpeg_status;
+                data.state = if downloaded { "Done" } else { "NotDone" };
+            }
 
             // Make debug config reference the root folder instead of Tauri's
             if cfg!(debug_assertions) {
@@ -175,6 +192,7 @@ fn observe_processes() {
             _ = events::emit(AppEvent::Running(is_running));
             _ = events::emit(AppEvent::ObsRunning(obs_running));
             _ = events::emit(AppEvent::KovaaksRunning(kovaaks_running));
+            _ = events::emit(AppEvent::FFmpegDownloadProgress(*FFMPEG_DOWNLOAD_PROGRESS.lock().await));
 
             tokio::time::sleep(Duration::from_secs(config_processes.scan_interval_secs)).await;
         }

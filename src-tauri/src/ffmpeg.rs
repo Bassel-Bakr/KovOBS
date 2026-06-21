@@ -1,11 +1,57 @@
-use crate::ui_println;
+use crate::globals::APP_HANDLE;
+use crate::{consts, ui_println};
 use anyhow::Context;
 use chrono::TimeDelta;
 use std::path;
+use std::path::PathBuf;
 use std::process::Stdio;
-use tokio::fs;
+use tauri::path::BaseDirectory;
+use tauri::{AppHandle, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+
+#[derive(Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FFmpegDownloadProgress {
+    pub state: &'static str,
+    pub progress: f32,
+}
+
+impl Default for FFmpegDownloadProgress {
+    fn default() -> Self {
+        Self {
+            state: "NotDone",
+            progress: 0.0,
+        }
+    }
+}
+
+pub fn get_ffmpeg_folder_path(app_handle: &AppHandle) -> Result<PathBuf, tauri::Error> {
+    app_handle.path().resolve(
+        consts::DOWNLOADED_FFMPEG_FOLDER,
+        BaseDirectory::AppLocalData,
+    )
+}
+
+pub fn get_ffmpeg_path(
+    app_handle: &AppHandle,
+) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+    let folder = get_ffmpeg_folder_path(app_handle)?;
+    let entries = std::fs::read_dir(folder);
+
+    for entry in entries? {
+        let path = entry?.path();
+        let ffmpeg_exe = path
+            .file_name()
+            .map(|n| n.to_string_lossy() == "ffmpeg" || n.to_string_lossy() == "ffmpeg.exe")
+            .unwrap_or(false);
+
+        if ffmpeg_exe {
+            return Ok(path);
+        }
+    }
+
+    Err("FFmpeg executable not found".into())
+}
 
 /// Trims the last `trailing_duration` of `in_file` and writes the result to
 /// `out_file` using FFmpeg.
@@ -29,7 +75,7 @@ pub async fn trim(
     trailing_duration: TimeDelta,
     ffmpeg_args: &[String],
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    fs::create_dir_all(&out_file.parent().expect("No parent directory"))
+    tokio::fs::create_dir_all(&out_file.parent().expect("No parent directory"))
         .await
         .with_context(|| format!("Failed to create output directory '{}'", out_file.display()))?;
 
@@ -52,7 +98,19 @@ pub async fn trim(
 
     args.push(out_file.to_string_lossy().into_owned());
 
-    let mut process = Command::new("ffmpeg")
+    // Get the correct ffmpeg path
+    let ffmpeg_path = {
+        let app_handle = APP_HANDLE.get().unwrap();
+        get_ffmpeg_path(app_handle)
+    };
+
+    let mut ffmpeg_cmd = if let Ok(path) = ffmpeg_path {
+        Command::new(path)
+    } else {
+        Command::new("ffmpeg")
+    };
+
+    let mut process = ffmpeg_cmd
         .args(&args)
         .stdout(Stdio::piped())
         .spawn()
