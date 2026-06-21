@@ -10,10 +10,19 @@ use tauri::{AppHandle, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FFmpegDownloadProgress {
     pub state: &'static str,
     pub progress: f32,
+}
+
+impl Default for FFmpegDownloadProgress {
+    fn default() -> Self {
+        Self {
+            state: "NotDone",
+            progress: 0.0,
+        }
+    }
 }
 
 pub fn get_ffmpeg_folder_path(app_handle: &AppHandle) -> Result<PathBuf, tauri::Error> {
@@ -33,7 +42,7 @@ pub fn get_ffmpeg_path(
         let path = entry?.path();
         let ffmpeg_exe = path
             .file_name()
-            .map(|n| n.to_string_lossy().starts_with("ffmpeg"))
+            .map(|n| n.to_string_lossy() == "ffmpeg" || n.to_string_lossy() == "ffmpeg.exe")
             .unwrap_or(false);
 
         if ffmpeg_exe {

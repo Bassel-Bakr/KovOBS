@@ -1,6 +1,5 @@
 use crate::events::AppEvent;
-use crate::ffmpeg::FFmpegDownloadProgress;
-use crate::globals::{APP_HANDLE, APP_STATE, FFMPEG_DOWNLOADED};
+use crate::globals::{APP_HANDLE, APP_STATE, FFMPEG_DOWNLOAD_PROGRESS};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -66,8 +65,9 @@ pub fn run() {
             let downloaded = is_ffmpeg_downloaded.map(|p| p.exists()).unwrap_or(false);
 
             {
-                let mut ffmpeg_status = FFMPEG_DOWNLOADED.blocking_lock();
-                *ffmpeg_status = downloaded;
+                let mut ffmpeg_status = FFMPEG_DOWNLOAD_PROGRESS.blocking_lock();
+                let data = &mut *ffmpeg_status;
+                data.state = if downloaded { "Done" } else { "NotDone" };
             }
 
             // Make debug config reference the root folder instead of Tauri's
@@ -192,17 +192,7 @@ fn observe_processes() {
             _ = events::emit(AppEvent::Running(is_running));
             _ = events::emit(AppEvent::ObsRunning(obs_running));
             _ = events::emit(AppEvent::KovaaksRunning(kovaaks_running));
-
-            let is_ffmpeg_downloaded = *FFMPEG_DOWNLOADED.lock().await;
-
-            _ = events::emit(AppEvent::FFmpegDownloadProgress(FFmpegDownloadProgress {
-                state: if is_ffmpeg_downloaded {
-                    "Done"
-                } else {
-                    "NotDone"
-                },
-                progress: 0f32,
-            }));
+            _ = events::emit(AppEvent::FFmpegDownloadProgress(*FFMPEG_DOWNLOAD_PROGRESS.lock().await));
 
             tokio::time::sleep(Duration::from_secs(config_processes.scan_interval_secs)).await;
         }

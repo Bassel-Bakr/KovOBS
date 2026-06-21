@@ -1,7 +1,7 @@
 use crate::config::AppConfig;
+use crate::ffmpeg::FFmpegDownloadProgress;
 use crate::globals::APP_HANDLE;
 use tauri::Emitter;
-use crate::ffmpeg::FFmpegDownloadProgress;
 
 pub enum AppEvent {
     Running(bool),
