@@ -30,7 +30,7 @@ export class TauriService {
     return from(state ? enableAutoStart() : disableAutoStart());
   }
 
-  runExe(exe: 'obs' | 'kovaaks'): Observable<void> {
+  runExe(exe: 'obs' | 'kovaaks' | 'aimbeast'): Observable<void> {
     return this.call('run_' + exe);
   }
 }

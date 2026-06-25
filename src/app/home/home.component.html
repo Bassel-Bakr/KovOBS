@@ -33,6 +33,23 @@
     </span>
   </mat-chip>
 
+  Aimbeast
+  @let aimbeastIsRunning = isAimbeastRunning.value();
+  <mat-chip
+    class="process-status"
+    [matTooltip]="aimbeastIsRunning ? null : 'Start'"
+    [attr.data-running]="aimbeastIsRunning"
+    (click)="!aimbeastIsRunning && runExe('aimbeast')"
+  >
+    <span class="process-status__label">
+      @if (aimbeastIsRunning) {
+        Running
+      } @else {
+        Start <mat-icon>play_arrow</mat-icon>
+      }
+    </span>
+  </mat-chip>
+
   <span data-spacer></span>
 
   <button matIconButton matTooltip="Toggle Logs" (click)="globalService.showLogs.update((s) => !s)">
@@ -60,18 +77,35 @@
     <mat-card-header>
       <mat-card-title>Required Folders/Files</mat-card-title>
     </mat-card-header>
+
     <mat-form-field>
-      <mat-label>Stats Folder</mat-label>
-      <input matInput [value]="form.stats_folder().value()" readonly />
+      <mat-label>KovaaK's Stats Folder</mat-label>
+      <input matInput [formField]="form.stats_folder" />
       <button matIconButton matSuffix type="button" (click)="browse(form.stats_folder)">
         <mat-icon>folder_open</mat-icon>
       </button>
     </mat-form-field>
 
     <mat-form-field>
-      <mat-label>Clips Folder</mat-label>
-      <input matInput [value]="form.clips_folder().value()" readonly />
+      <mat-label>KovaaK's Clips Folder</mat-label>
+      <input matInput [formField]="form.clips_folder" />
       <button matIconButton matSuffix type="button" (click)="browse(form.clips_folder)">
+        <mat-icon>folder_open</mat-icon>
+      </button>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Aimbeast Stats Folder</mat-label>
+      <input matInput [formField]="form.aimbeast.stats_folder" />
+      <button matIconButton matSuffix type="button" (click)="browse(form.aimbeast.stats_folder)">
+        <mat-icon>folder_open</mat-icon>
+      </button>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Aimbeast Clips Folder</mat-label>
+      <input matInput [formField]="form.aimbeast.clips_folder" />
+      <button matIconButton matSuffix type="button" (click)="browse(form.aimbeast.clips_folder)">
         <mat-icon>folder_open</mat-icon>
       </button>
     </mat-form-field>
@@ -104,13 +138,27 @@
 
     @if (!sources.value()) {
       <mat-form-field>
-        <mat-label>Source</mat-label>
+        <mat-label>KovaaK's Source</mat-label>
         <input matInput [formField]="form.obs.source_name" />
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Aimbeast Source</mat-label>
+        <input matInput [formField]="form.aimbeast.obs_source_name" />
       </mat-form-field>
     } @else {
       <mat-form-field>
-        <mat-label>Source</mat-label>
+        <mat-label>KovaaK's Source</mat-label>
         <mat-select [formField]="form.obs.source_name">
+          @for (source of sources.value(); track source) {
+            <mat-option [value]="source">{{ source }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Aimbeast Source</mat-label>
+        <mat-select [formField]="form.aimbeast.obs_source_name">
           @for (source of sources.value(); track source) {
             <mat-option [value]="source">{{ source }}</mat-option>
           }
@@ -185,6 +233,8 @@
       <mat-card-title>Automation</mat-card-title>
     </mat-card-header>
 
+    <mat-checkbox [formField]="form.trim" matTooltip="Should we trim the VODs?">Trim</mat-checkbox>
+
     <mat-checkbox [formField]="form.auto_start" matTooltip="Auto start on boot">Auto start</mat-checkbox>
 
     <mat-checkbox [formField]="form.only_pb" matTooltip="Clips all VODs otherwise">Personal Best (PB)</mat-checkbox>
@@ -210,7 +260,7 @@
 
     <mat-form-field>
       <mat-label>OBS</mat-label>
-      <input matInput [value]="form.processes.paths.obs().value()" readonly />
+      <input matInput [formField]="form.processes.paths.obs" />
       <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.obs)">
         <mat-icon>terminal</mat-icon>
       </button>
@@ -218,8 +268,16 @@
 
     <mat-form-field>
       <mat-label>KovaaK's</mat-label>
-      <input matInput [value]="form.processes.paths.kovaaks().value()" readonly />
+      <input matInput [formField]="form.processes.paths.kovaaks" />
       <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.kovaaks)">
+        <mat-icon>terminal</mat-icon>
+      </button>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Aimbeast</mat-label>
+      <input matInput [formField]="form.processes.paths.aimbeast" />
+      <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.aimbeast)">
         <mat-icon>terminal</mat-icon>
       </button>
     </mat-form-field>

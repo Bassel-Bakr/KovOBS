@@ -17,6 +17,14 @@ pub struct Stat {
 
     pub start_dt: DateTime<Utc>,
     pub end_dt: DateTime<Utc>,
+
+    pub stat_type: StatType,
+}
+
+#[derive(Debug, Clone)]
+pub enum StatType {
+    Aimbeast,
+    KovaaKs,
 }
 
 impl Display for Stat {
@@ -36,7 +44,7 @@ impl Display for Stat {
 }
 
 impl Stat {
-    pub fn parse(stat_file: &path::Path) -> Result<Self, String> {
+    pub fn parse_kovaaks_stat(stat_file: &path::Path) -> Result<Self, String> {
         let mut scenario = String::new();
         let mut score = 0.0f32;
         let mut challenge_duration = Duration::seconds(0);
@@ -73,6 +81,7 @@ impl Stat {
             score,
             start_dt,
             end_dt,
+            stat_type: StatType::KovaaKs,
         })
     }
 

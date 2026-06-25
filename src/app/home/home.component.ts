@@ -84,6 +84,11 @@ export default class HomeComponent {
     defaultValue: false,
   });
 
+  protected readonly isAimbeastRunning = rxResource({
+    stream: () => this.eventService.isAimbeastRunning(),
+    defaultValue: false,
+  });
+
   protected readonly sources = rxResource<string[] | null, unknown>({
     stream: () => this.eventService.obsSources(),
     defaultValue: null,
@@ -158,11 +163,19 @@ export default class HomeComponent {
     open({
       directory: true,
       multiple: false,
-    }).then((path) => field().value.set(path ?? ''));
+    }).then((path) => {
+      if (path != null) {
+        field().value.set(path ?? '');
+      }
+    });
   }
 
   protected browseFile(field: FieldTree<string, string>): void {
-    open({ multiple: false }).then((path) => field().value.set(path ?? ''));
+    open({ multiple: false }).then((path) => {
+      if (path != null) {
+        field().value.set(path ?? '');
+      }
+    });
   }
 
   protected openFFmpegHelp(): void {
@@ -183,19 +196,20 @@ export default class HomeComponent {
 
   protected runAutoStartHandler() {
     return combineLatest([
+      this.eventService.isAimbeastRunning(),
       this.eventService.isKovaaksRunning(),
       this.eventService.isObsRunning(),
       this.eventService.isRunning(),
       this.eventService.config(),
     ]).pipe(
-      tap(([isKovaaksRunning, isObsRunning, isRunning, config]) => {
+      tap(([isAimbeastRunning, isKovaaksRunning, isObsRunning, isRunning, config]) => {
         // Don't proceed unless auto start is enabled.
         if (!config.auto_start) {
           return;
         }
 
-        // If KovaaK's isn't running, there is nothing to do.
-        if (!isKovaaksRunning) {
+        // If KovaaK's or Aimbeast aren't running, there is nothing to do.
+        if (!isKovaaksRunning && !isAimbeastRunning) {
           return;
         }
 

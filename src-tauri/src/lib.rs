@@ -8,6 +8,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WindowEvent};
 
+mod aimbeast;
 mod cache;
 mod cmds;
 mod config;
@@ -49,6 +50,7 @@ pub fn run() {
             cmds::get_obs_sources,
             cmds::run_obs,
             cmds::run_kovaaks,
+            cmds::run_aimbeast,
             cmds::is_ffmpeg_downloaded,
             cmds::download_ffmpeg,
             cmds::remove_ffmpeg,
@@ -148,6 +150,7 @@ fn observe_processes() {
 
         let mut obs_running = false;
         let mut kovaaks_running = false;
+        let mut aimbeast_running = false;
 
         loop {
             let (config_processes, is_running) = {
@@ -166,6 +169,7 @@ fn observe_processes() {
 
             let mut new_obs_running = false;
             let mut new_kovaaks_running = false;
+            let mut new_aimbeast_running = false;
 
             for process in system.processes().values() {
                 let Some(exe_path) = process.exe() else {
@@ -175,8 +179,10 @@ fn observe_processes() {
                 new_obs_running = new_obs_running || exe_path == &config_processes.paths.obs;
                 new_kovaaks_running =
                     new_kovaaks_running || exe_path == &config_processes.paths.kovaaks;
+                new_aimbeast_running =
+                    new_aimbeast_running || exe_path == &config_processes.paths.aimbeast;
 
-                if new_obs_running && new_kovaaks_running {
+                if new_obs_running && new_kovaaks_running && new_aimbeast_running {
                     break;
                 }
             }
@@ -189,10 +195,17 @@ fn observe_processes() {
                 kovaaks_running = new_kovaaks_running;
             }
 
+            if new_aimbeast_running != aimbeast_running {
+                aimbeast_running = new_aimbeast_running;
+            }
+
             _ = events::emit(AppEvent::Running(is_running));
             _ = events::emit(AppEvent::ObsRunning(obs_running));
             _ = events::emit(AppEvent::KovaaksRunning(kovaaks_running));
-            _ = events::emit(AppEvent::FFmpegDownloadProgress(*FFMPEG_DOWNLOAD_PROGRESS.lock().await));
+            _ = events::emit(AppEvent::AimbeastRunning(aimbeast_running));
+            _ = events::emit(AppEvent::FFmpegDownloadProgress(
+                *FFMPEG_DOWNLOAD_PROGRESS.lock().await,
+            ));
 
             tokio::time::sleep(Duration::from_secs(config_processes.scan_interval_secs)).await;
         }
