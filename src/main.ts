@@ -34,6 +34,10 @@ void listen<boolean>('kovaaks_running', (event) => {
   injector?.get(EventService)?.kovaaksRunningSubject.next(event.payload);
 });
 
+void listen<boolean>('aimbeast_running', (event) => {
+  injector?.get(EventService)?.aimbeastRunningSubject.next(event.payload);
+});
+
 void listen<FFmpegDownloadProgress>('ffmpeg_download_progress', (event) => {
   injector?.get(EventService)?.ffmpegDownloadProgressSubject.next(event.payload);
 });

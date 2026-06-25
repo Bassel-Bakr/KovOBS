@@ -7,6 +7,7 @@ pub enum AppEvent {
     Running(bool),
     Message(String),
     Config(Box<AppConfig>),
+    AimbeastRunning(bool),
     KovaaksRunning(bool),
     ObsRunning(bool),
     ObsSources(Box<[String]>),
@@ -20,6 +21,9 @@ pub fn emit(event: AppEvent) -> Result<(), String> {
         AppEvent::Running(is_running) => Emitter::emit(app_handle, "running", is_running),
         AppEvent::Message(msg) => Emitter::emit(app_handle, "message", msg),
         AppEvent::Config(config) => Emitter::emit(app_handle, "config", config),
+        AppEvent::AimbeastRunning(is_running) => {
+            Emitter::emit(app_handle, "aimbeast_running", is_running)
+        }
         AppEvent::KovaaksRunning(is_running) => {
             Emitter::emit(app_handle, "kovaaks_running", is_running)
         }

@@ -1,14 +1,15 @@
 import { inject, Service } from '@angular/core';
-import { Observable } from 'rxjs';
+import { map, Observable } from 'rxjs';
 import { TauriService } from './tauri.service';
 import { Config } from '../models/config';
+import { merge } from 'lodash-es';
 
 @Service()
 export class ConfigService {
   private readonly tauriService = inject(TauriService);
 
   getConfig(): Observable<Config> {
-    return this.tauriService.call<Config>('get_config');
+    return this.tauriService.call<Config>('get_config').pipe(map((config) => merge(this.getEmptyConfig(), config)));
   }
 
   saveConfig(config: Config): Observable<Config> {
@@ -26,6 +27,11 @@ export class ConfigService {
         password: '',
         source_name: "KovaaK's",
       },
+      aimbeast: {
+        clips_folder: '',
+        stats_folder: '',
+        obs_source_name: 'Aimbeast',
+      },
       trim_padding_start: 0,
       trim_padding_end: 5,
       delete_after_trimming: false,
@@ -41,6 +47,7 @@ export class ConfigService {
         paths: {
           obs: 'obs64.exe',
           kovaaks: 'FPSAimTrainer-Win64-Shipping.exe',
+          aimbeast: 'Aimbeast-Win64-Shipping.exe',
         },
       },
     };

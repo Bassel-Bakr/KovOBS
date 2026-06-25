@@ -1,10 +1,12 @@
 use crate::consts;
 use config::Config;
+use std::default::Default;
 use std::path::Path;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct AppConfig {
     pub auto_start: bool,
     pub obs: ObsConfig,
@@ -17,12 +19,13 @@ pub struct AppConfig {
     pub cache_version: String,
     pub cache_file: String,
     pub screenshot: ScreenshotConfig,
-    #[serde(default)]
     pub ffmpeg_args: Box<[String]>,
     pub processes: ProcessesConfig,
+    pub aimbeast: AimbeastConfig,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct ObsConfig {
     pub host: String,
     pub port: u16,
@@ -30,21 +33,42 @@ pub struct ObsConfig {
     pub source_name: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct ScreenshotConfig {
     pub enabled: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct ProcessesConfig {
     pub scan_interval_secs: u64,
     pub paths: ProcessPaths,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+impl Default for ProcessesConfig {
+    fn default() -> Self {
+        Self {
+            scan_interval_secs: 3,
+            paths: ProcessPaths::default(),
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct ProcessPaths {
     pub obs: String,
     pub kovaaks: String,
+    pub aimbeast: String,
+}
+
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct AimbeastConfig {
+    pub stats_folder: String,
+    pub clips_folder: String,
+    pub obs_source_name: String,
 }
 
 impl AppConfig {
@@ -100,12 +124,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             auto_start: false,
-            obs: ObsConfig {
-                host: "".into(),
-                port: 0,
-                password: "".into(),
-                source_name: "".into(),
-            },
+            obs: Default::default(),
             clips_folder: "".into(),
             stats_folder: "".into(),
             trim_padding_start: 0.0,
@@ -114,15 +133,13 @@ impl Default for AppConfig {
             only_pb: false,
             cache_version: "".into(),
             cache_file: "".into(),
-            screenshot: ScreenshotConfig { enabled: true },
-            ffmpeg_args: Box::new([]),
+            screenshot: Default::default(),
+            ffmpeg_args: Default::default(),
             processes: ProcessesConfig {
                 scan_interval_secs: 1,
-                paths: ProcessPaths {
-                    obs: "".into(),
-                    kovaaks: "".into(),
-                },
+                paths: Default::default(),
             },
+            aimbeast: Default::default(),
         }
     }
 }

@@ -8,6 +8,11 @@ export type Config = {
     password: string;
     source_name: string;
   };
+  aimbeast: {
+    stats_folder: string;
+    clips_folder: string;
+    obs_source_name: string;
+  };
   trim_padding_start: number;
   trim_padding_end: number;
   delete_after_trimming: boolean;
@@ -23,6 +28,7 @@ export type Config = {
     paths: {
       obs: string;
       kovaaks: string;
+      aimbeast: string;
     };
   };
 };

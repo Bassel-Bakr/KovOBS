@@ -11,6 +11,7 @@ export class EventService {
   obsSourcesSubject = new ReplaySubject<string[]>();
   obsRunningSubject = new ReplaySubject<boolean>();
   kovaaksRunningSubject = new ReplaySubject<boolean>();
+  aimbeastRunningSubject = new ReplaySubject<boolean>();
   ffmpegDownloadProgressSubject = new ReplaySubject<FFmpegDownloadProgress>();
 
   messages(): Observable<string> {
@@ -28,13 +29,16 @@ export class EventService {
   obsSources(): Observable<string[]> {
     return this.obsSourcesSubject.asObservable();
   }
-
   isObsRunning(): Observable<boolean> {
     return this.obsRunningSubject.asObservable();
   }
 
   isKovaaksRunning(): Observable<boolean> {
     return this.kovaaksRunningSubject.asObservable();
+  }
+
+  isAimbeastRunning(): Observable<boolean> {
+    return this.aimbeastRunningSubject.asObservable();
   }
 
   ffmpegDownloadProgress(): Observable<FFmpegDownloadProgress> {
