@@ -104,7 +104,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     events::emit(events::AppEvent::ObsSources(obs_sources.into()))?;
 
     // Rebuild cache
-    tokio::spawn(rebuild_cache(config.clone(), cache.clone()));
+    if path::PathBuf::from(&config.stats_folder).exists() {
+        tokio::spawn(rebuild_cache(config.clone(), cache.clone()));
+    }
 
     // Last seen stat
     let (tx, rx) = mpsc::channel::<Stat>(1);
