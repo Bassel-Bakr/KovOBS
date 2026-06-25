@@ -164,7 +164,7 @@ pub async fn run_obs() -> Result<(), String> {
     let state = &APP_STATE.wait().await.lock().await;
     let config = state.config.as_ref().unwrap();
     let exe = &config.processes.paths.obs;
-    run_exe(exe, None).await
+    run_exe(exe, Some(Box::from(["--minimize-to-tray".into()])), None).await
 }
 
 #[tauri::command]
@@ -172,7 +172,7 @@ pub async fn run_kovaaks() -> Result<(), String> {
     let state = &APP_STATE.wait().await.lock().await;
     let config = state.config.as_ref().unwrap();
     let exe = &config.processes.paths.kovaaks;
-    run_exe(exe, None).await
+    run_exe(exe, None, None).await
 }
 
 #[tauri::command]
@@ -180,15 +180,19 @@ pub async fn run_aimbeast() -> Result<(), String> {
     let state = &APP_STATE.wait().await.lock().await;
     let config = state.config.as_ref().unwrap();
     let exe = &config.processes.paths.aimbeast;
-    run_exe(exe, None).await
+    run_exe(exe, None, None).await
 }
 
-async fn run_exe(exe: &str, cwd: Option<&Path>) -> Result<(), String> {
+async fn run_exe(exe: &str, args: Option<Box<[String]>>, cwd: Option<&Path>) -> Result<(), String> {
     if let Ok(true) = tokio::fs::try_exists(exe).await.map_err(|e| e.to_string()) {
         let mut cmd = Command::new(exe);
 
         if let Some(dir) = cwd.or(Path::new(exe).parent()) {
             cmd.current_dir(dir);
+        }
+
+        if let Some(args) = args {
+            cmd.args(args);
         }
 
         cmd.spawn().map_err(|e| e.to_string())?;
