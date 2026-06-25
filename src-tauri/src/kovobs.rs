@@ -103,8 +103,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let obs_sources = cmds::get_obs_sources().await?;
     events::emit(events::AppEvent::ObsSources(obs_sources.into()))?;
 
-    // Rebuild cache
-    if path::PathBuf::from(&config.stats_folder).exists() {
+    let kovaaks_stats = path::PathBuf::from(&config.stats_folder);
+    let aimbeast_stats = path::PathBuf::from(&config.aimbeast.stats_folder);
+
+    if kovaaks_stats.exists() {
         tokio::spawn(rebuild_cache(config.clone(), cache.clone()));
     }
 
@@ -118,18 +120,22 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     tasks.spawn(listen_to_obs_events(config.clone(), client.clone(), rx));
 
-    watch_tasks.spawn(watch_kovaaks_stats_folder(
-        config.clone(),
-        client.clone(),
-        cache.clone(),
-        tx.clone(),
-    ));
+    if kovaaks_stats.exists() {
+        watch_tasks.spawn(watch_kovaaks_stats_folder(
+            config.clone(),
+            client.clone(),
+            cache.clone(),
+            tx.clone(),
+        ));
+    }
 
-    watch_tasks.spawn(watch_aimbeast_stats_folder(
-        config.clone(),
-        client.clone(),
-        tx.clone(),
-    ));
+    if aimbeast_stats.exists() {
+        watch_tasks.spawn(watch_aimbeast_stats_folder(
+            config.clone(),
+            client.clone(),
+            tx.clone(),
+        ));
+    }
 
     let res: Result<(), Box<dyn std::error::Error + Send + Sync>> = tokio::select! {
         res = tokio::signal::ctrl_c() => {
