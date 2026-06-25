@@ -17,10 +17,6 @@ impl ScenarioStatistics {
         self.scores.last()
     }
 
-    pub fn highscore(&self) -> Option<&f32> {
-        self.scores.iter().max_by(|a, b| a.partial_cmp(b).unwrap())
-    }
-
     pub fn prev_highscore(&self) -> Option<&f32> {
         self.scores
             .iter()

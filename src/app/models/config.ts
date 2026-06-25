@@ -13,6 +13,7 @@ export type Config = {
     clips_folder: string;
     obs_source_name: string;
   };
+  trim: boolean;
   trim_padding_start: number;
   trim_padding_end: number;
   delete_after_trimming: boolean;

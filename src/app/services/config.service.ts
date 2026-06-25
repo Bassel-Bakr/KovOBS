@@ -32,6 +32,7 @@ export class ConfigService {
         stats_folder: '',
         obs_source_name: 'Aimbeast',
       },
+      trim: true,
       trim_padding_start: 0,
       trim_padding_end: 5,
       delete_after_trimming: false,

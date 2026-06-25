@@ -5,7 +5,7 @@ use crate::globals::{AppState, APP_HANDLE, APP_STATE};
 use crate::stat::StatType;
 use crate::{cmds, config::AppConfig, consts, events, ffmpeg, stat::Stat, ui_println, utils};
 use anyhow::Context;
-use chrono::Utc;
+use chrono::{TimeDelta, Utc};
 use encoding_rs_io::DecodeReaderBytesBuilder;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
@@ -198,10 +198,26 @@ async fn listen_to_obs_events(
             let duration =
                 utils::get_creation_or_modification_time(&replay_buffer)? - trim_start_point;
 
-            ffmpeg::trim(&replay_buffer, &clip_path, duration, &config.ffmpeg_args).await?;
+            // TODO: Aimbeast trimming is experimental and fixed at 1m. Figure out how to get the scenario length to fix it
+            let trim_duration = if config.trim {
+                // Trim using ffmpeg
+                duration
+            } else {
+                // Copy the buffer and don't really trim it
+                // Can't think of a scenario longer than 1 day
+                TimeDelta::from_std(Duration::from_hours(24))?
+            };
+
+            ffmpeg::trim(
+                &replay_buffer,
+                &clip_path,
+                trim_duration,
+                &config.ffmpeg_args,
+            )
+            .await?;
 
             // Delete the replay buffer clip if we no longer need it
-            if config.delete_after_trimming && matches!(stat.stat_type, StatType::KovaaKs) {
+            if config.delete_after_trimming {
                 tokio::fs::remove_file(&replay_buffer)
                     .await
                     .with_context(|| {
@@ -493,8 +509,15 @@ async fn save_screenshot(
 
     let sc_path = clip_path.join(format!("{}.png", stat));
 
+    let source = match stat.stat_type {
+        StatType::Aimbeast => {
+            obws::requests::sources::SourceId::Name(&config.aimbeast.obs_source_name)
+        }
+        StatType::KovaaKs => obws::requests::sources::SourceId::Name(&config.obs.source_name),
+    };
+
     let options = SaveScreenshot {
-        source: obws::requests::sources::SourceId::Name(&config.obs.source_name),
+        source,
         format: "png",
         width: None,
         height: None,

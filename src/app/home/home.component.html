@@ -233,6 +233,8 @@
       <mat-card-title>Automation</mat-card-title>
     </mat-card-header>
 
+    <mat-checkbox [formField]="form.trim" matTooltip="Should we trim the VODs?">Trim</mat-checkbox>
+
     <mat-checkbox [formField]="form.auto_start" matTooltip="Auto start on boot">Auto start</mat-checkbox>
 
     <mat-checkbox [formField]="form.only_pb" matTooltip="Clips all VODs otherwise">Personal Best (PB)</mat-checkbox>
