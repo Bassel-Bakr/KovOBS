@@ -17,6 +17,14 @@ pub struct Stat {
 
     pub start_dt: DateTime<Utc>,
     pub end_dt: DateTime<Utc>,
+
+    pub stat_type: StatType,
+}
+
+#[derive(Debug, Clone)]
+pub enum StatType {
+    Aimbeast,
+    KovaaKs,
 }
 
 impl Display for Stat {
@@ -36,7 +44,7 @@ impl Display for Stat {
 }
 
 impl Stat {
-    pub fn parse(stat_file: &path::Path) -> Result<Self, String> {
+    pub fn parse_kovaaks_stat(stat_file: &path::Path) -> Result<Self, String> {
         let mut scenario = String::new();
         let mut score = 0.0f32;
         let mut challenge_duration = Duration::seconds(0);
@@ -73,6 +81,48 @@ impl Stat {
             score,
             start_dt,
             end_dt,
+            stat_type: StatType::KovaaKs,
+        })
+    }
+
+    pub fn parse_aimbeast_stat(stat_file: &path::Path) -> Result<Self, String> {
+        let mut scenario = String::new();
+        let mut score = 0.0f32;
+        let mut challenge_duration = Duration::seconds(0);
+
+        let file =
+            File::open(stat_file).map_err(|e| format!("Failed to open stats file: {}", e))?;
+        let mut reader = BufReader::new(file);
+
+        let mut line = String::new();
+        while reader.read_line(&mut line).unwrap_or(0) > 0 {
+            let Some((key, value)) = line.split_once(',') else {
+                continue;
+            };
+
+            match key {
+                "Score:" => score = value.trim().parse().unwrap_or(0.0),
+                "Scenario:" => scenario = value.trim().to_string(),
+                "Challenge Start:" => {
+                    if let Some(duration) = Self::parse_challenge_duration(value.trim()) {
+                        challenge_duration = duration;
+                    }
+                }
+                _ => (),
+            }
+
+            line.clear();
+        }
+
+        let end_dt = Self::get_end_dt(stat_file);
+        let start_dt = Self::compute_start_time(end_dt, challenge_duration);
+
+        Ok(Self {
+            scenario,
+            score,
+            start_dt,
+            end_dt,
+            stat_type: StatType::Aimbeast,
         })
     }
 

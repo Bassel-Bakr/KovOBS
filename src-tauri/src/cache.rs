@@ -88,7 +88,7 @@ impl Cache {
 
         let stats: Vec<Stat> = stat_files
             .par_iter()
-            .map(|path| Stat::parse(path).unwrap())
+            .map(|path| Stat::parse_kovaaks_stat(path).unwrap())
             .collect();
 
         for stat in stats {
