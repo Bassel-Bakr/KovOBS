@@ -19,6 +19,7 @@ mod ffmpeg;
 mod globals;
 mod kovobs;
 mod macros;
+mod shell;
 mod stat;
 mod utils;
 
