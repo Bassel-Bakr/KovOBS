@@ -4,6 +4,7 @@ use crate::cache::Cache;
 use crate::config::AppConfig;
 use crate::events::AppEvent;
 use crate::globals::{APP_HANDLE, APP_STATE};
+use crate::shell::ShellExt;
 use crate::{events, kovobs, ui_println};
 use std::path::Path;
 use std::sync::Arc;
@@ -195,7 +196,7 @@ async fn run_exe(exe: &str, args: Option<Box<[String]>>, cwd: Option<&Path>) -> 
             cmd.args(args);
         }
 
-        cmd.spawn().map_err(|e| e.to_string())?;
+        cmd.no_window().spawn().map_err(|e| e.to_string())?;
     }
     Ok(())
 }

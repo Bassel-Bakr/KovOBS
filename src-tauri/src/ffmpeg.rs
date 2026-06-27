@@ -1,4 +1,5 @@
 use crate::globals::APP_HANDLE;
+use crate::shell::ShellExt;
 use crate::{consts, ui_println};
 use anyhow::Context;
 use chrono::TimeDelta;
@@ -111,6 +112,7 @@ pub async fn trim(
     };
 
     let mut process = ffmpeg_cmd
+        .no_window()
         .args(&args)
         .stdout(Stdio::piped())
         .spawn()

@@ -71,9 +71,9 @@ jobs:
 
           - os: windows-latest
             platform: windows
-
-          - os: macos-latest
-            platform: macos
+    #
+    #          - os: macos-latest
+    #            platform: macos
 
     runs-on: ${{ matrix.os }}
 
