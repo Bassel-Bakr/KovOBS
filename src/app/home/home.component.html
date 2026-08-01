@@ -58,7 +58,16 @@
 
   <button matButton="outlined" (click)="clearCache()">Clear Cache</button>
 
-  <button matButton="tonal" (click)="save()">Save</button>
+  <button
+    matButton="tonal"
+    matTooltip="Stop first before saving changes!"
+    disabledInteractive
+    [matTooltipDisabled]="!isRunning.value()"
+    [disabled]="isRunning.value()"
+    (click)="!isRunning.value() && save()"
+  >
+    Save
+  </button>
 
   @if (isRunning.value()) {
     <button matIconButton matTooltip="Stop" (click)="stop($event)">
@@ -239,8 +248,8 @@
 
     <mat-checkbox [formField]="form.only_pb" matTooltip="Clips all VODs otherwise">Personal Best (PB)</mat-checkbox>
 
-    <mat-checkbox [formField]="form.delete_after_trimming" matTooltip="Deletes saved replay buffers from OBS"
-      >Delete saved buffer
+    <mat-checkbox [formField]="form.delete_after_trimming" matTooltip="Deletes saved replay buffers from OBS">
+      Delete saved buffer
     </mat-checkbox>
 
     <mat-checkbox [formField]="form.screenshot.enabled" matTooltip="Takes a screen after saving any clip">
