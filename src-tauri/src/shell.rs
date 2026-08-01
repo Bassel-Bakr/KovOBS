@@ -14,7 +14,7 @@ macro_rules! impl_shell_ext {
             fn no_window(&mut self) -> &mut Self {
                 #[cfg(windows)]
                 self.creation_flags(CREATE_NO_WINDOW);
-                
+
                 self
             }
         }
