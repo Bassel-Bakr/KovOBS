@@ -1,7 +1,7 @@
 use crate::cache::Cache;
 use crate::delay::StatDelay;
 use crate::events::AppEvent;
-use crate::globals::{AppState, APP_HANDLE, APP_STATE};
+use crate::globals::{APP_HANDLE, APP_STATE, AppState};
 use crate::stat::StatType;
 use crate::{cmds, config::AppConfig, consts, events, ffmpeg, stat::Stat, ui_println, utils};
 use anyhow::Context;
@@ -10,12 +10,12 @@ use encoding_rs_io::DecodeReaderBytesBuilder;
 use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
 use obws::requests::sources::SaveScreenshot;
-use obws::{events::Event::ReplayBufferSaved, Client};
+use obws::{Client, events::Event::ReplayBufferSaved};
 use std::{panic, path};
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
-use tokio::sync::mpsc;
 use tokio::sync::Mutex;
+use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 use tokio::time::Instant;
 
