@@ -1,6 +1,5 @@
 use crate::utils;
 use chrono::{DateTime, Duration, Local, Timelike, Utc};
-use num_traits::ToPrimitive;
 use std::fmt::Display;
 use std::{
     fs::File,
@@ -33,9 +32,11 @@ impl Display for Stat {
             f,
             "{} - {} - {}",
             self.scenario,
-            self.score
-                .to_i32()
-                .map_or_else(|| format!("{:.2}", self.score), |int| int.to_string(),),
+            if self.score.is_finite() && self.score.fract() == 0.0 {
+                format!("{:.0}", self.score)
+            } else {
+                format!("{:.2}", self.score)
+            },
             self.end_dt
                 .with_timezone(&Local)
                 .format(consts::STAT_DATE_TIME_FORMAT)
