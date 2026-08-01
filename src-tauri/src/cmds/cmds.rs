@@ -133,6 +133,8 @@ pub async fn save_config(config: AppConfig) -> Result<(), String> {
 
     state.config.replace(Arc::new(config));
 
+    ui_println!("🫡 Config saved!");
+
     Ok(())
 }
 
