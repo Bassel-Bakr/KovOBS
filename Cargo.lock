@@ -2095,7 +2095,7 @@ dependencies = [
 
 [[package]]
 name = "kovobs"
-version = "0.11.1"
+version = "0.11.3"
 dependencies = [
  "anyhow",
  "chrono",
