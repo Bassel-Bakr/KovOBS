@@ -8,6 +8,7 @@ use crate::shell::ShellExt;
 use crate::{events, kovobs, ui_println};
 use std::path::Path;
 use std::sync::Arc;
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, UpdateKind};
 use tauri_plugin_autostart::ManagerExt;
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
@@ -189,8 +190,8 @@ pub async fn run_aimbeast() -> Result<(), String> {
 async fn run_exe(exe: &str, args: Option<Box<[String]>>, cwd: Option<&Path>) -> Result<(), String> {
     if let Ok(true) = tokio::fs::try_exists(exe).await.map_err(|e| e.to_string()) {
         let mut cmd = Command::new(exe);
-
-        if let Some(dir) = cwd.or(Path::new(exe).parent()) {
+        let exe_path = Path::new(exe);
+        if let Some(dir) = cwd.or(exe_path.parent()) {
             cmd.current_dir(dir);
         }
 
@@ -198,7 +199,23 @@ async fn run_exe(exe: &str, args: Option<Box<[String]>>, cwd: Option<&Path>) -> 
             cmd.args(args);
         }
 
-        cmd.no_window().spawn().map_err(|e| e.to_string())?;
+        if !is_process_running(&[exe_path.file_name().unwrap().to_str().unwrap()]) {
+            cmd.no_window().spawn().map_err(|e| e.to_string())?;
+        }
     }
     Ok(())
+}
+
+fn is_process_running(names: &[&str]) -> bool {
+    let mut system = sysinfo::System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet),
+    );
+
+    system
+        .processes()
+        .values()
+        .any(|process| names.iter().any(|name| process.name() == *name))
 }
