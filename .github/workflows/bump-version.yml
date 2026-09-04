@@ -25,7 +25,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           # The default checkout is a detached merge commit, which can't be
-          # pushed. Full history is needed to walk the PR's commits.
+          # pushed. Full history and tags are needed for git-cliff to see the
+          # PR's commits and the release it should measure them against.
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
@@ -33,7 +34,7 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-edit
+          tool: cargo-edit,git-cliff
 
       - name: Compute and apply the bump
         id: bump
