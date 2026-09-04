@@ -1,0 +1,26 @@
+# Only used to work out the next version number (see scripts/bump-version.py).
+# The changelog itself comes from GitHub's generate_release_notes.
+
+[changelog]
+header = ""
+body = ""
+trim = true
+
+[git]
+conventional_commits = true
+filter_commits = true
+topo_order = false
+sort_commits = "oldest"
+
+# Only these types justify a release. Everything else is skipped so a docs- or
+# chore-only branch doesn't bump the version and trigger a build.
+commit_parsers = [
+  { message = "^feat", group = "features" },
+  { message = "^fix", group = "fixes" },
+  { message = "^perf", group = "fixes" },
+  { message = ".*", skip = true },
+]
+
+[bump]
+features_always_bump_minor = true
+breaking_always_bump_major = true
