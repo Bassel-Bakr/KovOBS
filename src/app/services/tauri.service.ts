@@ -1,13 +1,13 @@
 import { Service } from '@angular/core';
 import { invoke, InvokeArgs } from '@tauri-apps/api/core';
-import { from, Observable, switchMap } from 'rxjs';
+import { defer, Observable, switchMap } from 'rxjs';
 
 import { disable as disableAutoStart, enable as enableAutoStart } from '@tauri-apps/plugin-autostart';
 
 @Service()
 export class TauriService {
   call<R>(cmd: string, args?: InvokeArgs): Observable<R> {
-    return from(invoke<R>(cmd, args));
+    return defer(() => invoke<R>(cmd, args));
   }
 
   init(): Observable<void> {
@@ -27,7 +27,7 @@ export class TauriService {
   }
 
   setAutoStart(state: boolean): Observable<void> {
-    return from(state ? enableAutoStart() : disableAutoStart());
+    return defer(() => (state ? enableAutoStart() : disableAutoStart()));
   }
 
   runExe(exe: 'obs' | 'kovaaks' | 'aimbeast'): Observable<void> {

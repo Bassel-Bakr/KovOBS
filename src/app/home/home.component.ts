@@ -191,7 +191,7 @@ export default class HomeComponent {
   }
 
   protected runExe(...params: Parameters<typeof this.tauriService.runExe>): void {
-    this.tauriService.runExe(...params);
+    this.tauriService.runExe(...params).subscribe();
   }
 
   protected runAutoStartHandler() {
