@@ -192,27 +192,39 @@ pub async fn run_aimbeast() -> Result<(), String> {
 }
 
 async fn run_exe(exe: &str, args: Option<Box<[String]>>, cwd: Option<&Path>) -> Result<(), String> {
-    if let Ok(true) = tokio::fs::try_exists(exe).await.map_err(|e| e.to_string()) {
-        let mut cmd = Command::new(exe);
-        let exe_path = Path::new(exe);
-        if let Some(dir) = cwd.or(exe_path.parent()) {
-            cmd.current_dir(dir);
-        }
+    let exe_path = Path::new(exe);
 
-        if let Some(args) = args {
-            cmd.args(args);
-        }
-
-        // Scanning every process is blocking work, so keep it off the async runtime.
-        let target = exe_path.to_path_buf();
-        let is_running = tokio::task::spawn_blocking(move || is_process_running(&target))
-            .await
-            .map_err(|e| e.to_string())?;
-
-        if !is_running {
-            cmd.no_window().spawn().map_err(|e| e.to_string())?;
-        }
+    // Deliberately not logged: the auto start handler retries this several times a
+    // second, so a misconfigured path would flood the log panel forever.
+    if !tokio::fs::try_exists(exe).await.unwrap_or(false) {
+        return Err(format!("Can't find {exe}"));
     }
+
+    // Scanning every process is blocking work, so keep it off the async runtime.
+    let target = exe_path.to_path_buf();
+    let is_running = tokio::task::spawn_blocking(move || is_process_running(&target))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Already up, so there is nothing to do. Not an error, and not worth logging
+    // for the same reason as above.
+    if is_running {
+        return Ok(());
+    }
+
+    let mut cmd = Command::new(exe);
+
+    if let Some(dir) = cwd.or(exe_path.parent()) {
+        cmd.current_dir(dir);
+    }
+
+    if let Some(args) = args {
+        cmd.args(args);
+    }
+
+    cmd.no_window().spawn().map_err(|e| e.to_string())?;
+    ui_println!("🚀 Started {exe}");
+
     Ok(())
 }
 
