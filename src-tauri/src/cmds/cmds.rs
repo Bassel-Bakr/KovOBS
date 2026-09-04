@@ -204,8 +204,8 @@ async fn run_exe(exe: &str, args: Option<Box<[String]>>, cwd: Option<&Path>) -> 
         }
 
         // Scanning every process is blocking work, so keep it off the async runtime.
-        let name = exe_path.file_name().unwrap().to_str().unwrap().to_owned();
-        let is_running = tokio::task::spawn_blocking(move || is_process_running(&[&name]))
+        let target = exe_path.to_path_buf();
+        let is_running = tokio::task::spawn_blocking(move || is_process_running(&target))
             .await
             .map_err(|e| e.to_string())?;
 
@@ -216,7 +216,11 @@ async fn run_exe(exe: &str, args: Option<Box<[String]>>, cwd: Option<&Path>) -> 
     Ok(())
 }
 
-fn is_process_running(names: &[&str]) -> bool {
+// Matches on the full executable path, the same way `observe_processes` decides
+// whether OBS/KovaaK's/Aimbeast are running. Matching on the file name instead
+// would let an unrelated process with the same name suppress the launch while
+// the UI still reports it as not running.
+fn is_process_running(exe: &Path) -> bool {
     let mut system = sysinfo::System::new();
     system.refresh_processes_specifics(
         ProcessesToUpdate::All,
@@ -227,5 +231,5 @@ fn is_process_running(names: &[&str]) -> bool {
     system
         .processes()
         .values()
-        .any(|process| names.iter().any(|name| process.name() == *name))
+        .any(|process| process.exe() == Some(exe))
 }
