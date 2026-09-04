@@ -179,6 +179,8 @@ fn observe_processes() {
             let mut new_kovaaks_running = false;
             let mut new_aimbeast_running = false;
 
+            // Compares the full exe path, matching `cmds::is_process_running`.
+            // See the note there on why this is unreliable on Linux.
             for process in system.processes().values() {
                 let Some(exe_path) = process.exe() else {
                     continue;

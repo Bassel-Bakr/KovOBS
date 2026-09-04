@@ -1,0 +1,58 @@
+name: Bump version
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+# A rapid second push would otherwise race the first run's push.
+concurrency:
+  group: bump-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  bump:
+    # Fork PRs get a read-only token, so the push at the end would fail.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The default checkout is a detached merge commit, which can't be
+          # pushed. Full history and tags are needed for git-cliff to see the
+          # PR's commits and the release it should measure them against.
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-edit,git-cliff
+
+      - name: Compute and apply the bump
+        id: bump
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python3 scripts/bump-version.py
+
+      - name: Commit
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          ISSUE: ${{ steps.bump.outputs.issue }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src-tauri/Cargo.toml Cargo.lock
+          git commit -m "chore(#${ISSUE}): bump version"
+          # Pushing with GITHUB_TOKEN does not trigger another workflow run, so
+          # this can't loop back into itself.
+          git push
