@@ -83,3 +83,33 @@ body {
 [color='warn'] {
   color: var(--mat-sys-error) !important;
 }
+
+// Material Icons, served from the app rather than fonts.googleapis.com, so the
+// icons render identically with no network. Only the filled variant is copied
+// (see angular.json assets). `mat-icon` applies the .material-icons class, so
+// both rules are required.
+@font-face {
+  font-family: 'Material Icons';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/assets/fonts/material-icons.woff2') format('woff2');
+}
+
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'liga';
+}

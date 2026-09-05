@@ -36,9 +36,16 @@
                 "glob": "**/*",
                 "input": "src/assets",
                 "output": "assets"
+              },
+              {
+                "glob": "material-icons.woff2",
+                "input": "node_modules/material-icons/iconfont",
+                "output": "assets/fonts"
               }
             ],
-            "styles": ["src/styles.scss"]
+            "styles": [
+              "src/styles.scss"
+            ]
           },
           "configurations": {
             "production": {
