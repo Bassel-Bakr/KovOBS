@@ -29,9 +29,12 @@ impl Default for FFmpegDownloadProgress {
     }
 }
 
-/// How much of FFmpeg's stderr to keep for an error message. It explains a
-/// failure in the last few lines; everything before that is encoder chatter.
-const STDERR_TAIL_LINES: usize = 20;
+/// How many lines of FFmpeg's stderr to keep for an error message.
+///
+/// Deliberately generous: a failure explains itself across a run of lines
+/// rather than in the last one, and a real one runs to a couple of dozen. This
+/// exists only to bound memory if FFmpeg decides to complain once per frame.
+const STDERR_LIMIT_LINES: usize = 500;
 
 pub fn get_ffmpeg_folder_path(app_handle: &AppHandle) -> Result<PathBuf, tauri::Error> {
     app_handle.path().resolve(
@@ -253,12 +256,15 @@ async fn run(
     let stderr = process.stderr.take().expect("stderr is piped");
     let stderr_tail = tokio::spawn(async move {
         let mut lines = BufReader::new(stderr).lines();
-        let mut tail: VecDeque<String> = VecDeque::with_capacity(STDERR_TAIL_LINES);
+        let mut tail: VecDeque<String> = VecDeque::with_capacity(STDERR_LIMIT_LINES);
 
         while let Ok(Some(line)) = lines.next_line().await {
-            if tail.len() == STDERR_TAIL_LINES {
+            // One line in, so at most one out: the end, where FFmpeg reports
+            // what went wrong, is what survives.
+            if tail.len() == STDERR_LIMIT_LINES {
                 tail.pop_front();
             }
+
             tail.push_back(line);
         }
 
@@ -285,14 +291,19 @@ async fn run(
     let stderr_tail = stderr_tail.await.unwrap_or_default();
 
     if !status.success() {
-        // FFmpeg explains itself on stderr, so the tail is the only part of this
-        // worth reading.
+        // FFmpeg returns negative errno values, which Windows renders as an
+        // unsigned hex blob (`0xffffffea`). The signed code reads better.
+        let code = status
+            .code()
+            .map_or_else(|| status.to_string(), |code| code.to_string());
+
+        // FFmpeg explains itself on stderr, so that is the part worth reading.
         let detail = stderr_tail.trim();
 
         return Err(if detail.is_empty() {
-            format!("FFmpeg exited with {status}")
+            format!("FFmpeg exited with code {code}")
         } else {
-            format!("FFmpeg exited with {status}\n{detail}")
+            format!("FFmpeg exited with code {code}\n{detail}")
         }
         .into());
     }
