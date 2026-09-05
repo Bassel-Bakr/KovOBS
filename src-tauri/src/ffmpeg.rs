@@ -1,3 +1,4 @@
+use crate::args;
 use crate::config::FFmpegConfig;
 use crate::globals::APP_HANDLE;
 use crate::shell::ShellExt;
@@ -114,20 +115,23 @@ pub async fn trim(
     // The arguments are the user's own, so a mistake in them must not cost the
     // clip that was already trimmed successfully. On failure the trimmed file is
     // promoted to the output and the run is still a success.
-    match run(
-        &extra_command(&intermediate, out_file, extra),
-        trailing_duration,
-        "🎛️ Applying FFmpeg args",
-    )
-    .await
-    {
-        Ok(()) => {
-            _ = tokio::fs::remove_file(&intermediate).await;
-        }
+    match extra_command(&intermediate, out_file, extra) {
         Err(e) => {
-            ui_println!("👎 FFmpeg args failed, keeping the trimmed clip instead:\n{e}");
+            ui_println!(
+                "👎 Could not read the FFmpeg args, keeping the trimmed clip instead:\n{e}"
+            );
             keep_trimmed(&intermediate, out_file).await?;
         }
+        Ok(command) => match run(&command, trailing_duration, "🎛️ Applying FFmpeg args").await
+        {
+            Ok(()) => {
+                _ = tokio::fs::remove_file(&intermediate).await;
+            }
+            Err(e) => {
+                ui_println!("👎 FFmpeg args failed, keeping the trimmed clip instead:\n{e}");
+                keep_trimmed(&intermediate, out_file).await?;
+            }
+        },
     }
 
     ui_println!("🗃️ Saved clip: {}", out_file.to_string_lossy());
@@ -200,19 +204,23 @@ fn trim_args(
 /// shape stderr, which isn't captured, so here they'd do nothing.
 ///
 /// The user's args come after, so both can still be overridden.
-fn extra_command(in_file: &path::Path, out_file: &path::Path, extra: &FFmpegConfig) -> Vec<String> {
-    let mut args: Vec<String> = vec!["-progress".into(), "pipe:1".into(), "-y".into()];
+fn extra_command(
+    in_file: &path::Path,
+    out_file: &path::Path,
+    extra: &FFmpegConfig,
+) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+    let mut command: Vec<String> = vec!["-progress".into(), "pipe:1".into(), "-y".into()];
 
-    args.extend(extra.global_args.iter().cloned());
-    args.extend(extra.input_args.iter().cloned());
+    command.extend(args::parse(&extra.global_args)?);
+    command.extend(args::parse(&extra.input_args)?);
 
-    args.push("-i".into());
-    args.push(in_file.to_string_lossy().into_owned());
+    command.push("-i".into());
+    command.push(in_file.to_string_lossy().into_owned());
 
-    args.extend(extra.output_args.iter().cloned());
-    args.push(out_file.to_string_lossy().into_owned());
+    command.extend(args::parse(&extra.output_args)?);
+    command.push(out_file.to_string_lossy().into_owned());
 
-    args
+    Ok(command)
 }
 
 /// Runs FFmpeg, reporting progress against `total_duration` under `label`.

@@ -28,9 +28,9 @@ export type Config = {
     enabled: boolean;
   };
   ffmpeg: {
-    global_args: string[];
-    input_args: string[];
-    output_args: string[];
+    global_args: string;
+    input_args: string;
+    output_args: string;
   };
   processes: {
     scan_interval_secs: number;

@@ -47,20 +47,52 @@ pub struct ScreenshotConfig {
 /// The three slots of an FFmpeg command line:
 /// `ffmpeg [global_args] [input_args] -i input [output_args] output`.
 ///
+/// Each holds the text the user typed, split by [`crate::args::parse`] when the
+/// command is built.
+///
 /// These apply to the pass that runs *after* trimming, so they can't interfere
 /// with the trim's own options. When all three are empty no second pass runs.
 #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct FFmpegConfig {
-    pub global_args: Box<[String]>,
-    pub input_args: Box<[String]>,
-    pub output_args: Box<[String]>,
+    #[serde(deserialize_with = "arg_slot")]
+    pub global_args: String,
+    #[serde(deserialize_with = "arg_slot")]
+    pub input_args: String,
+    #[serde(deserialize_with = "arg_slot")]
+    pub output_args: String,
 }
 
 impl FFmpegConfig {
     pub fn is_empty(&self) -> bool {
-        self.global_args.is_empty() && self.input_args.is_empty() && self.output_args.is_empty()
+        [&self.global_args, &self.input_args, &self.output_args]
+            .iter()
+            .all(|slot| slot.trim().is_empty())
     }
+}
+
+/// Reads a slot in either shape it has been stored in: the text typed today, or
+/// the array of one-argument-per-element that earlier versions wrote when the
+/// splitting happened in the UI. Joining on newlines reproduces exactly what
+/// those versions showed in the textarea, so an existing config carries over
+/// rather than being silently reset.
+fn arg_slot<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(serde::Deserialize)]
+    #[serde(untagged)]
+    enum Slot {
+        Text(String),
+        Split(Vec<String>),
+    }
+
+    Ok(
+        match <Slot as serde::Deserialize>::deserialize(deserializer)? {
+            Slot::Text(text) => text,
+            Slot::Split(args) => args.join("\n"),
+        },
+    )
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -203,14 +235,24 @@ mod tests {
     /// A partially filled object should default only the slots left out.
     #[test]
     fn partial_ffmpeg_object_defaults_the_rest() {
-        let config = load_json(
-            "partial",
-            r#"{ "ffmpeg": { "output_args": ["-crf", "23"] } }"#,
-        );
+        let config = load_json("partial", r#"{ "ffmpeg": { "output_args": "-crf 23" } }"#);
 
-        assert_eq!(&*config.ffmpeg.output_args, &["-crf", "23"]);
+        assert_eq!(config.ffmpeg.output_args, "-crf 23");
         assert!(config.ffmpeg.global_args.is_empty());
         assert!(config.ffmpeg.input_args.is_empty());
+        assert!(!config.ffmpeg.is_empty());
+    }
+
+    /// Configs written when the slots were arrays carry over, rather than reset.
+    #[test]
+    fn legacy_ffmpeg_arg_arrays_are_joined() {
+        let config = load_json(
+            "legacy-slots",
+            r#"{ "ffmpeg": { "global_args": [], "output_args": ["-c:v", "libx264"] } }"#,
+        );
+
+        assert_eq!(config.ffmpeg.output_args, "-c:v\nlibx264");
+        assert!(config.ffmpeg.global_args.is_empty());
         assert!(!config.ffmpeg.is_empty());
     }
 

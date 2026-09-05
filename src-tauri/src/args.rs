@@ -15,11 +15,6 @@
 //! - except that a backslash immediately followed by a line ending is a Bash
 //!   style continuation and counts as whitespace.
 
-// Not called yet: the FFmpeg config still stores three slots the frontend has
-// already split on newlines. Moving those to raw strings parsed here is a
-// separate change to the config shape and the settings UI.
-#![allow(dead_code)]
-
 /// Splits `input` into arguments suitable for `std::process::Command::args`.
 ///
 /// # Errors

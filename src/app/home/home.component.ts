@@ -122,8 +122,6 @@ export default class HomeComponent {
   protected readonly section = signal<SectionId>('kovaaks');
   protected readonly ffmpegOpen = signal(false);
 
-  protected readonly ffmpegForm = form(signal({ global: '', input: '', output: '' }));
-
   protected readonly ffmpegDownloadProgress = rxResource({
     stream: () => this.eventService.ffmpegDownloadProgress(),
     defaultValue: { state: 'NotDone', progress: 0 },
@@ -291,24 +289,6 @@ export default class HomeComponent {
     });
 
     effect(() => {
-      const { ffmpeg } = this.configForm().value();
-      untracked(() => {
-        this.ffmpegForm.global().value.set(ffmpeg.global_args.join('\n'));
-        this.ffmpegForm.input().value.set(ffmpeg.input_args.join('\n'));
-        this.ffmpegForm.output().value.set(ffmpeg.output_args.join('\n'));
-      });
-    });
-
-    effect(() => {
-      const { global, input, output } = this.ffmpegForm().value();
-      untracked(() => {
-        this.configForm.ffmpeg.global_args().value.set(toArgs(global));
-        this.configForm.ffmpeg.input_args().value.set(toArgs(input));
-        this.configForm.ffmpeg.output_args().value.set(toArgs(output));
-      });
-    });
-
-    effect(() => {
       this.themeService.apply(this.configForm.theme().value());
     });
 
@@ -324,7 +304,9 @@ export default class HomeComponent {
   protected hasFfmpegArgs(): boolean {
     const { ffmpeg } = this.configForm().value();
 
-    return ffmpeg.global_args.length > 0 || ffmpeg.input_args.length > 0 || ffmpeg.output_args.length > 0;
+    return [ffmpeg.global_args, ffmpeg.input_args, ffmpeg.output_args].some(
+      (slot) => slot.trim().length > 0
+    );
   }
 
   protected selectSection(id: SectionId): void {
@@ -458,11 +440,4 @@ export default class HomeComponent {
       })
     );
   }
-}
-
-function toArgs(value: string): string[] {
-  return value
-    .split('\n')
-    .map((arg) => arg.trim())
-    .filter((arg) => arg.length > 0);
 }

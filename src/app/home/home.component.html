@@ -191,20 +191,22 @@
 
                     <mat-form-field>
                       <mat-label>Global args</mat-label>
-                      <textarea matInput rows="2" [formField]="ffmpegForm.global"></textarea>
-                      <mat-hint>One per line, before everything. For example -loglevel warning</mat-hint>
+                      <textarea matInput rows="2" [formField]="form.ffmpeg.global_args"></textarea>
+                      <mat-hint
+                        >Before everything. Quote values with spaces: -metadata &quot;title=My Run&quot;</mat-hint
+                      >
                     </mat-form-field>
 
                     <mat-form-field>
                       <mat-label>Input args</mat-label>
-                      <textarea matInput rows="2" [formField]="ffmpegForm.input"></textarea>
-                      <mat-hint>One per line, before -i. For example -hwaccel cuda</mat-hint>
+                      <textarea matInput rows="2" [formField]="form.ffmpeg.input_args"></textarea>
+                      <mat-hint>Before -i. For example -hwaccel cuda</mat-hint>
                     </mat-form-field>
 
                     <mat-form-field>
                       <mat-label>Output args</mat-label>
-                      <textarea matInput rows="2" [formField]="ffmpegForm.output"></textarea>
-                      <mat-hint>One per line, after -i. For example -c:v libx264</mat-hint>
+                      <textarea matInput rows="2" [formField]="form.ffmpeg.output_args"></textarea>
+                      <mat-hint>After -i. For example -c:v libx264 -crf 23</mat-hint>
                     </mat-form-field>
                   </div>
                 }
