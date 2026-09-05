@@ -191,6 +191,10 @@ fn trim_args(
         "-accurate_seek".into(),
         "-i".into(),
         in_file.to_string_lossy().into_owned(),
+        // Without an explicit map FFmpeg picks one stream per type, which drops
+        // every extra video and audio source a recording may carry.
+        "-map".into(),
+        "0?".into(),
         // Remux rather than re-encode: the trim should be cheap and lossless.
         "-c".into(),
         "copy".into(),
