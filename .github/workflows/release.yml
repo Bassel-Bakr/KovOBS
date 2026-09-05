@@ -86,6 +86,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -108,11 +110,10 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --locked
-
       - name: Build
-        run: cargo tauri build
+        # Uses the prebuilt CLI that npm ci already installed, rather than
+        # compiling tauri-cli from source.
+        run: npx tauri build
 
       - name: Prepare release assets (Unix)
         if: runner.os != 'Windows'
