@@ -32,9 +32,6 @@ type Section = {
   /** A Material Icons ligature. Unknown names render as their own text, so
    * anything added here has to exist in the self-hosted font. */
   icon: string;
-  /** Artwork to show in place of `icon`, for the sections that have a logo of
-   * their own. Falls back to `icon` if the file isn't there. */
-  iconSrc?: string;
   title: string;
   blurb: string;
 };
@@ -43,16 +40,14 @@ const SECTIONS: Section[] = [
   {
     id: 'kovaaks',
     label: "KovaaK's",
-    icon: 'my_location',
-    iconSrc: 'assets/games/kovaaks.png',
+    icon: 'sports_esports',
     title: "KovaaK's",
     blurb: 'Everything for this game in one place — stats, clips, OBS source and executable.',
   },
   {
     id: 'aimbeast',
     label: 'Aimbeast',
-    icon: 'track_changes',
-    iconSrc: 'assets/games/aimbeast.png',
+    icon: 'sports_esports',
     title: 'Aimbeast',
     blurb: 'Everything for this game in one place — stats, clips, OBS source and executable.',
   },
@@ -134,13 +129,6 @@ export default class HomeComponent {
   private userClickedStop = false;
 
   protected readonly sections = SECTIONS;
-
-  /**
-   * Sections whose artwork failed to load, so the Material glyph is used
-   * instead. The logos aren't shipped with the source, so this is the normal
-   * state until someone drops the files into src/assets/games.
-   */
-  protected readonly artlessSections = signal(new Set<SectionId>());
   protected readonly section = signal<SectionId>('kovaaks');
   protected readonly ffmpegOpen = signal(false);
 
@@ -329,10 +317,6 @@ export default class HomeComponent {
     return [ffmpeg.global_args, ffmpeg.input_args, ffmpeg.output_args].some(
       (slot) => slot.trim().length > 0
     );
-  }
-
-  protected iconFailed(id: SectionId): void {
-    this.artlessSections.update((ids) => new Set(ids).add(id));
   }
 
   protected selectSection(id: SectionId): void {
