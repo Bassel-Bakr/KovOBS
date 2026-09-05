@@ -18,12 +18,12 @@
   gap: 1.625rem;
 
   &__title {
-    font: var(--mat-sys-headline-small-font);
+    font: var(--mat-sys-headline-small);
     margin: 0;
   }
 
   &__blurb {
-    font: var(--mat-sys-body-medium-font);
+    font: var(--mat-sys-body-medium);
     color: var(--mat-sys-on-surface-variant);
     margin: 0.4rem 0 0;
     text-wrap: pretty;
@@ -38,7 +38,7 @@
   &__note {
     flex: 1;
     margin: 0;
-    font: var(--mat-sys-body-small-font);
+    font: var(--mat-sys-body-small);
     color: var(--mat-sys-on-surface-variant);
     text-wrap: pretty;
   }
@@ -51,7 +51,7 @@
 
   &__labels {
     display: flex;
-    font: var(--mat-sys-body-small-font);
+    font: var(--mat-sys-body-small);
     color: var(--mat-sys-on-surface-variant);
 
     span:first-child {
@@ -109,7 +109,7 @@
     align-items: center;
     justify-content: center;
 
-    font: var(--mat-sys-label-medium-font);
+    font: var(--mat-sys-label-medium);
     background: transparent;
     color: var(--mat-sys-on-surface-variant);
     border: 1.5px solid var(--mat-sys-outline);
@@ -136,11 +136,11 @@
   }
 
   &__title {
-    font: var(--mat-sys-title-small-font);
+    font: var(--mat-sys-title-small);
   }
 
   &__desc {
-    font: var(--mat-sys-body-small-font);
+    font: var(--mat-sys-body-small);
     color: var(--mat-sys-on-surface-variant);
     text-wrap: pretty;
   }
@@ -152,7 +152,7 @@
 
     background: var(--mat-sys-surface-container-low);
     color: var(--mat-sys-on-surface-variant);
-    font: var(--mat-sys-body-small-font);
+    font: var(--mat-sys-body-small);
 
     overflow: hidden;
     text-overflow: ellipsis;

@@ -23,7 +23,7 @@
 }
 
 .logs__title {
-  font: var(--mat-sys-title-small-font);
+  font: var(--mat-sys-title-small);
   margin-right: 0.5rem;
 }
 
@@ -37,7 +37,7 @@
   padding: 0 0.7rem;
   border-radius: 12px;
   cursor: pointer;
-  font: var(--mat-sys-label-small-font);
+  font: var(--mat-sys-label-small);
 
   background: transparent;
   color: var(--mat-sys-on-surface-variant);
@@ -63,7 +63,7 @@
   border: none;
   border-radius: 14px;
   cursor: pointer;
-  font: var(--mat-sys-label-medium-font);
+  font: var(--mat-sys-label-medium);
 
   background: transparent;
   color: var(--mat-sys-on-surface-variant);

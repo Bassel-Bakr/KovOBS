@@ -37,7 +37,7 @@
   border-radius: 16px;
   cursor: pointer;
 
-  font: var(--mat-sys-label-large-font);
+  font: var(--mat-sys-label-large);
   background: transparent;
   color: var(--mat-sys-on-surface-variant);
   border: 1px solid var(--mat-sys-outline-variant);
@@ -51,7 +51,7 @@
   }
 
   &__state {
-    font: var(--mat-sys-label-medium-font);
+    font: var(--mat-sys-label-medium);
     opacity: 0.75;
   }
 
@@ -81,7 +81,7 @@
   border-radius: 17px;
   cursor: pointer;
 
-  font: var(--mat-sys-label-large-font);
+  font: var(--mat-sys-label-large);
   background: var(--mat-sys-primary);
   color: var(--mat-sys-on-primary);
   border: 1px solid transparent;
@@ -133,7 +133,7 @@
     cursor: pointer;
     text-align: left;
 
-    font: var(--mat-sys-label-large-font);
+    font: var(--mat-sys-label-large);
     background: transparent;
     color: var(--mat-sys-on-surface-variant);
     border: none;
@@ -166,12 +166,12 @@
   }
 
   &__title {
-    font: var(--mat-sys-title-large-font);
+    font: var(--mat-sys-title-large);
     margin: 0;
   }
 
   &__blurb {
-    font: var(--mat-sys-body-medium-font);
+    font: var(--mat-sys-body-medium);
     color: var(--mat-sys-on-surface-variant);
     margin: 0.25rem 0 0;
     text-wrap: pretty;
@@ -219,7 +219,7 @@
 
   background: var(--mat-sys-primary-container);
   color: var(--mat-sys-on-primary-container);
-  font: var(--mat-sys-body-medium-font);
+  font: var(--mat-sys-body-medium);
 
   &__text {
     flex: 1;
@@ -256,16 +256,16 @@
   }
 
   &__title {
-    font: var(--mat-sys-title-small-font);
+    font: var(--mat-sys-title-small);
   }
 
   &__blurb {
-    font: var(--mat-sys-body-small-font);
+    font: var(--mat-sys-body-small);
     color: var(--mat-sys-on-surface-variant);
   }
 
   &__badge {
-    font: var(--mat-sys-label-small-font);
+    font: var(--mat-sys-label-small);
     padding: 0.2rem 0.55rem;
     border-radius: 10px;
     background: var(--mat-sys-surface-container-high);
@@ -345,11 +345,11 @@
   }
 
   &__label {
-    font: var(--mat-sys-title-small-font);
+    font: var(--mat-sys-title-small);
   }
 
   &__desc {
-    font: var(--mat-sys-body-small-font);
+    font: var(--mat-sys-body-small);
     color: var(--mat-sys-on-surface-variant);
     text-wrap: pretty;
   }
@@ -374,11 +374,11 @@
   }
 
   &__label {
-    font: var(--mat-sys-title-small-font);
+    font: var(--mat-sys-title-small);
   }
 
   &__desc {
-    font: var(--mat-sys-body-small-font);
+    font: var(--mat-sys-body-small);
     color: var(--mat-sys-on-surface-variant);
   }
 }
@@ -403,7 +403,7 @@
   }
 
   &__state {
-    font: var(--mat-sys-body-medium-font);
+    font: var(--mat-sys-body-medium);
     color: var(--mat-sys-on-surface-variant);
   }
 
@@ -430,19 +430,19 @@
   }
 
   &__label {
-    font: var(--mat-sys-body-medium-font);
+    font: var(--mat-sys-body-medium);
     color: var(--mat-sys-on-surface-variant);
     flex: 1;
   }
 
   &__number {
-    font: var(--mat-sys-headline-small-font);
+    font: var(--mat-sys-headline-small);
     font-variant-numeric: tabular-nums;
   }
 
   &__note {
     margin: 0;
-    font: var(--mat-sys-body-small-font);
+    font: var(--mat-sys-body-small);
     color: var(--mat-sys-on-surface-variant);
     text-wrap: pretty;
 
@@ -476,11 +476,11 @@
   }
 
   &__label {
-    font: var(--mat-sys-title-small-font);
+    font: var(--mat-sys-title-small);
   }
 
   &__desc {
-    font: var(--mat-sys-body-small-font);
+    font: var(--mat-sys-body-small);
     color: var(--mat-sys-on-surface-variant);
   }
 }
@@ -499,7 +499,7 @@
     border: none;
     border-radius: 16px;
     cursor: pointer;
-    font: var(--mat-sys-label-large-font);
+    font: var(--mat-sys-label-large);
 
     background: transparent;
     color: var(--mat-sys-on-surface-variant);
