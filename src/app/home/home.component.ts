@@ -7,7 +7,6 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { MatFormField, MatHint, MatInput, MatLabel, MatSuffix } from '@angular/material/input';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
-import { MatOption, MatSelect } from '@angular/material/select';
 import { MatTooltip } from '@angular/material/tooltip';
 import { TauriService } from '../services/tauri.service';
 import { CacheService } from '../services/cache.service';
@@ -21,6 +20,7 @@ import { MatSlideToggle } from '@angular/material/slide-toggle';
 import { isEqual } from 'lodash-es';
 import { Config } from '../models/config';
 import SetupComponent from '../setup/setup.component';
+import GameSettingsComponent from './game-settings/game-settings.component';
 
 type SectionId = 'kovaaks' | 'aimbeast' | 'obs' | 'clips' | 'automation' | 'advanced';
 
@@ -81,13 +81,12 @@ const SECTIONS: Section[] = [
     MatHint,
     MatIconButton,
     MatIcon,
-    MatSelect,
-    MatOption,
     MatTooltip,
     MatButton,
     MatProgressSpinner,
     MatSlideToggle,
     SetupComponent,
+    GameSettingsComponent,
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
@@ -177,7 +176,7 @@ export default class HomeComponent {
     ];
   });
 
-  private readonly missingPaths = rxResource({
+  private readonly missingPathsResource = rxResource({
     params: () => ({ paths: this.watchedPaths() }),
     stream: ({ params }) => this.pathService.missing(params.paths),
     defaultValue: new Set<string>(),
@@ -195,7 +194,7 @@ export default class HomeComponent {
       return false;
     }
 
-    const missing = this.missingPaths.value();
+    const missing = this.missingPaths();
     const hasClips = value.clips_folder.length > 0 && !missing.has(value.clips_folder);
     const hasFfmpeg = this.ffmpegDownloadProgress.value().state === 'Done';
     const hasGame = [value.processes.paths.kovaaks, value.processes.paths.aimbeast].some(
@@ -249,8 +248,10 @@ export default class HomeComponent {
     this.runAutoStartHandler().pipe(takeUntilDestroyed()).subscribe();
   }
 
+  protected readonly missingPaths = computed(() => this.missingPathsResource.value());
+
   protected isMissing(path: string): boolean {
-    return this.missingPaths.value().has(path);
+    return this.missingPaths().has(path);
   }
 
   protected hasFfmpegArgs(): boolean {

@@ -60,113 +60,25 @@
 
         @switch (section()) {
           @case ('kovaaks') {
-            <div class="fields">
-              <mat-form-field>
-                <mat-label>Stats folder</mat-label>
-                <input matInput [formField]="form.stats_folder" />
-                <button matIconButton matSuffix type="button" (click)="browse(form.stats_folder)">
-                  <mat-icon>folder_open</mat-icon>
-                </button>
-                @if (isMissing(form.stats_folder().value())) {
-                  <mat-hint class="hint--error">This folder does not exist, so runs will not be detected.</mat-hint>
-                } @else {
-                  <mat-hint>Watched for new runs.</mat-hint>
-                }
-              </mat-form-field>
-
-              <mat-form-field>
-                <mat-label>Clips folder</mat-label>
-                <input matInput [formField]="form.clips_folder" />
-                <button matIconButton matSuffix type="button" (click)="browse(form.clips_folder)">
-                  <mat-icon>folder_open</mat-icon>
-                </button>
-                <mat-hint>Trimmed clips are written here, in a subfolder per scenario.</mat-hint>
-              </mat-form-field>
-
-              <mat-form-field>
-                <mat-label>OBS source</mat-label>
-                @if (sources.value()) {
-                  <mat-select [formField]="form.obs.source_name">
-                    @for (source of sources.value(); track source) {
-                      <mat-option [value]="source">{{ source }}</mat-option>
-                    }
-                  </mat-select>
-                } @else {
-                  <input matInput [formField]="form.obs.source_name" />
-                }
-                <mat-hint>Captured for the screenshot.</mat-hint>
-              </mat-form-field>
-
-              <mat-form-field>
-                <mat-label>Executable</mat-label>
-                <input matInput [formField]="form.processes.paths.kovaaks" />
-                <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.kovaaks)">
-                  <mat-icon>terminal</mat-icon>
-                </button>
-                @if (isMissing(form.processes.paths.kovaaks().value())) {
-                  <mat-hint class="hint--error"
-                    >Cannot find this file, so the game will not be detected or launched.</mat-hint
-                  >
-                } @else {
-                  <mat-hint>Used to detect and launch the game.</mat-hint>
-                }
-              </mat-form-field>
-            </div>
+            <app-game-settings
+              [statsFolder]="form.stats_folder"
+              [clipsFolder]="form.clips_folder"
+              [sourceName]="form.obs.source_name"
+              [executable]="form.processes.paths.kovaaks"
+              [sources]="sources.value()"
+              [missing]="missingPaths()"
+            />
           }
 
           @case ('aimbeast') {
-            <div class="fields">
-              <mat-form-field>
-                <mat-label>Stats folder</mat-label>
-                <input matInput [formField]="form.aimbeast.stats_folder" />
-                <button matIconButton matSuffix type="button" (click)="browse(form.aimbeast.stats_folder)">
-                  <mat-icon>folder_open</mat-icon>
-                </button>
-                @if (isMissing(form.aimbeast.stats_folder().value())) {
-                  <mat-hint class="hint--error">This folder does not exist, so runs will not be detected.</mat-hint>
-                } @else {
-                  <mat-hint>Watched for new runs.</mat-hint>
-                }
-              </mat-form-field>
-
-              <mat-form-field>
-                <mat-label>Clips folder</mat-label>
-                <input matInput [formField]="form.aimbeast.clips_folder" />
-                <button matIconButton matSuffix type="button" (click)="browse(form.aimbeast.clips_folder)">
-                  <mat-icon>folder_open</mat-icon>
-                </button>
-                <mat-hint>Trimmed clips are written here, in a subfolder per scenario.</mat-hint>
-              </mat-form-field>
-
-              <mat-form-field>
-                <mat-label>OBS source</mat-label>
-                @if (sources.value()) {
-                  <mat-select [formField]="form.aimbeast.obs_source_name">
-                    @for (source of sources.value(); track source) {
-                      <mat-option [value]="source">{{ source }}</mat-option>
-                    }
-                  </mat-select>
-                } @else {
-                  <input matInput [formField]="form.aimbeast.obs_source_name" />
-                }
-                <mat-hint>Captured for the screenshot.</mat-hint>
-              </mat-form-field>
-
-              <mat-form-field>
-                <mat-label>Executable</mat-label>
-                <input matInput [formField]="form.processes.paths.aimbeast" />
-                <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.aimbeast)">
-                  <mat-icon>terminal</mat-icon>
-                </button>
-                @if (isMissing(form.processes.paths.aimbeast().value())) {
-                  <mat-hint class="hint--error"
-                    >Cannot find this file, so the game will not be detected or launched.</mat-hint
-                  >
-                } @else {
-                  <mat-hint>Used to detect and launch the game.</mat-hint>
-                }
-              </mat-form-field>
-            </div>
+            <app-game-settings
+              [statsFolder]="form.aimbeast.stats_folder"
+              [clipsFolder]="form.aimbeast.clips_folder"
+              [sourceName]="form.aimbeast.obs_source_name"
+              [executable]="form.processes.paths.aimbeast"
+              [sources]="sources.value()"
+              [missing]="missingPaths()"
+            />
           }
 
           @case ('obs') {

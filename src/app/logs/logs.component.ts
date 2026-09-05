@@ -4,7 +4,6 @@ import { GlobalService } from '../services/global.service';
 import { MatIcon } from '@angular/material/icon';
 import { MatIconButton } from '@angular/material/button';
 import { MatTooltip } from '@angular/material/tooltip';
-import { LogLevel } from '../models/log-entry';
 
 type Filter = 'all' | 'clip' | 'error';
 
@@ -75,9 +74,5 @@ export default class LogsComponent {
 
   protected close(): void {
     this.globalService.showLogs.set(false);
-  }
-
-  protected trackLevel(level: LogLevel): string {
-    return level;
   }
 }
