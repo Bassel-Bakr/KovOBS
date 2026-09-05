@@ -4,6 +4,7 @@ use crate::shell::ShellExt;
 use crate::{consts, ui_println};
 use anyhow::Context;
 use chrono::TimeDelta;
+use std::collections::VecDeque;
 use std::path;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -26,6 +27,10 @@ impl Default for FFmpegDownloadProgress {
         }
     }
 }
+
+/// How much of FFmpeg's stderr to keep for an error message. It explains a
+/// failure in the last few lines; everything before that is encoder chatter.
+const STDERR_TAIL_LINES: usize = 20;
 
 pub fn get_ffmpeg_folder_path(app_handle: &AppHandle) -> Result<PathBuf, tauri::Error> {
     app_handle.path().resolve(
@@ -106,19 +111,47 @@ pub async fn trim(
     )
     .await?;
 
-    let result = run(
+    // The arguments are the user's own, so a mistake in them must not cost the
+    // clip that was already trimmed successfully. On failure the trimmed file is
+    // promoted to the output and the run is still a success.
+    match run(
         &extra_command(&intermediate, out_file, extra),
         trailing_duration,
         "🎛️ Applying FFmpeg args",
     )
-    .await;
-
-    // Clean up whether or not the second pass worked.
-    _ = tokio::fs::remove_file(&intermediate).await;
-
-    result?;
+    .await
+    {
+        Ok(()) => {
+            _ = tokio::fs::remove_file(&intermediate).await;
+        }
+        Err(e) => {
+            ui_println!("👎 FFmpeg args failed, keeping the trimmed clip instead:\n{e}");
+            keep_trimmed(&intermediate, out_file).await?;
+        }
+    }
 
     ui_println!("🗃️ Saved clip: {}", out_file.to_string_lossy());
+
+    Ok(())
+}
+
+/// Moves the trimmed file into the output path after the arguments pass failed.
+async fn keep_trimmed(
+    intermediate: &path::Path,
+    out_file: &path::Path,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // A failed pass may have left a partial file behind, and `rename` refuses to
+    // overwrite on Windows.
+    _ = tokio::fs::remove_file(out_file).await;
+
+    tokio::fs::rename(intermediate, out_file)
+        .await
+        .with_context(|| {
+            format!(
+                "Failed to move the trimmed clip to '{}'",
+                out_file.display()
+            )
+        })?;
 
     Ok(())
 }
@@ -203,8 +236,26 @@ async fn run(
         .no_window()
         .args(args)
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .with_context(|| format!("Failed to execute ffmpeg {args:?}"))?;
+
+    // Drained on its own task: if the stderr pipe fills while this is reading
+    // stdout, FFmpeg blocks on the write and neither side ever finishes.
+    let stderr = process.stderr.take().expect("stderr is piped");
+    let stderr_tail = tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        let mut tail: VecDeque<String> = VecDeque::with_capacity(STDERR_TAIL_LINES);
+
+        while let Ok(Some(line)) = lines.next_line().await {
+            if tail.len() == STDERR_TAIL_LINES {
+                tail.pop_front();
+            }
+            tail.push_back(line);
+        }
+
+        Vec::from(tail).join("\n")
+    });
 
     let reader = BufReader::new(process.stdout.take().unwrap());
 
@@ -223,9 +274,19 @@ async fn run(
     }
 
     let status = process.wait().await?;
+    let stderr_tail = stderr_tail.await.unwrap_or_default();
 
     if !status.success() {
-        return Err(format!("FFmpeg exited with {status}").into());
+        // FFmpeg explains itself on stderr, so the tail is the only part of this
+        // worth reading.
+        let detail = stderr_tail.trim();
+
+        return Err(if detail.is_empty() {
+            format!("FFmpeg exited with {status}")
+        } else {
+            format!("FFmpeg exited with {status}\n{detail}")
+        }
+        .into());
     }
 
     Ok(())
