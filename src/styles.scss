@@ -5,6 +5,27 @@
 // custom components at https://material.angular.dev/guide/theming
 @use '@angular/material' as mat;
 
+// A desktop app should look like it belongs to the OS, so the type comes from
+// the system rather than a webfont: Segoe UI Variable on Windows 11, whatever
+// system-ui resolves to elsewhere. Nothing to download, and it renders the same
+// with no network.
+$plain-family: (
+  system-ui,
+  'Segoe UI Variable Text',
+  'Segoe UI',
+  Cantarell,
+  Ubuntu,
+  sans-serif,
+);
+$brand-family: (
+  system-ui,
+  'Segoe UI Variable Display',
+  'Segoe UI',
+  Cantarell,
+  Ubuntu,
+  sans-serif,
+);
+
 html {
   height: 100%;
   @include mat.theme(
@@ -13,7 +34,10 @@ html {
         primary: mat.$orange-palette,
         tertiary: mat.$orange-palette,
       ),
-      typography: Roboto,
+      typography: (
+        plain-family: $plain-family,
+        brand-family: $brand-family,
+      ),
       density: 0,
     )
   );
