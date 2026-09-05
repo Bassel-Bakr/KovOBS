@@ -2,12 +2,14 @@
 members = [".", "src-tauri"]
 resolver = "3"
 
-# Debug info is what the linker spends most of its time on here. Dependencies
-# are never stepped into, so they get none; our own crate keeps line tables so
-# panic backtraces still point at real lines. Incremental rebuild of lib.rs:
-# ~3.2s -> ~2.0s, and full `debug = false` only buys another 0.08s.
+# Debug info is what the linker spends most of its time on here, so
+# dependencies get none -- they are never stepped into, and that is where most
+# of the saving is. Our own crate keeps full debug info so a debugger can
+# inspect variables, not just map backtraces to lines. Incremental rebuild of
+# lib.rs: ~2.2s on "line-tables-only" vs ~3.1s here, which is the price of
+# being able to actually debug.
 [profile.dev]
-debug = "line-tables-only"
+debug = "full"
 
 [profile.dev.package."*"]
 debug = false

@@ -44,10 +44,14 @@ export class ConfigService {
       screenshot: {
         enabled: false,
       },
+      notifications: {
+        enabled: true,
+        sound: true,
+      },
       ffmpeg: {
-        global_args: [],
-        input_args: [],
-        output_args: [],
+        global_args: '',
+        input_args: '',
+        output_args: '',
       },
       processes: {
         scan_interval_secs: 1,

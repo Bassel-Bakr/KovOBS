@@ -24,11 +24,22 @@ import { ThemeService } from '../services/theme.service';
 import SetupComponent from '../setup/setup.component';
 import GameSettingsComponent from './game-settings/game-settings.component';
 
-type SectionId = 'kovaaks' | 'aimbeast' | 'obs' | 'clips' | 'automation' | 'advanced' | 'about';
+type SectionId =
+  | 'kovaaks'
+  | 'aimbeast'
+  | 'obs'
+  | 'clips'
+  | 'notifications'
+  | 'automation'
+  | 'advanced'
+  | 'about';
 
 type Section = {
   id: SectionId;
   label: string;
+  /** A Material Icons ligature. Unknown names render as their own text, so
+   * anything added here has to exist in the self-hosted font. */
+  icon: string;
   title: string;
   blurb: string;
 };
@@ -37,42 +48,56 @@ const SECTIONS: Section[] = [
   {
     id: 'kovaaks',
     label: "KovaaK's",
+    icon: 'sports_esports',
     title: "KovaaK's",
     blurb: 'Everything for this game in one place — stats, clips, OBS source and executable.',
   },
   {
     id: 'aimbeast',
     label: 'Aimbeast',
+    icon: 'sports_esports',
     title: 'Aimbeast',
     blurb: 'Everything for this game in one place — stats, clips, OBS source and executable.',
   },
   {
     id: 'obs',
     label: 'OBS',
+    icon: 'videocam',
     title: 'OBS',
     blurb: 'How KovOBS talks to OBS over the websocket.',
   },
   {
     id: 'clips',
     label: 'Clips',
+    icon: 'content_cut',
     title: 'Clips',
     blurb: 'How the replay buffer is trimmed, and what happens to it afterwards.',
   },
   {
+    id: 'notifications',
+    label: 'Notifications',
+    icon: 'notifications',
+    title: 'Notifications',
+    blurb: 'The desktop notification shown once a clip is saved and trimmed.',
+  },
+  {
     id: 'automation',
     label: 'Automation',
+    icon: 'bolt',
     title: 'Automation',
     blurb: 'What KovOBS does on its own while it runs.',
   },
   {
     id: 'advanced',
     label: 'Advanced',
+    icon: 'tune',
     title: 'Advanced',
     blurb: 'Cache, scan interval, and things you rarely touch.',
   },
   {
     id: 'about',
     label: 'About',
+    icon: 'info',
     title: 'About KovOBS',
     blurb: 'Which version you are running, and whether a newer one exists.',
   },
@@ -121,8 +146,6 @@ export default class HomeComponent {
   protected readonly sections = SECTIONS;
   protected readonly section = signal<SectionId>('kovaaks');
   protected readonly ffmpegOpen = signal(false);
-
-  protected readonly ffmpegForm = form(signal({ global: '', input: '', output: '' }));
 
   protected readonly ffmpegDownloadProgress = rxResource({
     stream: () => this.eventService.ffmpegDownloadProgress(),
@@ -291,24 +314,6 @@ export default class HomeComponent {
     });
 
     effect(() => {
-      const { ffmpeg } = this.configForm().value();
-      untracked(() => {
-        this.ffmpegForm.global().value.set(ffmpeg.global_args.join('\n'));
-        this.ffmpegForm.input().value.set(ffmpeg.input_args.join('\n'));
-        this.ffmpegForm.output().value.set(ffmpeg.output_args.join('\n'));
-      });
-    });
-
-    effect(() => {
-      const { global, input, output } = this.ffmpegForm().value();
-      untracked(() => {
-        this.configForm.ffmpeg.global_args().value.set(toArgs(global));
-        this.configForm.ffmpeg.input_args().value.set(toArgs(input));
-        this.configForm.ffmpeg.output_args().value.set(toArgs(output));
-      });
-    });
-
-    effect(() => {
       this.themeService.apply(this.configForm.theme().value());
     });
 
@@ -324,7 +329,9 @@ export default class HomeComponent {
   protected hasFfmpegArgs(): boolean {
     const { ffmpeg } = this.configForm().value();
 
-    return ffmpeg.global_args.length > 0 || ffmpeg.input_args.length > 0 || ffmpeg.output_args.length > 0;
+    return [ffmpeg.global_args, ffmpeg.input_args, ffmpeg.output_args].some(
+      (slot) => slot.trim().length > 0
+    );
   }
 
   protected selectSection(id: SectionId): void {
@@ -458,11 +465,4 @@ export default class HomeComponent {
       })
     );
   }
-}
-
-function toArgs(value: string): string[] {
-  return value
-    .split('\n')
-    .map((arg) => arg.trim())
-    .filter((arg) => arg.length > 0);
 }

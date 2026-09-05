@@ -5,3 +5,5 @@
 cache.json
 config.json
 *.exe
+/dist
+.claude

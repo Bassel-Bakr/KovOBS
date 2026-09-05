@@ -2253,7 +2253,7 @@ dependencies = [
 
 [[package]]
 name = "kovobs"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2276,6 +2276,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
+ "tauri-winrt-notification",
  "tokio",
  "tokio-util",
 ]

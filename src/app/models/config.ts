@@ -27,10 +27,14 @@ export type Config = {
   screenshot: {
     enabled: boolean;
   };
+  notifications: {
+    enabled: boolean;
+    sound: boolean;
+  };
   ffmpeg: {
-    global_args: string[];
-    input_args: string[];
-    output_args: string[];
+    global_args: string;
+    input_args: string;
+    output_args: string;
   };
   processes: {
     scan_interval_secs: number;

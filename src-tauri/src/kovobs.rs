@@ -220,7 +220,14 @@ async fn listen_to_obs_events(
 
             ffmpeg::trim(&replay_buffer, &clip_path, trim_duration, &config.ffmpeg).await?;
 
-            notification::clip_saved("Clip saved", &stat.to_string(), &clip_path);
+            if config.notifications.enabled {
+                notification::clip_saved(
+                    "Clip saved",
+                    &stat.to_string(),
+                    &clip_path,
+                    config.notifications.sound,
+                );
+            }
 
             // Delete the replay buffer clip if we no longer need it
             if config.delete_after_trimming {

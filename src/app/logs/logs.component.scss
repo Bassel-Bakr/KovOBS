@@ -4,13 +4,52 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 226px;
-  min-height: 0;
   flex-shrink: 0;
+
+  // The height itself is bound from the component and set by the drag handle.
+  // These bound it if the window is resized smaller after a drag, which moves
+  // the ceiling without the handle being touched.
+  min-height: 120px;
+  max-height: calc(100vh - 180px);
+
+  // Anchors the resize handle, which straddles the top edge.
+  position: relative;
 
   background: var(--mat-sys-surface-container);
   color: var(--mat-sys-on-surface);
   border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.logs__resizer {
+  position: absolute;
+  inset: -3px 0 auto 0;
+  height: 7px;
+  z-index: 1;
+  cursor: ns-resize;
+
+  // Stops the panel scrolling instead of resizing under a touch or pen drag.
+  touch-action: none;
+
+  // Sits over the existing border rather than adding to it, so nothing shifts
+  // when the handle lights up.
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 2px 0 auto 0;
+    height: 3px;
+    background: transparent;
+    transition: background 120ms ease;
+  }
+
+  &:hover::after,
+  &:focus-visible::after,
+  &--dragging::after {
+    background: var(--mat-sys-primary);
+  }
+
+  &:focus-visible {
+    outline: none;
+  }
 }
 
 .logs__header {

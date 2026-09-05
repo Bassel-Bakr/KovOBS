@@ -39,13 +39,17 @@
           [class.nav__item--active]="section() === item.id"
           (click)="selectSection(item.id)"
         >
+          <mat-icon class="nav__icon">{{ item.icon }}</mat-icon>
           {{ item.label }}
         </button>
       }
 
       <span class="nav__spacer"></span>
 
-      <button type="button" class="nav__item" (click)="toggleLogs()">Logs</button>
+      <button type="button" class="nav__item" (click)="toggleLogs()">
+        <mat-icon class="nav__icon">terminal</mat-icon>
+        Logs
+      </button>
     </nav>
 
     <!-- Content -->
@@ -191,24 +195,48 @@
 
                     <mat-form-field>
                       <mat-label>Global args</mat-label>
-                      <textarea matInput rows="2" [formField]="ffmpegForm.global"></textarea>
-                      <mat-hint>One per line, before everything. For example -loglevel warning</mat-hint>
+                      <textarea matInput rows="2" [formField]="form.ffmpeg.global_args"></textarea>
+                      <mat-hint
+                        >Before everything. Quote values with spaces: -metadata &quot;title=My Run&quot;</mat-hint
+                      >
                     </mat-form-field>
 
                     <mat-form-field>
                       <mat-label>Input args</mat-label>
-                      <textarea matInput rows="2" [formField]="ffmpegForm.input"></textarea>
-                      <mat-hint>One per line, before -i. For example -hwaccel cuda</mat-hint>
+                      <textarea matInput rows="2" [formField]="form.ffmpeg.input_args"></textarea>
+                      <mat-hint>Before -i. For example -hwaccel cuda</mat-hint>
                     </mat-form-field>
 
                     <mat-form-field>
                       <mat-label>Output args</mat-label>
-                      <textarea matInput rows="2" [formField]="ffmpegForm.output"></textarea>
-                      <mat-hint>One per line, after -i. For example -c:v libx264</mat-hint>
+                      <textarea matInput rows="2" [formField]="form.ffmpeg.output_args"></textarea>
+                      <mat-hint>After -i. For example -c:v libx264 -crf 23</mat-hint>
                     </mat-form-field>
                   </div>
                 }
               </section>
+            </div>
+          }
+
+          @case ('notifications') {
+            <div class="toggles">
+              <label class="toggle">
+                <mat-slide-toggle [formField]="form.notifications.enabled" />
+                <span class="toggle__text">
+                  <span class="toggle__label">Notify on a saved clip</span>
+                  <span class="toggle__desc">
+                    Show a desktop notification once the clip is trimmed. Clicking it opens the folder it landed in.
+                  </span>
+                </span>
+              </label>
+
+              <label class="toggle">
+                <mat-slide-toggle [formField]="form.notifications.sound" [disabled]="!form.notifications.enabled().value()" />
+                <span class="toggle__text">
+                  <span class="toggle__label">Play a sound</span>
+                  <span class="toggle__desc">Use the system notification sound instead of appearing silently.</span>
+                </span>
+              </label>
             </div>
           }
 
