@@ -39,13 +39,17 @@
           [class.nav__item--active]="section() === item.id"
           (click)="selectSection(item.id)"
         >
+          <mat-icon class="nav__icon">{{ item.icon }}</mat-icon>
           {{ item.label }}
         </button>
       }
 
       <span class="nav__spacer"></span>
 
-      <button type="button" class="nav__item" (click)="toggleLogs()">Logs</button>
+      <button type="button" class="nav__item" (click)="toggleLogs()">
+        <mat-icon class="nav__icon">terminal</mat-icon>
+        Logs
+      </button>
     </nav>
 
     <!-- Content -->

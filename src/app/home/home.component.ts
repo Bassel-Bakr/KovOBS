@@ -29,6 +29,9 @@ type SectionId = 'kovaaks' | 'aimbeast' | 'obs' | 'clips' | 'automation' | 'adva
 type Section = {
   id: SectionId;
   label: string;
+  /** A Material Icons ligature. Unknown names render as their own text, so
+   * anything added here has to exist in the self-hosted font. */
+  icon: string;
   title: string;
   blurb: string;
 };
@@ -37,42 +40,49 @@ const SECTIONS: Section[] = [
   {
     id: 'kovaaks',
     label: "KovaaK's",
+    icon: 'my_location',
     title: "KovaaK's",
     blurb: 'Everything for this game in one place — stats, clips, OBS source and executable.',
   },
   {
     id: 'aimbeast',
     label: 'Aimbeast',
+    icon: 'track_changes',
     title: 'Aimbeast',
     blurb: 'Everything for this game in one place — stats, clips, OBS source and executable.',
   },
   {
     id: 'obs',
     label: 'OBS',
+    icon: 'videocam',
     title: 'OBS',
     blurb: 'How KovOBS talks to OBS over the websocket.',
   },
   {
     id: 'clips',
     label: 'Clips',
+    icon: 'content_cut',
     title: 'Clips',
     blurb: 'How the replay buffer is trimmed, and what happens to it afterwards.',
   },
   {
     id: 'automation',
     label: 'Automation',
+    icon: 'bolt',
     title: 'Automation',
     blurb: 'What KovOBS does on its own while it runs.',
   },
   {
     id: 'advanced',
     label: 'Advanced',
+    icon: 'tune',
     title: 'Advanced',
     blurb: 'Cache, scan interval, and things you rarely touch.',
   },
   {
     id: 'about',
     label: 'About',
+    icon: 'info',
     title: 'About KovOBS',
     blurb: 'Which version you are running, and whether a newer one exists.',
   },
