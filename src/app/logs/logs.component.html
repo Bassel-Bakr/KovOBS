@@ -1,7 +1,52 @@
-<div #logsContainer class="logs">
-  @for (logMessage of logs(); track $index) {
-    <div class="log__message">
-      {{ logMessage }}
+<div class="logs__header">
+  <span class="logs__title">Logs</span>
+
+  <div class="logs__filters">
+    @for (option of filters; track option.id) {
+      <button
+        type="button"
+        class="logs__filter"
+        [class.logs__filter--active]="filter() === option.id"
+        (click)="setFilter(option.id)"
+      >
+        {{ option.label }}
+      </button>
+    }
+  </div>
+
+  <span class="logs__spacer"></span>
+
+  <button
+    type="button"
+    class="logs__follow"
+    [class.logs__follow--active]="follow()"
+    matTooltip="Scroll to new lines"
+    (click)="toggleFollow()"
+  >
+    <mat-icon>arrow_downward</mat-icon>
+    Follow
+  </button>
+
+  <button matIconButton type="button" matTooltip="Copy" (click)="copy()">
+    <mat-icon>content_copy</mat-icon>
+  </button>
+
+  <button matIconButton type="button" matTooltip="Clear" (click)="clear()">
+    <mat-icon>delete_sweep</mat-icon>
+  </button>
+
+  <button matIconButton type="button" matTooltip="Hide logs" (click)="close()">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<div #scroller class="logs__scroller">
+  @for (entry of entries(); track entry.id) {
+    <div class="log" [attr.data-level]="entry.level">
+      <span class="log__time">{{ entry.time }}</span>
+      <span class="log__text">{{ entry.text }}</span>
     </div>
+  } @empty {
+    <p class="logs__empty">Nothing logged yet.</p>
   }
 </div>
