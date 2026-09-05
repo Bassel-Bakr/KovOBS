@@ -23,7 +23,11 @@ export type Config = {
   screenshot: {
     enabled: boolean;
   };
-  ffmpeg_args: string[];
+  ffmpeg: {
+    global_args: string[];
+    input_args: string[];
+    output_args: string[];
+  };
   processes: {
     scan_interval_secs: number;
     paths: {

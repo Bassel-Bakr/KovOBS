@@ -62,7 +62,7 @@ export default class HomeComponent {
    */
   private userClickedStop = false;
 
-  protected readonly ffmpegForm = form(signal({ args: '' }));
+  protected readonly ffmpegForm = form(signal({ global: '', input: '', output: '' }));
 
   protected readonly ffmpegDownloadProgress = rxResource({
     stream: () => this.eventService.ffmpegDownloadProgress(),
@@ -111,18 +111,20 @@ export default class HomeComponent {
     });
 
     effect(() => {
-      const form = this.configForm();
-      const args = form.value().ffmpeg_args.join('\n');
+      const { ffmpeg } = this.configForm().value();
       untracked(() => {
-        this.ffmpegForm.args().value.set(args);
+        this.ffmpegForm.global().value.set(ffmpeg.global_args.join('\n'));
+        this.ffmpegForm.input().value.set(ffmpeg.input_args.join('\n'));
+        this.ffmpegForm.output().value.set(ffmpeg.output_args.join('\n'));
       });
     });
 
     effect(() => {
-      const form = this.ffmpegForm();
-      const args = form.value().args.split('\n');
+      const { global, input, output } = this.ffmpegForm().value();
       untracked(() => {
-        this.configForm.ffmpeg_args().value.set(args);
+        this.configForm.ffmpeg.global_args().value.set(toArgs(global));
+        this.configForm.ffmpeg.input_args().value.set(toArgs(input));
+        this.configForm.ffmpeg.output_args().value.set(toArgs(output));
       });
     });
 
@@ -225,4 +227,11 @@ export default class HomeComponent {
       })
     );
   }
+}
+
+function toArgs(value: string): string[] {
+  return value
+    .split('\n')
+    .map((arg) => arg.trim())
+    .filter((arg) => arg.length > 0);
 }

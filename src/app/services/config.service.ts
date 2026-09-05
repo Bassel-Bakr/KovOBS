@@ -42,7 +42,11 @@ export class ConfigService {
       screenshot: {
         enabled: false,
       },
-      ffmpeg_args: ['-c', 'copy'],
+      ffmpeg: {
+        global_args: [],
+        input_args: [],
+        output_args: [],
+      },
       processes: {
         scan_interval_secs: 1,
         paths: {
