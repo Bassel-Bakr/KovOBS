@@ -86,6 +86,16 @@ jobs:
         with:
           cache-on-failure: true
 
+      - name: Cache Tauri bundler tools
+        uses: actions/cache@v4
+        with:
+          # NSIS and the AppImage tooling are downloaded on first use and
+          # live outside target/, so rust-cache does not cover them.
+          path: |
+            ~/AppData/Local/tauri
+            ~/.cache/tauri
+          key: tauri-bundler-${{ runner.os }}-v1
+
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         uses: awalsh128/cache-apt-pkgs-action@v1.5.1
@@ -151,16 +161,11 @@ jobs:
         run: |
           New-Item -ItemType Directory release-assets | Out-Null
 
-          Get-ChildItem target/release/bundle -Recurse -Include *.msi,*setup*.exe |
+          Get-ChildItem target/release/bundle -Recurse -Include *setup*.exe |
             Copy-Item -Destination release-assets
 
           Get-ChildItem release-assets | ForEach-Object {
-            if ($_.Extension -eq ".msi") {
-              Rename-Item $_.FullName "KovOBS-windows-v$env:VERSION.msi"
-            }
-            elseif ($_.Name -like "*setup*.exe") {
-              Rename-Item $_.FullName "KovOBS-windows-v$env:VERSION-setup.exe"
-            }
+            Rename-Item $_.FullName "KovOBS-windows-v$env:VERSION-setup.exe"
           }
 
       - uses: actions/upload-artifact@v4

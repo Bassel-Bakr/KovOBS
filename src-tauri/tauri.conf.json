@@ -28,7 +28,11 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis",
+      "deb",
+      "appimage"
+    ],
     "resources": {
       "./resources/default-config.json": "default-config.json"
     },
