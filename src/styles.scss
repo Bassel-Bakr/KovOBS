@@ -5,24 +5,18 @@
 // custom components at https://material.angular.dev/guide/theming
 @use '@angular/material' as mat;
 
-// A desktop app should look like it belongs to the OS, so the type comes from
-// the system rather than a webfont: Segoe UI Variable on Windows 11, whatever
-// system-ui resolves to elsewhere. Nothing to download, and it renders the same
-// with no network.
+// IBM Plex, bundled through Fontsource (see the styles array in angular.json)
+// rather than fetched from a font CDN, so the app renders identically offline.
 $plain-family: (
+  'IBM Plex Sans',
   system-ui,
-  'Segoe UI Variable Text',
   'Segoe UI',
-  Cantarell,
-  Ubuntu,
   sans-serif,
 );
 $brand-family: (
+  'IBM Plex Sans',
   system-ui,
-  'Segoe UI Variable Display',
   'Segoe UI',
-  Cantarell,
-  Ubuntu,
   sans-serif,
 );
 
