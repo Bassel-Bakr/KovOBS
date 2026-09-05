@@ -9,6 +9,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, Tray
 use tauri::{Manager, WindowEvent};
 
 mod aimbeast;
+mod args;
 mod cache;
 mod cmds;
 mod config;
