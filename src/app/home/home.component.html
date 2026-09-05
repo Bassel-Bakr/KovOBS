@@ -232,7 +232,7 @@
 
     <mat-form-field>
       <mat-label>Args</mat-label>
-      <textarea matInput placeholder="Line-separated output args" type="text" rows="4" [formField]="ffmpegForm.args">
+      <textarea matInput placeholder="Line-separated output args, applied after trimming. Leave empty to only trim." type="text" rows="4" [formField]="ffmpegForm.args">
       </textarea>
     </mat-form-field>
   </mat-card>

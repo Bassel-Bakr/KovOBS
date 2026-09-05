@@ -22,7 +22,7 @@
   "screenshot": {
     "enabled": true
   },
-  "ffmpeg_args": ["-c", "copy"],
+  "ffmpeg_args": [],
   "processes": {
     "scan_interval_secs": 3,
     "paths": {
