@@ -35,7 +35,6 @@ notify = "8.2.0"
 obws = { version = "0.15.0", features = ["events"] }
 rayon = "1.12.0"
 tokio = { version = "1.52.3", features = ["full"] }
-num-traits = "0.2.19"
 config = { version = "0.15.23", features = ["json"] }
 tauri-plugin-dialog = "2.7.1"
 notify-rust = "4.18.0"
