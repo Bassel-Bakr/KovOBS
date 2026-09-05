@@ -19,6 +19,7 @@ mod ffmpeg;
 mod globals;
 mod kovobs;
 mod macros;
+mod notification;
 mod shell;
 mod stat;
 mod utils;
@@ -46,6 +47,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             cmds::is_ready,
             cmds::is_running,

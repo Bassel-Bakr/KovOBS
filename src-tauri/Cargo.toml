@@ -1,6 +1,6 @@
 [package]
 name = "kovobs"
-version = "0.11.6"
+version = "0.12.0"
 description = "KovOBS"
 authors = ["Bassel Bakr"]
 edition = "2024"
@@ -33,6 +33,7 @@ tokio = { version = "1.52.3", features = ["full"] }
 num-traits = "0.2.19"
 config = { version = "0.15.23", features = ["json"] }
 tauri-plugin-dialog = "2.7.1"
+tauri-plugin-notification = "2"
 tokio-util = { version = "0.7.18", features = ["rt"] }
 sysinfo = "0.39.3"
 ffmpeg-sidecar = "2.5.2"
