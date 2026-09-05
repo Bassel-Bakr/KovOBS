@@ -89,7 +89,7 @@ jobs:
       - name: Cache Tauri bundler tools
         uses: actions/cache@v4
         with:
-          # NSIS and the AppImage tooling are downloaded on first use and
+          # WiX and the AppImage tooling are downloaded on first use and
           # live outside target/, so rust-cache does not cover them.
           path: |
             ~/AppData/Local/tauri
@@ -161,11 +161,11 @@ jobs:
         run: |
           New-Item -ItemType Directory release-assets | Out-Null
 
-          Get-ChildItem target/release/bundle -Recurse -Include *setup*.exe |
+          Get-ChildItem target/release/bundle -Recurse -Include *.msi |
             Copy-Item -Destination release-assets
 
           Get-ChildItem release-assets | ForEach-Object {
-            Rename-Item $_.FullName "KovOBS-windows-v$env:VERSION-setup.exe"
+            Rename-Item $_.FullName "KovOBS-windows-v$env:VERSION.msi"
           }
 
       - uses: actions/upload-artifact@v4
