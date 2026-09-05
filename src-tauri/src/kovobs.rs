@@ -218,13 +218,7 @@ async fn listen_to_obs_events(
                 TimeDelta::from_std(Duration::from_hours(24))?
             };
 
-            ffmpeg::trim(
-                &replay_buffer,
-                &clip_path,
-                trim_duration,
-                &config.ffmpeg_args,
-            )
-            .await?;
+            ffmpeg::trim(&replay_buffer, &clip_path, trim_duration, &config.ffmpeg).await?;
 
             notification::notify("Clip saved", &stat.to_string());
 

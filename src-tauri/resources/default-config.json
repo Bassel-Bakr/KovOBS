@@ -22,7 +22,6 @@
   "screenshot": {
     "enabled": true
   },
-  "ffmpeg_args": [],
   "processes": {
     "scan_interval_secs": 3,
     "paths": {
@@ -30,5 +29,10 @@
       "kovaaks": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\FPSAimTrainer\\FPSAimTrainer\\Binaries\\Win64\\FPSAimTrainer-Win64-Shipping.exe",
       "aimbeast": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Aimbeast\\Aimbeast\\Binaries\\Win64\\Aimbeast-Win64-Shipping.exe"
     }
+  },
+  "ffmpeg": {
+    "global_args": [],
+    "input_args": [],
+    "output_args": []
   }
 }

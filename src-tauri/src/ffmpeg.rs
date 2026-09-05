@@ -1,3 +1,4 @@
+use crate::config::FFmpegConfig;
 use crate::globals::APP_HANDLE;
 use crate::shell::ShellExt;
 use crate::{consts, ui_println};
@@ -58,9 +59,10 @@ pub fn get_ffmpeg_path(
 /// `out_file` using FFmpeg.
 ///
 /// The trim itself always runs with the same defaults: a stream copy, which is
-/// a fast remux rather than a re-encode. When `extra_args` is non-empty a second
-/// pass runs over the trimmed file and applies them as output options, so the
-/// user's arguments can't interfere with the trim. When it is empty the trim is
+/// a fast remux rather than a re-encode. When `extra` holds any arguments a
+/// second pass runs over the trimmed file, placing them in their proper slots
+/// of `ffmpeg [global] [input] -i in [output] out`, so the user's arguments
+/// can't interfere with the trim. When all three slots are empty the trim is
 /// the whole job and only one pass runs.
 ///
 /// The output directory is created automatically if it does not already exist.
@@ -76,13 +78,13 @@ pub async fn trim(
     in_file: &path::Path,
     out_file: &path::Path,
     trailing_duration: TimeDelta,
-    extra_args: &[String],
+    extra: &FFmpegConfig,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tokio::fs::create_dir_all(&out_file.parent().expect("No parent directory"))
         .await
         .with_context(|| format!("Failed to create output directory '{}'", out_file.display()))?;
 
-    if extra_args.is_empty() {
+    if extra.is_empty() {
         run(
             &trim_args(in_file, out_file, trailing_duration),
             trailing_duration,
@@ -105,7 +107,7 @@ pub async fn trim(
     .await?;
 
     let result = run(
-        &extra_args_command(&intermediate, out_file, extra_args),
+        &extra_command(&intermediate, out_file, extra),
         trailing_duration,
         "🎛️ Applying FFmpeg args",
     )
@@ -155,12 +157,11 @@ fn trim_args(
     ]
 }
 
-fn extra_args_command(
-    in_file: &path::Path,
-    out_file: &path::Path,
-    extra_args: &[String],
-) -> Vec<String> {
-    let mut args = vec![
+/// Builds `ffmpeg [global] [input] -i in [output] out`, with the user's three
+/// slots layered onto the options this needs for progress reporting. Their
+/// global args come after ours so they can override them (`-loglevel`, say).
+fn extra_command(in_file: &path::Path, out_file: &path::Path, extra: &FFmpegConfig) -> Vec<String> {
+    let mut args: Vec<String> = vec![
         "-hide_banner".into(),
         "-loglevel".into(),
         "error".into(),
@@ -168,11 +169,15 @@ fn extra_args_command(
         "-progress".into(),
         "pipe:1".into(),
         "-y".into(),
-        "-i".into(),
-        in_file.to_string_lossy().into_owned(),
     ];
 
-    args.extend(extra_args.iter().cloned());
+    args.extend(extra.global_args.iter().cloned());
+    args.extend(extra.input_args.iter().cloned());
+
+    args.push("-i".into());
+    args.push(in_file.to_string_lossy().into_owned());
+
+    args.extend(extra.output_args.iter().cloned());
     args.push(out_file.to_string_lossy().into_owned());
 
     args

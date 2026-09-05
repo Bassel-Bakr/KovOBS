@@ -20,7 +20,7 @@ pub struct AppConfig {
     pub cache_version: String,
     pub cache_file: String,
     pub screenshot: ScreenshotConfig,
-    pub ffmpeg_args: Box<[String]>,
+    pub ffmpeg: FFmpegConfig,
     pub processes: ProcessesConfig,
     pub aimbeast: AimbeastConfig,
 }
@@ -38,6 +38,25 @@ pub struct ObsConfig {
 #[serde(default)]
 pub struct ScreenshotConfig {
     pub enabled: bool,
+}
+
+/// The three slots of an FFmpeg command line:
+/// `ffmpeg [global_args] [input_args] -i input [output_args] output`.
+///
+/// These apply to the pass that runs *after* trimming, so they can't interfere
+/// with the trim's own options. When all three are empty no second pass runs.
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct FFmpegConfig {
+    pub global_args: Box<[String]>,
+    pub input_args: Box<[String]>,
+    pub output_args: Box<[String]>,
+}
+
+impl FFmpegConfig {
+    pub fn is_empty(&self) -> bool {
+        self.global_args.is_empty() && self.input_args.is_empty() && self.output_args.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -136,7 +155,7 @@ impl Default for AppConfig {
             cache_version: "".into(),
             cache_file: "".into(),
             screenshot: Default::default(),
-            ffmpeg_args: Default::default(),
+            ffmpeg: Default::default(),
             processes: ProcessesConfig {
                 scan_interval_secs: 1,
                 paths: Default::default(),

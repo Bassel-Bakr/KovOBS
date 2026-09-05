@@ -230,9 +230,27 @@
       </mat-card-title>
     </mat-card-header>
 
+    <p class="ffmpeg__hint">
+      One argument per line, applied after trimming:
+      <code>ffmpeg [global] [input] -i clip [output] out.mp4</code>.
+      Leave all three empty to only trim.
+    </p>
+
     <mat-form-field>
-      <mat-label>Args</mat-label>
-      <textarea matInput placeholder="Line-separated output args, applied after trimming. Leave empty to only trim." type="text" rows="4" [formField]="ffmpegForm.args">
+      <mat-label>Global args</mat-label>
+      <textarea matInput placeholder="e.g. -loglevel warning" type="text" rows="3" [formField]="ffmpegForm.global">
+      </textarea>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Input args</mat-label>
+      <textarea matInput placeholder="e.g. -hwaccel cuda" type="text" rows="3" [formField]="ffmpegForm.input">
+      </textarea>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Output args</mat-label>
+      <textarea matInput placeholder="e.g. -c:v libx264" type="text" rows="3" [formField]="ffmpegForm.output">
       </textarea>
     </mat-form-field>
   </mat-card>
