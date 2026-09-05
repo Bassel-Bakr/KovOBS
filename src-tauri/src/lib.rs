@@ -58,6 +58,7 @@ pub fn run() {
             cmds::save_config,
             cmds::clear_cache,
             cmds::get_obs_sources,
+            cmds::paths_exist,
             cmds::run_obs,
             cmds::run_kovaaks,
             cmds::run_aimbeast,

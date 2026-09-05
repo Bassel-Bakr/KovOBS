@@ -1,25 +1,73 @@
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { Component, effect, inject, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ConfigService } from '../services/config.service';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FieldTree, form, FormField } from '@angular/forms/signals';
 import { open } from '@tauri-apps/plugin-dialog';
-import { MatFormField, MatInput, MatLabel, MatSuffix } from '@angular/material/input';
+import { MatFormField, MatHint, MatInput, MatLabel, MatSuffix } from '@angular/material/input';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
-import { MatCard, MatCardHeader, MatCardTitle } from '@angular/material/card';
 import { MatOption, MatSelect } from '@angular/material/select';
-import { MatCheckbox } from '@angular/material/checkbox';
 import { MatTooltip } from '@angular/material/tooltip';
-import { MatToolbar } from '@angular/material/toolbar';
 import { TauriService } from '../services/tauri.service';
 import { CacheService } from '../services/cache.service';
 import { EventService } from '../services/event.service';
-import { combineLatest, switchMap, tap } from 'rxjs';
-import { MatChip } from '@angular/material/chips';
+import { combineLatest, of, switchMap, tap } from 'rxjs';
 import { GlobalService } from '../services/global.service';
 import { FfmpegService } from '../services/ffmpeg.service';
+import { PathService } from '../services/path.service';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
+import { MatSlideToggle } from '@angular/material/slide-toggle';
+import { isEqual } from 'lodash-es';
+import { Config } from '../models/config';
+
+type SectionId = 'kovaaks' | 'aimbeast' | 'obs' | 'clips' | 'automation' | 'advanced';
+
+type Section = {
+  id: SectionId;
+  label: string;
+  title: string;
+  blurb: string;
+};
+
+const SECTIONS: Section[] = [
+  {
+    id: 'kovaaks',
+    label: "KovaaK's",
+    title: "KovaaK's",
+    blurb: 'Everything for this game in one place — stats, clips, OBS source and executable.',
+  },
+  {
+    id: 'aimbeast',
+    label: 'Aimbeast',
+    title: 'Aimbeast',
+    blurb: 'Everything for this game in one place — stats, clips, OBS source and executable.',
+  },
+  {
+    id: 'obs',
+    label: 'OBS',
+    title: 'OBS',
+    blurb: 'How KovOBS talks to OBS over the websocket.',
+  },
+  {
+    id: 'clips',
+    label: 'Clips',
+    title: 'Clips',
+    blurb: 'How the replay buffer is trimmed, and what happens to it afterwards.',
+  },
+  {
+    id: 'automation',
+    label: 'Automation',
+    title: 'Automation',
+    blurb: 'What KovOBS does on its own while it runs.',
+  },
+  {
+    id: 'advanced',
+    label: 'Advanced',
+    title: 'Advanced',
+    blurb: 'Cache, scan interval, and things you rarely touch.',
+  },
+];
 
 @Component({
   selector: 'app-home',
@@ -29,19 +77,15 @@ import { MatProgressSpinner } from '@angular/material/progress-spinner';
     MatInput,
     MatSuffix,
     MatLabel,
+    MatHint,
     MatIconButton,
     MatIcon,
-    MatCardTitle,
-    MatCardHeader,
-    MatCard,
     MatSelect,
     MatOption,
-    MatCheckbox,
     MatTooltip,
     MatButton,
-    MatToolbar,
-    MatChip,
     MatProgressSpinner,
+    MatSlideToggle,
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
@@ -52,6 +96,7 @@ export default class HomeComponent {
   private readonly cacheService = inject(CacheService);
   private readonly eventService = inject(EventService);
   private readonly ffmpegService = inject(FfmpegService);
+  private readonly pathService = inject(PathService);
   protected readonly globalService = inject(GlobalService);
 
   private readonly refresh = signal(new Date());
@@ -61,6 +106,10 @@ export default class HomeComponent {
    * We only need to set it once and forget, so, no need for signals
    */
   private userClickedStop = false;
+
+  protected readonly sections = SECTIONS;
+  protected readonly section = signal<SectionId>('kovaaks');
+  protected readonly ffmpegOpen = signal(false);
 
   protected readonly ffmpegForm = form(signal({ global: '', input: '', output: '' }));
 
@@ -102,11 +151,52 @@ export default class HomeComponent {
   protected readonly formModel = signal(this.configService.getEmptyConfig());
   protected readonly configForm = form(this.formModel);
 
+  /** The last value we know is on disk, so edits can be compared against it. */
+  private readonly savedConfig = signal<Config | null>(null);
+
+  protected readonly dirty = computed(() => {
+    const saved = this.savedConfig();
+
+    return saved != null && !isEqual(saved, this.configForm().value());
+  });
+
+  /** Paths in the current form that don't exist, so a field can flag itself. */
+  private readonly watchedPaths = computed(() => {
+    const value = this.configForm().value();
+
+    return [
+      value.stats_folder,
+      value.clips_folder,
+      value.aimbeast.stats_folder,
+      value.aimbeast.clips_folder,
+      value.processes.paths.obs,
+      value.processes.paths.kovaaks,
+      value.processes.paths.aimbeast,
+    ];
+  });
+
+  private readonly missingPaths = rxResource({
+    params: () => ({ paths: this.watchedPaths() }),
+    stream: ({ params }) => this.pathService.missing(params.paths),
+    defaultValue: new Set<string>(),
+  });
+
+  protected readonly currentSection = computed(
+    () => SECTIONS.find((section) => section.id === this.section()) ?? SECTIONS[0]
+  );
+
+  protected readonly processes = computed(() => [
+    { id: 'obs' as const, name: 'OBS', running: this.isObsRunning.value() },
+    { id: 'kovaaks' as const, name: "KovaaK's", running: this.isKovaaksRunning.value() },
+    { id: 'aimbeast' as const, name: 'Aimbeast', running: this.isAimbeastRunning.value() },
+  ]);
+
   constructor() {
     effect(() => {
       const value = this.config.value();
       if (value) {
         this.formModel.set(value);
+        untracked(() => this.savedConfig.set(structuredClone(value)));
       }
     });
 
@@ -131,21 +221,54 @@ export default class HomeComponent {
     this.runAutoStartHandler().pipe(takeUntilDestroyed()).subscribe();
   }
 
+  protected isMissing(path: string): boolean {
+    return this.missingPaths.value().has(path);
+  }
+
+  protected hasFfmpegArgs(): boolean {
+    const { ffmpeg } = this.configForm().value();
+
+    return ffmpeg.global_args.length > 0 || ffmpeg.input_args.length > 0 || ffmpeg.output_args.length > 0;
+  }
+
+  protected selectSection(id: SectionId): void {
+    this.section.set(id);
+  }
+
+  protected toggleFfmpeg(): void {
+    this.ffmpegOpen.update((open) => !open);
+  }
+
+  protected toggleLogs(): void {
+    this.globalService.showLogs.update((shown) => !shown);
+  }
+
   protected clearCache(): void {
     this.cacheService.clearCache().subscribe();
   }
 
+  protected discard(): void {
+    const saved = this.savedConfig();
+
+    if (saved) {
+      this.formModel.set(structuredClone(saved));
+    }
+  }
+
+  /**
+   * Saving used to require stopping first. Instead, stop and start around the
+   * save when the app is running so settings can be changed in place.
+   */
   protected save(): void {
-    this.configService
-      .saveConfig(this.configForm().value())
+    const wasRunning = this.isRunning.value();
+
+    (wasRunning ? this.tauriService.stop() : of(undefined))
       .pipe(
-        switchMap(() => {
-          const autoStart = this.configForm.auto_start().value();
-          return this.tauriService.setAutoStart(autoStart);
-        })
+        switchMap(() => this.configService.saveConfig(this.configForm().value())),
+        switchMap(() => this.tauriService.setAutoStart(this.configForm.auto_start().value())),
+        switchMap(() => (wasRunning ? this.tauriService.start() : of(undefined)))
       )
       .subscribe(() => {
-        // Handle auto start
         this.refresh.set(new Date());
       });
   }
@@ -159,6 +282,14 @@ export default class HomeComponent {
       this.userClickedStop = true;
     }
     this.tauriService.stop().subscribe();
+  }
+
+  protected toggleRunning(event: MouseEvent): void {
+    if (this.isRunning.value()) {
+      this.stop(event);
+    } else {
+      this.start();
+    }
   }
 
   protected browse(field: FieldTree<string, string>): void {
@@ -193,7 +324,11 @@ export default class HomeComponent {
   }
 
   protected runExe(...params: Parameters<typeof this.tauriService.runExe>): void {
-    this.tauriService.runExe(...params).subscribe();
+    this.tauriService.runExe(...params).subscribe({
+      // A missing or misconfigured path is reported by the field itself, so a
+      // failure here only needs to not become an unhandled rejection.
+      error: () => undefined,
+    });
   }
 
   protected runAutoStartHandler() {
