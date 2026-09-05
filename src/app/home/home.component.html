@@ -218,6 +218,28 @@
             </div>
           }
 
+          @case ('notifications') {
+            <div class="toggles">
+              <label class="toggle">
+                <mat-slide-toggle [formField]="form.notifications.enabled" />
+                <span class="toggle__text">
+                  <span class="toggle__label">Notify on a saved clip</span>
+                  <span class="toggle__desc">
+                    Show a desktop notification once the clip is trimmed. Clicking it opens the folder it landed in.
+                  </span>
+                </span>
+              </label>
+
+              <label class="toggle">
+                <mat-slide-toggle [formField]="form.notifications.sound" [disabled]="!form.notifications.enabled().value()" />
+                <span class="toggle__text">
+                  <span class="toggle__label">Play a sound</span>
+                  <span class="toggle__desc">Use the system notification sound instead of appearing silently.</span>
+                </span>
+              </label>
+            </div>
+          }
+
           @case ('automation') {
             <div class="toggles">
               <label class="toggle">

@@ -22,6 +22,10 @@
   "screenshot": {
     "enabled": true
   },
+  "notifications": {
+    "enabled": true,
+    "sound": true
+  },
   "processes": {
     "scan_interval_secs": 3,
     "paths": {

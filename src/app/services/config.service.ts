@@ -44,6 +44,10 @@ export class ConfigService {
       screenshot: {
         enabled: false,
       },
+      notifications: {
+        enabled: true,
+        sound: true,
+      },
       ffmpeg: {
         global_args: '',
         input_args: '',

@@ -27,6 +27,10 @@ export type Config = {
   screenshot: {
     enabled: boolean;
   };
+  notifications: {
+    enabled: boolean;
+    sound: boolean;
+  };
   ffmpeg: {
     global_args: string;
     input_args: string;

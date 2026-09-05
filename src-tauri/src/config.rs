@@ -24,6 +24,7 @@ pub struct AppConfig {
     pub cache_version: String,
     pub cache_file: String,
     pub screenshot: ScreenshotConfig,
+    pub notifications: NotificationsConfig,
     pub ffmpeg: FFmpegConfig,
     pub processes: ProcessesConfig,
     pub aimbeast: AimbeastConfig,
@@ -42,6 +43,26 @@ pub struct ObsConfig {
 #[serde(default)]
 pub struct ScreenshotConfig {
     pub enabled: bool,
+}
+
+/// The desktop notification shown when a clip has been saved and trimmed.
+///
+/// Both default to on: this shipped unconditional, so anyone upgrading keeps
+/// the behaviour they already had rather than silently losing it.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct NotificationsConfig {
+    pub enabled: bool,
+    pub sound: bool,
+}
+
+impl Default for NotificationsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            sound: true,
+        }
+    }
 }
 
 /// The three slots of an FFmpeg command line:
@@ -193,6 +214,7 @@ impl Default for AppConfig {
             cache_version: "".into(),
             cache_file: "".into(),
             screenshot: Default::default(),
+            notifications: Default::default(),
             ffmpeg: Default::default(),
             processes: ProcessesConfig {
                 scan_interval_secs: 1,
@@ -262,5 +284,24 @@ mod tests {
         let config = load_json("empty", "{}");
 
         assert!(config.ffmpeg.is_empty());
+    }
+
+    /// Notifications shipped before they were configurable, so a config written
+    /// by an older build has no key for them and must keep them switched on.
+    #[test]
+    fn notifications_default_to_on() {
+        let config = load_json("no-notifications", r#"{ "trim": false }"#);
+
+        assert!(config.notifications.enabled);
+        assert!(config.notifications.sound);
+    }
+
+    /// One key present must not reset the other to `bool::default()`.
+    #[test]
+    fn partial_notifications_keep_the_other_default() {
+        let config = load_json("muted", r#"{ "notifications": { "sound": false } }"#);
+
+        assert!(config.notifications.enabled);
+        assert!(!config.notifications.sound);
     }
 }

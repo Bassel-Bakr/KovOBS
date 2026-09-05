@@ -24,7 +24,15 @@ import { ThemeService } from '../services/theme.service';
 import SetupComponent from '../setup/setup.component';
 import GameSettingsComponent from './game-settings/game-settings.component';
 
-type SectionId = 'kovaaks' | 'aimbeast' | 'obs' | 'clips' | 'automation' | 'advanced' | 'about';
+type SectionId =
+  | 'kovaaks'
+  | 'aimbeast'
+  | 'obs'
+  | 'clips'
+  | 'notifications'
+  | 'automation'
+  | 'advanced'
+  | 'about';
 
 type Section = {
   id: SectionId;
@@ -64,6 +72,13 @@ const SECTIONS: Section[] = [
     icon: 'content_cut',
     title: 'Clips',
     blurb: 'How the replay buffer is trimmed, and what happens to it afterwards.',
+  },
+  {
+    id: 'notifications',
+    label: 'Notifications',
+    icon: 'notifications',
+    title: 'Notifications',
+    blurb: 'The desktop notification shown once a clip is saved and trimmed.',
   },
   {
     id: 'automation',
