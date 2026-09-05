@@ -3,7 +3,9 @@ use crate::delay::StatDelay;
 use crate::events::AppEvent;
 use crate::globals::{APP_HANDLE, APP_STATE, AppState};
 use crate::stat::StatType;
-use crate::{cmds, config::AppConfig, consts, events, ffmpeg, stat::Stat, ui_println, utils};
+use crate::{
+    cmds, config::AppConfig, consts, events, ffmpeg, notification, stat::Stat, ui_println, utils,
+};
 use anyhow::Context;
 use chrono::{TimeDelta, Utc};
 use encoding_rs_io::DecodeReaderBytesBuilder;
@@ -223,6 +225,8 @@ async fn listen_to_obs_events(
                 &config.ffmpeg_args,
             )
             .await?;
+
+            notification::notify("Clip saved", &stat.to_string());
 
             // Delete the replay buffer clip if we no longer need it
             if config.delete_after_trimming {
