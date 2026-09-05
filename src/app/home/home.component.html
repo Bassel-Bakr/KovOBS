@@ -258,6 +258,25 @@
 
           @case ('advanced') {
             <div class="fields">
+              <div class="appearance">
+                <span class="appearance__text">
+                  <span class="appearance__label">Theme</span>
+                  <span class="appearance__desc">System follows your Windows light/dark setting.</span>
+                </span>
+                <div class="segmented">
+                  @for (option of themes; track option.id) {
+                    <button
+                      type="button"
+                      class="segmented__item"
+                      [class.segmented__item--active]="form.theme().value() === option.id"
+                      (click)="setTheme(option.id)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  }
+                </div>
+              </div>
+
               <mat-form-field>
                 <mat-label>Scan interval (seconds)</mat-label>
                 <input matInput type="number" [formField]="form.processes.scan_interval_secs" />

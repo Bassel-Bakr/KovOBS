@@ -19,7 +19,8 @@ import { AboutInfo, UpdateInfo, UpdateService } from '../services/update.service
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { MatSlideToggle } from '@angular/material/slide-toggle';
 import { isEqual } from 'lodash-es';
-import { Config } from '../models/config';
+import { Config, Theme } from '../models/config';
+import { ThemeService } from '../services/theme.service';
 import SetupComponent from '../setup/setup.component';
 import GameSettingsComponent from './game-settings/game-settings.component';
 
@@ -106,6 +107,7 @@ export default class HomeComponent {
   private readonly ffmpegService = inject(FfmpegService);
   private readonly pathService = inject(PathService);
   private readonly updateService = inject(UpdateService);
+  private readonly themeService = inject(ThemeService);
   protected readonly globalService = inject(GlobalService);
 
   private readonly refresh = signal(new Date());
@@ -259,6 +261,16 @@ export default class HomeComponent {
     }
   }
 
+  protected readonly themes: { id: Theme; label: string }[] = [
+    { id: 'system', label: 'System' },
+    { id: 'light', label: 'Light' },
+    { id: 'dark', label: 'Dark' },
+  ];
+
+  protected setTheme(theme: Theme): void {
+    this.configForm.theme().value.set(theme);
+  }
+
   protected readonly currentSection = computed(
     () => SECTIONS.find((section) => section.id === this.section()) ?? SECTIONS[0]
   );
@@ -294,6 +306,10 @@ export default class HomeComponent {
         this.configForm.ffmpeg.input_args().value.set(toArgs(input));
         this.configForm.ffmpeg.output_args().value.set(toArgs(output));
       });
+    });
+
+    effect(() => {
+      this.themeService.apply(this.configForm.theme().value());
     });
 
     this.runAutoStartHandler().pipe(takeUntilDestroyed()).subscribe();

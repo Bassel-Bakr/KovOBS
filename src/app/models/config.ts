@@ -1,6 +1,9 @@
+export type Theme = 'system' | 'light' | 'dark';
+
 export type Config = {
   auto_start: boolean;
   setup_completed: boolean;
+  theme: Theme;
   stats_folder: string;
   clips_folder: string;
   obs: {

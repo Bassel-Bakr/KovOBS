@@ -20,6 +20,7 @@ export class ConfigService {
     return {
       auto_start: false,
       setup_completed: true,
+      theme: 'system',
       stats_folder: '',
       clips_folder: '',
       obs: {

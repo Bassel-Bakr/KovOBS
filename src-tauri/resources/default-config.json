@@ -35,5 +35,6 @@
     "input_args": [],
     "output_args": []
   },
-  "setup_completed": false
+  "setup_completed": false,
+  "theme": "system"
 }

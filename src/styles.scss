@@ -28,6 +28,11 @@ $brand-family: (
 
 html {
   height: 100%;
+
+  // Default to the system setting. ThemeService overrides this inline on the
+  // root when the user picks light or dark explicitly. Declare it nowhere else
+  // -- `color-scheme` inherits, so a second declaration would shadow this.
+  color-scheme: light dark;
   @include mat.theme(
     (
       color: (
@@ -44,10 +49,6 @@ html {
 }
 
 body {
-  // Default the application to a light color theme. This can be changed to
-  // `dark` to enable the dark color theme, or to `light dark` to defer to the
-  // user's system settings.
-  color-scheme: light dark;
 
   // Set a default background, font and text colors for the application using
   // Angular Material's system-level CSS variables. Learn more about these
