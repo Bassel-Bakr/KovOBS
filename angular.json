@@ -35,7 +35,8 @@
               {
                 "glob": "**/*",
                 "input": "src/assets",
-                "output": "assets"
+                "output": "assets",
+                "ignore": ["**/*.md"]
               },
               {
                 "glob": "material-icons.woff2",

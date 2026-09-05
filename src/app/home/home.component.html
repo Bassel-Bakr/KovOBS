@@ -39,7 +39,12 @@
           [class.nav__item--active]="section() === item.id"
           (click)="selectSection(item.id)"
         >
-          <mat-icon class="nav__icon">{{ item.icon }}</mat-icon>
+          @if (item.iconSrc && !artlessSections().has(item.id)) {
+            <img class="nav__icon nav__icon--art" [src]="item.iconSrc" alt="" (error)="iconFailed(item.id)" />
+          } @else {
+            <mat-icon class="nav__icon">{{ item.icon }}</mat-icon>
+          }
+
           {{ item.label }}
         </button>
       }
