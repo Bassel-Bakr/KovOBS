@@ -407,3 +407,48 @@
     flex: 1;
   }
 }
+
+/* ── About ───────────────────────────────────────────────────── */
+
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 720px;
+
+  &__version {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 1rem 1.125rem;
+    border-radius: 12px;
+    border: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  &__label {
+    font: var(--mat-sys-body-medium-font);
+    color: var(--mat-sys-on-surface-variant);
+    flex: 1;
+  }
+
+  &__number {
+    font: var(--mat-sys-headline-small-font);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__note {
+    margin: 0;
+    font: var(--mat-sys-body-small-font);
+    color: var(--mat-sys-on-surface-variant);
+    text-wrap: pretty;
+
+    &--error {
+      color: var(--mat-sys-error);
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+}

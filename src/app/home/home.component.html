@@ -279,6 +279,40 @@
               </div>
             </div>
           }
+
+          @case ('about') {
+            <div class="about">
+              <div class="about__version">
+                <span class="about__label">Version</span>
+                <span class="about__number">{{ version.value() || '—' }}</span>
+              </div>
+
+              @if (update(); as info) {
+                @if (info.update_available) {
+                  <div class="banner">
+                    <mat-icon>upgrade</mat-icon>
+                    <span>Version {{ info.latest }} is available.</span>
+                  </div>
+                } @else {
+                  <p class="about__note">You are on the latest release.</p>
+                }
+              } @else if (checkError()) {
+                <p class="about__note about__note--error">{{ checkError() }}</p>
+              } @else {
+                <p class="about__note">Checking is manual, so KovOBS never contacts GitHub on its own.</p>
+              }
+
+              <div class="about__actions">
+                <button matButton="tonal" type="button" [disabled]="checking()" (click)="checkForUpdate()">
+                  {{ checking() ? 'Checking…' : 'Check for updates' }}
+                </button>
+
+                <button matButton="outlined" type="button" (click)="openReleases()">
+                  {{ update()?.update_available ? 'Open release' : 'Releases on GitHub' }}
+                </button>
+              </div>
+            </div>
+          }
         }
       </div>
 

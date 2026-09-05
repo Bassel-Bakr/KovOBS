@@ -170,6 +170,16 @@ async fn config() -> Arc<AppConfig> {
     state.config.as_ref().unwrap().clone()
 }
 
+#[tauri::command]
+pub async fn app_version() -> String {
+    crate::update::current_version()
+}
+
+#[tauri::command]
+pub async fn check_for_update() -> Result<crate::update::UpdateInfo, String> {
+    crate::update::check().await
+}
+
 /// Reports which of `paths` currently exist, in the same order. Used by the UI
 /// to flag a misconfigured folder or executable next to the field itself.
 #[tauri::command]

@@ -6,3 +6,6 @@ pub const CONFIG_FILE_NAME: &str = "config.json";
 pub const DEFAULT_CONFIG_FILE_NAME: &str = "default-config.json";
 
 pub const DOWNLOADED_FFMPEG_FOLDER: &str = "ffmpeg";
+
+/// Where the About page looks for new releases.
+pub const GITHUB_REPO: &str = "Bassel-Bakr/KovOBS";

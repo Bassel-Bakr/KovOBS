@@ -15,6 +15,7 @@ import { combineLatest, of, switchMap, tap } from 'rxjs';
 import { GlobalService } from '../services/global.service';
 import { FfmpegService } from '../services/ffmpeg.service';
 import { PathService } from '../services/path.service';
+import { UpdateInfo, UpdateService } from '../services/update.service';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { MatSlideToggle } from '@angular/material/slide-toggle';
 import { isEqual } from 'lodash-es';
@@ -22,7 +23,7 @@ import { Config } from '../models/config';
 import SetupComponent from '../setup/setup.component';
 import GameSettingsComponent from './game-settings/game-settings.component';
 
-type SectionId = 'kovaaks' | 'aimbeast' | 'obs' | 'clips' | 'automation' | 'advanced';
+type SectionId = 'kovaaks' | 'aimbeast' | 'obs' | 'clips' | 'automation' | 'advanced' | 'about';
 
 type Section = {
   id: SectionId;
@@ -68,6 +69,12 @@ const SECTIONS: Section[] = [
     title: 'Advanced',
     blurb: 'Cache, scan interval, and things you rarely touch.',
   },
+  {
+    id: 'about',
+    label: 'About',
+    title: 'About KovOBS',
+    blurb: 'Which version you are running, and whether a newer one exists.',
+  },
 ];
 
 @Component({
@@ -98,6 +105,7 @@ export default class HomeComponent {
   private readonly eventService = inject(EventService);
   private readonly ffmpegService = inject(FfmpegService);
   private readonly pathService = inject(PathService);
+  private readonly updateService = inject(UpdateService);
   protected readonly globalService = inject(GlobalService);
 
   private readonly refresh = signal(new Date());
@@ -206,6 +214,37 @@ export default class HomeComponent {
 
   protected setupDone(): void {
     this.refresh.set(new Date());
+  }
+
+  protected readonly version = rxResource({
+    stream: () => this.updateService.version(),
+    defaultValue: '',
+  });
+
+  protected readonly update = signal<UpdateInfo | null>(null);
+  protected readonly checking = signal(false);
+  protected readonly checkError = signal('');
+
+  protected checkForUpdate(): void {
+    this.checking.set(true);
+    this.checkError.set('');
+
+    this.updateService.check().subscribe({
+      next: (info) => {
+        this.update.set(info);
+        this.checking.set(false);
+      },
+      error: (error: unknown) => {
+        this.checkError.set(String(error));
+        this.checking.set(false);
+      },
+    });
+  }
+
+  protected openReleases(): void {
+    const url = this.update()?.release_url ?? 'https://github.com/Bassel-Bakr/KovOBS/releases';
+
+    void openUrl(url);
   }
 
   protected readonly currentSection = computed(
