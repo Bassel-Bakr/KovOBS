@@ -164,3 +164,55 @@ impl Default for AppConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn load_json(name: &str, json: &str) -> AppConfig {
+        let path = std::env::temp_dir().join(format!("kovobs-test-{name}.json"));
+        std::fs::write(&path, json).expect("failed to write test config");
+        let config = AppConfig::load(&path).expect("failed to load test config");
+        _ = std::fs::remove_file(&path);
+        config
+    }
+
+    /// Configs written before the `ffmpeg` object existed must still load.
+    #[test]
+    fn missing_ffmpeg_object_defaults_to_empty() {
+        let config = load_json("missing", r#"{ "clips_folder": "/clips" }"#);
+
+        assert_eq!(config.clips_folder, "/clips");
+        assert!(config.ffmpeg.is_empty());
+    }
+
+    /// The key this replaced. It should be ignored rather than rejected.
+    #[test]
+    fn legacy_ffmpeg_args_key_is_ignored() {
+        let config = load_json("legacy", r#"{ "ffmpeg_args": ["-c", "copy"] }"#);
+
+        assert!(config.ffmpeg.is_empty());
+    }
+
+    /// A partially filled object should default only the slots left out.
+    #[test]
+    fn partial_ffmpeg_object_defaults_the_rest() {
+        let config = load_json(
+            "partial",
+            r#"{ "ffmpeg": { "output_args": ["-crf", "23"] } }"#,
+        );
+
+        assert_eq!(&*config.ffmpeg.output_args, &["-crf", "23"]);
+        assert!(config.ffmpeg.global_args.is_empty());
+        assert!(config.ffmpeg.input_args.is_empty());
+        assert!(!config.ffmpeg.is_empty());
+    }
+
+    /// An empty file should fall back to defaults throughout.
+    #[test]
+    fn empty_config_loads() {
+        let config = load_json("empty", "{}");
+
+        assert!(config.ffmpeg.is_empty());
+    }
+}
