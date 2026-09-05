@@ -58,7 +58,7 @@ pub fn run() {
             cmds::save_config,
             cmds::clear_cache,
             cmds::get_obs_sources,
-            cmds::app_version,
+            cmds::about_info,
             cmds::check_for_update,
             cmds::paths_exist,
             cmds::run_obs,

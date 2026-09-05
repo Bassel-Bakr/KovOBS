@@ -17,6 +17,20 @@ struct GitHubRelease {
     html_url: String,
 }
 
+/// What the About page needs before any check has run.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AboutInfo {
+    pub version: String,
+    pub releases_url: String,
+}
+
+pub fn about() -> AboutInfo {
+    AboutInfo {
+        version: current_version(),
+        releases_url: format!("https://github.com/{}/releases", consts::GITHUB_REPO),
+    }
+}
+
 pub fn current_version() -> String {
     APP_HANDLE
         .get()

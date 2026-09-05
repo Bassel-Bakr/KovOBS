@@ -284,14 +284,15 @@
             <div class="about">
               <div class="about__version">
                 <span class="about__label">Version</span>
-                <span class="about__number">{{ version.value() || '—' }}</span>
+                <span class="about__number">{{ about.value()?.version || '—' }}</span>
               </div>
 
               @if (update(); as info) {
                 @if (info.update_available) {
                   <div class="banner">
                     <mat-icon>upgrade</mat-icon>
-                    <span>Version {{ info.latest }} is available.</span>
+                    <span class="banner__text">Version {{ info.latest }} is available.</span>
+                    <button matButton type="button" (click)="openLatestRelease()">Open release</button>
                   </div>
                 } @else {
                   <p class="about__note">You are on the latest release.</p>
@@ -307,9 +308,7 @@
                   {{ checking() ? 'Checking…' : 'Check for updates' }}
                 </button>
 
-                <button matButton="outlined" type="button" (click)="openReleases()">
-                  {{ update()?.update_available ? 'Open release' : 'Releases on GitHub' }}
-                </button>
+                <button matButton="outlined" type="button" (click)="openReleases()">Releases on GitHub</button>
               </div>
             </div>
           }

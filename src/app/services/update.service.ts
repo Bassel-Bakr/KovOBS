@@ -2,6 +2,11 @@ import { inject, Service } from '@angular/core';
 import { Observable } from 'rxjs';
 import { TauriService } from './tauri.service';
 
+export type AboutInfo = {
+  version: string;
+  releases_url: string;
+};
+
 export type UpdateInfo = {
   current: string;
   latest: string;
@@ -13,8 +18,8 @@ export type UpdateInfo = {
 export class UpdateService {
   private readonly tauriService = inject(TauriService);
 
-  version(): Observable<string> {
-    return this.tauriService.call<string>('app_version');
+  about(): Observable<AboutInfo> {
+    return this.tauriService.call<AboutInfo>('about_info');
   }
 
   /** Only called when the user asks, so the app never phones home on its own. */

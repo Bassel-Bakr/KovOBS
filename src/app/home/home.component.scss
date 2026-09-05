@@ -220,6 +220,10 @@
   background: var(--mat-sys-primary-container);
   color: var(--mat-sys-on-primary-container);
   font: var(--mat-sys-body-medium-font);
+
+  &__text {
+    flex: 1;
+  }
 }
 
 /* ── Collapsible post-processing panel ───────────────────────── */

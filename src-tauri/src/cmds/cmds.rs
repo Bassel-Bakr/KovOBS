@@ -171,8 +171,8 @@ async fn config() -> Arc<AppConfig> {
 }
 
 #[tauri::command]
-pub async fn app_version() -> String {
-    crate::update::current_version()
+pub async fn about_info() -> crate::update::AboutInfo {
+    crate::update::about()
 }
 
 #[tauri::command]

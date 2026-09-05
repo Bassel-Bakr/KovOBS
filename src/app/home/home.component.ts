@@ -15,7 +15,7 @@ import { combineLatest, of, switchMap, tap } from 'rxjs';
 import { GlobalService } from '../services/global.service';
 import { FfmpegService } from '../services/ffmpeg.service';
 import { PathService } from '../services/path.service';
-import { UpdateInfo, UpdateService } from '../services/update.service';
+import { AboutInfo, UpdateInfo, UpdateService } from '../services/update.service';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { MatSlideToggle } from '@angular/material/slide-toggle';
 import { isEqual } from 'lodash-es';
@@ -216,9 +216,9 @@ export default class HomeComponent {
     this.refresh.set(new Date());
   }
 
-  protected readonly version = rxResource({
-    stream: () => this.updateService.version(),
-    defaultValue: '',
+  protected readonly about = rxResource<AboutInfo | null, unknown>({
+    stream: () => this.updateService.about(),
+    defaultValue: null,
   });
 
   protected readonly update = signal<UpdateInfo | null>(null);
@@ -241,10 +241,22 @@ export default class HomeComponent {
     });
   }
 
+  /** The releases index, not a specific release. */
   protected openReleases(): void {
-    const url = this.update()?.release_url ?? 'https://github.com/Bassel-Bakr/KovOBS/releases';
+    const url = this.about.value()?.releases_url;
 
-    void openUrl(url);
+    if (url) {
+      void openUrl(url);
+    }
+  }
+
+  /** The page for the release the last check found. */
+  protected openLatestRelease(): void {
+    const url = this.update()?.release_url;
+
+    if (url) {
+      void openUrl(url);
+    }
   }
 
   protected readonly currentSection = computed(
