@@ -1,3 +1,18 @@
 [workspace]
 members = [".", "src-tauri"]
 resolver = "3"
+
+# Debug info is what the linker spends most of its time on here. Dependencies
+# are never stepped into, so they get none; our own crate keeps line tables so
+# panic backtraces still point at real lines. Incremental rebuild of lib.rs:
+# ~3.2s -> ~2.0s, and full `debug = false` only buys another 0.08s.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+# Release is deliberately left at Cargo's defaults (lto = false,
+# codegen-units = 16). Most Tauri guides suggest lto = true and
+# codegen-units = 1; that would slow CI substantially to buy binary size and
+# micro-performance that don't matter for a desktop app shipped on disk.

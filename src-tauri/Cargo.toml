@@ -12,7 +12,11 @@ edition = "2024"
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "kovobs_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# Desktop-only, so the staticlib (iOS) and cdylib (Android) outputs the Tauri
+# template ships are dead weight: each one is a separate link step on every
+# rebuild. Dropping them takes an incremental rebuild from ~5.6s to ~3.2s.
+# Add them back if this ever targets mobile.
+crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -31,7 +35,6 @@ notify = "8.2.0"
 obws = { version = "0.15.0", features = ["events"] }
 rayon = "1.12.0"
 tokio = { version = "1.52.3", features = ["full"] }
-num-traits = "0.2.19"
 config = { version = "0.15.23", features = ["json"] }
 tauri-plugin-dialog = "2.7.1"
 notify-rust = "4.18.0"

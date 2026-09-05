@@ -27,8 +27,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
-
       - name: Determine version
         id: version
         shell: bash
@@ -36,11 +34,10 @@ jobs:
           VERSION="${{ inputs.version }}"
 
           if [ -z "$VERSION" ]; then
-            VERSION=$(cargo metadata \
-              --manifest-path src-tauri/Cargo.toml \
-              --no-deps \
-              --format-version 1 \
-              | jq -r '.packages[0].version')
+            # Read straight from the manifest: this job gates the whole
+            # matrix, so installing a toolchain just to run `cargo metadata`
+            # is latency in front of every build.
+            VERSION=$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)
           fi
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -78,6 +75,10 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     env:
+      # sccache keys on compilation inputs rather than the lockfile, so a
+      # version bump no longer invalidates everything.
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
       VERSION: ${{ needs.prepare.outputs.version }}
 
     steps:
@@ -85,35 +86,66 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - uses: mozilla-actions/sccache-action@v0.0.11
+
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+          # sccache handles compiled artifacts; leaving target/ caching on
+          # would double-store them and push the 10 GB repo cache into
+          # eviction. rust-cache still covers the registry and git deps.
+          cache-targets: false
+
+      - name: Cache Tauri bundler tools
+        uses: actions/cache@v4
+        with:
+          # WiX and the AppImage tooling are downloaded on first use and
+          # live outside target/, so rust-cache does not cover them.
+          path: |
+            ~/AppData/Local/tauri
+            ~/.cache/tauri
+          key: tauri-bundler-${{ runner.os }}-v1
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libsoup-3.0-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libxdo-dev \
+        uses: awalsh128/cache-apt-pkgs-action@v1.5.1
+        with:
+          packages: >-
+            libwebkit2gtk-4.1-dev
+            libgtk-3-dev
+            libsoup-3.0-dev
+            libayatana-appindicator3-dev
+            librsvg2-dev
+            libxdo-dev
             patchelf
+          version: 1
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
+      - name: Cache node_modules
+        id: node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          # Keyed per OS: node_modules holds platform-specific binaries such
+          # as @tauri-apps/cli and esbuild.
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install frontend dependencies
+        if: steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Build
         # Uses the prebuilt CLI that npm ci already installed, rather than
         # compiling tauri-cli from source.
         run: npx tauri build
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats
 
       - name: Prepare release assets (Unix)
         if: runner.os != 'Windows'
@@ -143,16 +175,11 @@ jobs:
         run: |
           New-Item -ItemType Directory release-assets | Out-Null
 
-          Get-ChildItem target/release/bundle -Recurse -Include *.msi,*setup*.exe |
+          Get-ChildItem target/release/bundle -Recurse -Include *.msi |
             Copy-Item -Destination release-assets
 
           Get-ChildItem release-assets | ForEach-Object {
-            if ($_.Extension -eq ".msi") {
-              Rename-Item $_.FullName "KovOBS-windows-v$env:VERSION.msi"
-            }
-            elseif ($_.Name -like "*setup*.exe") {
-              Rename-Item $_.FullName "KovOBS-windows-v$env:VERSION-setup.exe"
-            }
+            Rename-Item $_.FullName "KovOBS-windows-v$env:VERSION.msi"
           }
 
       - uses: actions/upload-artifact@v4
