@@ -68,12 +68,13 @@ pub fn get_ffmpeg_path(
 /// Trims the last `trailing_duration` of `in_file` and writes the result to
 /// `out_file` using FFmpeg.
 ///
-/// The trim itself always runs with the same defaults: a stream copy, which is
-/// a fast remux rather than a re-encode. When `extra` holds any arguments a
-/// second pass runs over the trimmed file, placing them in their proper slots
-/// of `ffmpeg [global] [input] -i in [output] out`, so the user's arguments
-/// can't interfere with the trim. When all three slots are empty the trim is
-/// the whole job and only one pass runs.
+/// The trim itself always runs with the same defaults: a stream copy of every
+/// video and audio source, which is a fast remux rather than a re-encode. When
+/// `extra` holds any arguments a second pass runs over the trimmed file,
+/// placing them in their proper slots of
+/// `ffmpeg [global] [input] -i in [output] out`, so the user's arguments can't
+/// interfere with the trim. When all three slots are empty the trim is the
+/// whole job and only one pass runs.
 ///
 /// The output directory is created automatically if it does not already exist.
 ///
@@ -191,6 +192,10 @@ fn trim_args(
         "-accurate_seek".into(),
         "-i".into(),
         in_file.to_string_lossy().into_owned(),
+        // Without an explicit map FFmpeg picks one stream per type, which drops
+        // every extra video and audio source a recording may carry.
+        "-map".into(),
+        "0?".into(),
         // Remux rather than re-encode: the trim should be cheap and lossless.
         "-c".into(),
         "copy".into(),
