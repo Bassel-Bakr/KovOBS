@@ -34,5 +34,6 @@
     "global_args": [],
     "input_args": [],
     "output_args": []
-  }
+  },
+  "setup_completed": false
 }

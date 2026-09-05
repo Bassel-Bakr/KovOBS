@@ -1,0 +1,141 @@
+@let current = config();
+
+<div class="setup">
+  <header class="setup__header">
+    <h1 class="setup__title">Let us get you clipping</h1>
+    <p class="setup__blurb">Four things and KovOBS can start saving your runs. You can change any of it later.</p>
+  </header>
+
+  <div class="progress">
+    <div class="progress__labels">
+      <span>{{ ready() ? 'Ready to go' : 'Setup' }}</span>
+      <span>{{ completed() }} of {{ total() }}</span>
+    </div>
+    <div class="progress__track">
+      <div class="progress__bar" [style.width.%]="progress()"></div>
+    </div>
+  </div>
+
+  @if (current) {
+    <ol class="steps">
+      <!-- 1. Clips folder -->
+      <li class="step" [class.step--done]="clipsDone()">
+        <span class="step__mark">
+          @if (clipsDone()) {
+            <mat-icon>check</mat-icon>
+          } @else {
+            1
+          }
+        </span>
+
+        <span class="step__text">
+          <span class="step__title">Point at your clips folder</span>
+          <span class="step__desc">Where trimmed clips are written. KovOBS creates a subfolder per scenario.</span>
+          @if (clipsDone()) {
+            <span class="step__value">{{ current.clips_folder }}</span>
+          }
+        </span>
+
+        <button matButton="tonal" type="button" (click)="pickClipsFolder()">
+          {{ clipsDone() ? 'Change' : 'Choose' }}
+        </button>
+      </li>
+
+      <!-- 2. OBS -->
+      <li class="step" [class.step--done]="obsDone()">
+        <span class="step__mark">
+          @if (obsDone()) {
+            <mat-icon>check</mat-icon>
+          } @else {
+            2
+          }
+        </span>
+
+        <span class="step__text">
+          <span class="step__title">Connect to OBS</span>
+          <span class="step__desc">
+            Enable the websocket server in OBS under Tools, then paste the password here.
+          </span>
+
+          @if (obsDone()) {
+            <span class="step__value">
+              {{ current.obs.host }}:{{ current.obs.port }} connected, {{ sources.value()?.length }} sources
+            </span>
+          } @else {
+            <mat-form-field class="step__field">
+              <mat-label>Websocket password</mat-label>
+              <input
+                matInput
+                type="password"
+                [value]="current.obs.password"
+                (change)="setPassword($any($event.target).value)"
+              />
+              <mat-hint>{{ current.obs.host }}:{{ current.obs.port }}</mat-hint>
+            </mat-form-field>
+          }
+        </span>
+      </li>
+
+      <!-- 3. FFmpeg -->
+      <li class="step" [class.step--done]="ffmpegDone()">
+        <span class="step__mark">
+          @if (ffmpegDone()) {
+            <mat-icon>check</mat-icon>
+          } @else {
+            3
+          }
+        </span>
+
+        <span class="step__text">
+          <span class="step__title">Get FFmpeg</span>
+          <span class="step__desc">Used to trim the replay buffer. About 100 MB, downloaded once.</span>
+        </span>
+
+        @if (ffmpegBusy()) {
+          <mat-progress-spinner mode="determinate" [diameter]="28" [value]="ffmpegProgress.value().progress" />
+        } @else if (!ffmpegDone()) {
+          <button matButton="tonal" type="button" (click)="downloadFFmpeg()">Download</button>
+        }
+      </li>
+
+      <!-- 4. A game -->
+      <li class="step" [class.step--done]="gameDone()">
+        <span class="step__mark">
+          @if (gameDone()) {
+            <mat-icon>check</mat-icon>
+          } @else {
+            4
+          }
+        </span>
+
+        <span class="step__text">
+          <span class="step__title">Add a game</span>
+          <span class="step__desc">
+            Find KovaaK's or Aimbeast so runs can be detected. You can add the other later.
+          </span>
+          @if (gameDone()) {
+            <span class="step__value">{{ current.processes.paths.kovaaks || current.processes.paths.aimbeast }}</span>
+          }
+        </span>
+
+        <span class="step__actions">
+          <button matButton="tonal" type="button" (click)="pickGame('kovaaks')">KovaaK's</button>
+          <button matButton="outlined" type="button" (click)="pickGame('aimbeast')">Aimbeast</button>
+        </span>
+      </li>
+    </ol>
+  }
+
+  <footer class="setup__footer">
+    <p class="setup__note">
+      @if (ready()) {
+        Start KovOBS and play. Clips are saved as runs finish.
+      } @else {
+        You can skip ahead, but runs will not be clipped until FFmpeg and a game are set.
+      }
+    </p>
+
+    <button matButton type="button" (click)="finish()">Skip for now</button>
+    <button matButton="filled" type="button" [disabled]="!ready()" (click)="finish()">Start</button>
+  </footer>
+</div>

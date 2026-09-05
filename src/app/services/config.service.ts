@@ -19,6 +19,7 @@ export class ConfigService {
   getEmptyConfig(): Config {
     return {
       auto_start: false,
+      setup_completed: true,
       stats_folder: '',
       clips_folder: '',
       obs: {

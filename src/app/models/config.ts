@@ -1,5 +1,6 @@
 export type Config = {
   auto_start: boolean;
+  setup_completed: boolean;
   stats_folder: string;
   clips_folder: string;
   obs: {

@@ -20,6 +20,7 @@ import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { MatSlideToggle } from '@angular/material/slide-toggle';
 import { isEqual } from 'lodash-es';
 import { Config } from '../models/config';
+import SetupComponent from '../setup/setup.component';
 
 type SectionId = 'kovaaks' | 'aimbeast' | 'obs' | 'clips' | 'automation' | 'advanced';
 
@@ -86,6 +87,7 @@ const SECTIONS: Section[] = [
     MatButton,
     MatProgressSpinner,
     MatSlideToggle,
+    SetupComponent,
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
@@ -180,6 +182,32 @@ export default class HomeComponent {
     stream: ({ params }) => this.pathService.missing(params.paths),
     defaultValue: new Set<string>(),
   });
+
+  /**
+   * The checklist is shown on a fresh install only. An existing config predates
+   * the `setup_completed` flag and so reads false, which is why the essentials
+   * are checked too — someone already set up never sees it.
+   */
+  protected readonly needsSetup = computed(() => {
+    const value = this.config.value();
+
+    if (!value || value.setup_completed) {
+      return false;
+    }
+
+    const missing = this.missingPaths.value();
+    const hasClips = value.clips_folder.length > 0 && !missing.has(value.clips_folder);
+    const hasFfmpeg = this.ffmpegDownloadProgress.value().state === 'Done';
+    const hasGame = [value.processes.paths.kovaaks, value.processes.paths.aimbeast].some(
+      (path) => path.length > 0 && !missing.has(path)
+    );
+
+    return !(hasClips && hasFfmpeg && hasGame);
+  });
+
+  protected setupDone(): void {
+    this.refresh.set(new Date());
+  }
 
   protected readonly currentSection = computed(
     () => SECTIONS.find((section) => section.id === this.section()) ?? SECTIONS[0]
