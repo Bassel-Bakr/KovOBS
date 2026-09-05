@@ -157,19 +157,18 @@ fn trim_args(
     ]
 }
 
-/// Builds `ffmpeg [global] [input] -i in [output] out`, with the user's three
-/// slots layered onto the options this needs for progress reporting. Their
-/// global args come after ours so they can override them (`-loglevel`, say).
+/// Builds `ffmpeg [global] [input] -i in [output] out` from the user's three
+/// slots.
+///
+/// Only two options are imposed, and both do real work: `-progress pipe:1` is
+/// what `run` reads to report progress, and `-y` stops FFmpeg prompting on stdin
+/// when the output exists, which would hang because nothing writes to stdin.
+/// `-hide_banner`, `-loglevel` and `-nostats` are deliberately absent: they only
+/// shape stderr, which isn't captured, so here they'd do nothing.
+///
+/// The user's args come after, so both can still be overridden.
 fn extra_command(in_file: &path::Path, out_file: &path::Path, extra: &FFmpegConfig) -> Vec<String> {
-    let mut args: Vec<String> = vec![
-        "-hide_banner".into(),
-        "-loglevel".into(),
-        "error".into(),
-        "-nostats".into(),
-        "-progress".into(),
-        "pipe:1".into(),
-        "-y".into(),
-    ];
+    let mut args: Vec<String> = vec!["-progress".into(), "pipe:1".into(), "-y".into()];
 
     args.extend(extra.global_args.iter().cloned());
     args.extend(extra.input_args.iter().cloned());

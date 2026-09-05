@@ -36,9 +36,20 @@
                 "glob": "**/*",
                 "input": "src/assets",
                 "output": "assets"
+              },
+              {
+                "glob": "material-icons.woff2",
+                "input": "node_modules/material-icons/iconfont",
+                "output": "assets/fonts"
               }
             ],
-            "styles": ["src/styles.scss"]
+            "styles": [
+              "@fontsource/ibm-plex-sans/latin-400.css",
+              "@fontsource/ibm-plex-sans/latin-500.css",
+              "@fontsource/ibm-plex-sans/latin-600.css",
+              "@fontsource/ibm-plex-mono/latin-400.css",
+              "src/styles.scss"
+            ]
           },
           "configurations": {
             "production": {

@@ -22,6 +22,7 @@ mod macros;
 mod notification;
 mod shell;
 mod stat;
+mod update;
 mod utils;
 
 thread_local! {
@@ -47,7 +48,6 @@ pub fn run() {
         )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             cmds::is_ready,
             cmds::is_running,
@@ -58,6 +58,9 @@ pub fn run() {
             cmds::save_config,
             cmds::clear_cache,
             cmds::get_obs_sources,
+            cmds::about_info,
+            cmds::check_for_update,
+            cmds::paths_exist,
             cmds::run_obs,
             cmds::run_kovaaks,
             cmds::run_aimbeast,

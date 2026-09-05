@@ -1,69 +1,512 @@
-@use '@angular/material' as mat;
-
+// Colours come from Material's system tokens throughout, so the window follows
+// the light/dark colour scheme declared in styles.scss.
 :host {
   height: 100%;
   width: 100%;
+  min-height: 0;
 
   display: flex;
   flex-direction: column;
-
-  min-height: 0;
 }
 
-.form {
-  --gap: 1rem;
-  display: grid;
-  gap: var(--gap);
-  padding: var(--gap);
+/* ── Status rail ─────────────────────────────────────────────── */
 
-  grid-template-columns: repeat(auto-fit, minmax(40ch, 1fr));
-
-  mat-card {
-    gap: var(--gap);
-    padding: var(--gap);
-  }
-}
-
-mat-toolbar {
+.rail {
   display: flex;
   align-items: center;
-  gap: 1ch;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  flex-shrink: 0;
 
-  [data-spacer] {
+  background: var(--mat-sys-surface-container-low);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+
+  &__spacer {
     flex: 1;
   }
 }
 
-.process-status {
-  cursor: pointer !important;
+// Running vs stopped reads as filled vs outlined, not green vs red: colour
+// alone is a poor signal for anyone with red-green colour deficiency.
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 32px;
+  padding: 0 0.75rem 0 0.625rem;
+  border-radius: 16px;
+  cursor: pointer;
 
-  &[data-running='true'] {
-    @include mat.chips-overrides(
-      (
-        label-text-color: green,
-        outline-color: green,
-        hover-state-layer-color: green,
-      )
-    );
+  font: var(--mat-sys-label-large);
+  background: transparent;
+  color: var(--mat-sys-on-surface-variant);
+  border: 1px solid var(--mat-sys-outline-variant);
+
+  &__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--mat-sys-outline);
   }
 
-  &[data-running='false'] {
-    @include mat.chips-overrides(
-      (
-        label-text-color: red,
-        outline-color: red,
-        hover-state-layer-color: red,
-      )
-    );
+  &__state {
+    font: var(--mat-sys-label-medium);
+    opacity: 0.75;
   }
 
-  &__label {
-    display: flex;
-    align-items: center;
+  &--on {
+    background: var(--mat-sys-primary-container);
+    color: var(--mat-sys-on-primary-container);
+    border-color: transparent;
+    cursor: default;
+
+    .pill__dot {
+      background: var(--mat-sys-primary);
+    }
+  }
+
+  &:disabled {
+    // Running is not an error state, so keep it at full strength.
+    opacity: 1;
   }
 }
 
-.ffmpeg__card-title {
+.run {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+  height: 34px;
+  padding: 0 1rem 0 0.8rem;
+  border-radius: 17px;
+  cursor: pointer;
+
+  font: var(--mat-sys-label-large);
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  border: 1px solid transparent;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  &--on {
+    background: transparent;
+    color: var(--mat-sys-on-surface-variant);
+    border-color: var(--mat-sys-outline);
+  }
+}
+
+/* ── Body ────────────────────────────────────────────────────── */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.nav {
+  width: 208px;
+  flex-shrink: 0;
+  padding: 0.625rem 0.5rem;
+  overflow-y: auto;
+
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  background: var(--mat-sys-surface-container-low);
+  border-right: 1px solid var(--mat-sys-outline-variant);
+
+  &__spacer {
+    flex: 1;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    height: 38px;
+    padding: 0 1rem;
+    border-radius: 19px;
+    cursor: pointer;
+    text-align: left;
+
+    font: var(--mat-sys-label-large);
+    background: transparent;
+    color: var(--mat-sys-on-surface-variant);
+    border: none;
+
+    &--active {
+      background: var(--mat-sys-primary-container);
+      color: var(--mat-sys-on-primary-container);
+      font-weight: 500;
+    }
+  }
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+
+  &__scroller {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.375rem 1.625rem;
+  }
+}
+
+.section {
+  &__header {
+    margin: 0 0 1.25rem;
+  }
+
+  &__title {
+    font: var(--mat-sys-title-large);
+    margin: 0;
+  }
+
+  &__blurb {
+    font: var(--mat-sys-body-medium);
+    color: var(--mat-sys-on-surface-variant);
+    margin: 0.25rem 0 0;
+    text-wrap: pretty;
+  }
+}
+
+/* ── Fields ──────────────────────────────────────────────────── */
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-width: 720px;
+
+  &__row {
+    display: flex;
+    gap: 0.875rem;
+
+    > * {
+      flex: 1;
+    }
+  }
+
+  &__narrow {
+    max-width: 140px;
+    flex: 0 0 140px;
+  }
+
+  mat-form-field {
+    width: 100%;
+  }
+}
+
+.hint--error {
+  color: var(--mat-sys-error);
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.8rem 0.95rem;
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+  font: var(--mat-sys-body-medium);
+
+  &__text {
+    flex: 1;
+  }
+}
+
+/* ── Collapsible post-processing panel ───────────────────────── */
+
+.panel {
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.875rem 1rem;
+    cursor: pointer;
+    text-align: left;
+
+    background: var(--mat-sys-surface-container);
+    color: var(--mat-sys-on-surface);
+    border: none;
+  }
+
+  &__text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__title {
+    font: var(--mat-sys-title-small);
+  }
+
+  &__blurb {
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  &__badge {
+    font: var(--mat-sys-label-small);
+    padding: 0.2rem 0.55rem;
+    border-radius: 10px;
+    background: var(--mat-sys-surface-container-high);
+    color: var(--mat-sys-on-surface-variant);
+    white-space: nowrap;
+  }
+
+  &__chevron {
+    color: var(--mat-sys-on-surface-variant);
+    transition: transform 150ms ease;
+
+    &--open {
+      transform: rotate(180deg);
+    }
+  }
+
+  &__body {
+    padding: 1rem;
+    border-top: 1px solid var(--mat-sys-outline-variant);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+}
+
+.shape {
+  margin: 0 0 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+
+  background: var(--mat-sys-surface-container-low);
+  color: var(--mat-sys-on-surface-variant);
+  font-family: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px;
+
+  em {
+    font-style: normal;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    background: var(--mat-sys-primary-container);
+    color: var(--mat-sys-on-primary-container);
+  }
+}
+
+/* ── Automation toggles ──────────────────────────────────────── */
+
+.toggles {
+  display: flex;
+  flex-direction: column;
+  max-width: 720px;
+}
+
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.8rem 0.75rem;
+  border-radius: 10px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--mat-sys-surface-container-low);
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__label {
+    font: var(--mat-sys-title-small);
+  }
+
+  &__desc {
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+    text-wrap: pretty;
+  }
+}
+
+/* ── Advanced ────────────────────────────────────────────────── */
+
+.danger {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  padding: 0.95rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--mat-sys-outline-variant);
+
+  &__text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__label {
+    font: var(--mat-sys-title-small);
+  }
+
+  &__desc {
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+/* ── Save bar ────────────────────────────────────────────────── */
+
+.savebar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.625rem;
+  flex-shrink: 0;
+
+  background: var(--mat-sys-surface-container-low);
+  border-top: 1px solid var(--mat-sys-outline-variant);
+
+  &__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--mat-sys-primary);
+  }
+
+  &__state {
+    font: var(--mat-sys-body-medium);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  &__spacer {
+    flex: 1;
+  }
+}
+
+/* ── About ───────────────────────────────────────────────────── */
+
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 720px;
+
+  &__version {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 1rem 1.125rem;
+    border-radius: 12px;
+    border: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  &__label {
+    font: var(--mat-sys-body-medium);
+    color: var(--mat-sys-on-surface-variant);
+    flex: 1;
+  }
+
+  &__number {
+    font: var(--mat-sys-headline-small);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__note {
+    margin: 0;
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+    text-wrap: pretty;
+
+    &--error {
+      color: var(--mat-sys-error);
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+}
+
+/* ── Appearance ──────────────────────────────────────────────── */
+
+.appearance {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.95rem 1rem;
+  margin-bottom: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--mat-sys-outline-variant);
+
+  &__text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__label {
+    font: var(--mat-sys-title-small);
+  }
+
+  &__desc {
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 19px;
+  background: var(--mat-sys-surface-container-high);
+  flex-shrink: 0;
+
+  &__item {
+    height: 32px;
+    padding: 0 0.9rem;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    font: var(--mat-sys-label-large);
+
+    background: transparent;
+    color: var(--mat-sys-on-surface-variant);
+
+    &--active {
+      background: var(--mat-sys-primary);
+      color: var(--mat-sys-on-primary);
+    }
+  }
 }

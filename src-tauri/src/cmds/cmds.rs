@@ -171,6 +171,29 @@ async fn config() -> Arc<AppConfig> {
 }
 
 #[tauri::command]
+pub async fn about_info() -> crate::update::AboutInfo {
+    crate::update::about()
+}
+
+#[tauri::command]
+pub async fn check_for_update() -> Result<crate::update::UpdateInfo, String> {
+    crate::update::check().await
+}
+
+/// Reports which of `paths` currently exist, in the same order. Used by the UI
+/// to flag a misconfigured folder or executable next to the field itself.
+#[tauri::command]
+pub async fn paths_exist(paths: Vec<String>) -> Vec<bool> {
+    let mut results = Vec::with_capacity(paths.len());
+
+    for path in paths {
+        results.push(!path.is_empty() && tokio::fs::try_exists(&path).await.unwrap_or(false));
+    }
+
+    results
+}
+
+#[tauri::command]
 pub async fn run_obs() -> Result<(), String> {
     let config = config().await;
     let exe = &config.processes.paths.obs;

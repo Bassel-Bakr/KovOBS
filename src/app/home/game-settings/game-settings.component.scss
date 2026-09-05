@@ -1,0 +1,14 @@
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-width: 720px;
+
+  mat-form-field {
+    width: 100%;
+  }
+}
+
+.hint--error {
+  color: var(--mat-sys-error);
+}

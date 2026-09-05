@@ -1,0 +1,50 @@
+<div class="fields">
+  <mat-form-field>
+    <mat-label>Stats folder</mat-label>
+    <input matInput [formField]="statsFolder()" />
+    <button matIconButton matSuffix type="button" (click)="browseFolder(statsFolder())">
+      <mat-icon>folder_open</mat-icon>
+    </button>
+    @if (isMissing(statsFolder()().value())) {
+      <mat-hint class="hint--error">This folder does not exist, so runs will not be detected.</mat-hint>
+    } @else {
+      <mat-hint>Watched for new runs.</mat-hint>
+    }
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Clips folder</mat-label>
+    <input matInput [formField]="clipsFolder()" />
+    <button matIconButton matSuffix type="button" (click)="browseFolder(clipsFolder())">
+      <mat-icon>folder_open</mat-icon>
+    </button>
+    <mat-hint>Trimmed clips are written here, in a subfolder per scenario.</mat-hint>
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>OBS source</mat-label>
+    @if (sources()) {
+      <mat-select [formField]="sourceName()">
+        @for (source of sources(); track source) {
+          <mat-option [value]="source">{{ source }}</mat-option>
+        }
+      </mat-select>
+    } @else {
+      <input matInput [formField]="sourceName()" />
+    }
+    <mat-hint>Captured for the screenshot.</mat-hint>
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Executable</mat-label>
+    <input matInput [formField]="executable()" />
+    <button matIconButton matSuffix type="button" (click)="browseFile(executable())">
+      <mat-icon>terminal</mat-icon>
+    </button>
+    @if (isMissing(executable()().value())) {
+      <mat-hint class="hint--error">Cannot find this file, so the game will not be detected or launched.</mat-hint>
+    } @else {
+      <mat-hint>Used to detect and launch the game.</mat-hint>
+    }
+  </mat-form-field>
+</div>

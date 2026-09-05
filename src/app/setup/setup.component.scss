@@ -1,0 +1,172 @@
+:host {
+  display: block;
+  height: 100%;
+  overflow-y: auto;
+
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+}
+
+.setup {
+  width: 620px;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 2.75rem 1.5rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: 1.625rem;
+
+  &__title {
+    font: var(--mat-sys-headline-small);
+    margin: 0;
+  }
+
+  &__blurb {
+    font: var(--mat-sys-body-medium);
+    color: var(--mat-sys-on-surface-variant);
+    margin: 0.4rem 0 0;
+    text-wrap: pretty;
+  }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+  }
+
+  &__note {
+    flex: 1;
+    margin: 0;
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+    text-wrap: pretty;
+  }
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+
+  &__labels {
+    display: flex;
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+
+    span:first-child {
+      flex: 1;
+    }
+  }
+
+  &__track {
+    height: 5px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--mat-sys-surface-container-high);
+  }
+
+  &__bar {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--mat-sys-primary);
+    transition: width 200ms ease;
+  }
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.95rem;
+  padding: 1.05rem 1.125rem;
+  border-radius: 13px;
+
+  background: var(--mat-sys-surface-container);
+  border: 1px solid transparent;
+
+  &--done {
+    background: transparent;
+    border-color: var(--mat-sys-outline-variant);
+  }
+
+  &__mark {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font: var(--mat-sys-label-medium);
+    background: transparent;
+    color: var(--mat-sys-on-surface-variant);
+    border: 1.5px solid var(--mat-sys-outline);
+
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  &--done &__mark {
+    background: var(--mat-sys-primary);
+    color: var(--mat-sys-on-primary);
+    border-color: var(--mat-sys-primary);
+  }
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  &__title {
+    font: var(--mat-sys-title-small);
+  }
+
+  &__desc {
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+    text-wrap: pretty;
+  }
+
+  &__value {
+    margin-top: 0.5rem;
+    padding: 0.45rem 0.7rem;
+    border-radius: 7px;
+
+    background: var(--mat-sys-surface-container-low);
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-body-small);
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__field {
+    margin-top: 0.6rem;
+    width: 100%;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+}

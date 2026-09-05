@@ -1,312 +1,364 @@
-<mat-toolbar>
-  OBS
-  @let obsIsRunning = isObsRunning.value();
-  <mat-chip
-    class="process-status"
-    [matTooltip]="obsIsRunning ? null : 'Start'"
-    [attr.data-running]="obsIsRunning"
-    (click)="!obsIsRunning && runExe('obs')"
-  >
-    <span class="process-status__label">
-      @if (obsIsRunning) {
-        Running
-      } @else {
-        Start <mat-icon>play_arrow</mat-icon>
-      }
-    </span>
-  </mat-chip>
+@if (needsSetup()) {
+  <app-setup (done)="setupDone()" />
+} @else {
+  @let form = configForm;
+  @let running = isRunning.value();
 
-  KovaaK's
-  @let kovaaksIsRunning = isKovaaksRunning.value();
-  <mat-chip
-    class="process-status"
-    [matTooltip]="kovaaksIsRunning ? null : 'Start'"
-    [attr.data-running]="kovaaksIsRunning"
-    (click)="!kovaaksIsRunning && runExe('kovaaks')"
-  >
-    <span class="process-status__label">
-      @if (kovaaksIsRunning) {
-        Running
-      } @else {
-        Start <mat-icon>play_arrow</mat-icon>
-      }
-    </span>
-  </mat-chip>
-
-  Aimbeast
-  @let aimbeastIsRunning = isAimbeastRunning.value();
-  <mat-chip
-    class="process-status"
-    [matTooltip]="aimbeastIsRunning ? null : 'Start'"
-    [attr.data-running]="aimbeastIsRunning"
-    (click)="!aimbeastIsRunning && runExe('aimbeast')"
-  >
-    <span class="process-status__label">
-      @if (aimbeastIsRunning) {
-        Running
-      } @else {
-        Start <mat-icon>play_arrow</mat-icon>
-      }
-    </span>
-  </mat-chip>
-
-  <span data-spacer></span>
-
-  <button matIconButton matTooltip="Toggle Logs" (click)="globalService.showLogs.update((s) => !s)">
-    <mat-icon>history_toggle_off</mat-icon>
-  </button>
-
-  <button matButton="outlined" (click)="clearCache()">Clear Cache</button>
-
-  <button
-    matButton="tonal"
-    matTooltip="Stop first before saving changes!"
-    disabledInteractive
-    [matTooltipDisabled]="!isRunning.value()"
-    [disabled]="isRunning.value()"
-    (click)="!isRunning.value() && save()"
-  >
-    Save
-  </button>
-
-  @if (isRunning.value()) {
-    <button matIconButton matTooltip="Stop" (click)="stop($event)">
-      <mat-icon>stop</mat-icon>
-    </button>
-  } @else {
-    <button matIconButton matTooltip="Start" (click)="start()">
-      <mat-icon>play_arrow</mat-icon>
-    </button>
-  }
-</mat-toolbar>
-
-@let form = configForm;
-<form class="form">
-  <mat-card appearance="outlined">
-    <mat-card-header>
-      <mat-card-title>Required Folders/Files</mat-card-title>
-    </mat-card-header>
-
-    <mat-form-field>
-      <mat-label>KovaaK's Stats Folder</mat-label>
-      <input matInput [formField]="form.stats_folder" />
-      <button matIconButton matSuffix type="button" (click)="browse(form.stats_folder)">
-        <mat-icon>folder_open</mat-icon>
+  <!-- Status rail: what is happening, and nothing else -->
+  <div class="rail">
+    @for (process of processes(); track process.id) {
+      <button
+        type="button"
+        class="pill"
+        [class.pill--on]="process.running"
+        [disabled]="process.running"
+        [matTooltip]="process.running ? null : 'Start ' + process.name"
+        (click)="runExe(process.id)"
+      >
+        <span class="pill__dot"></span>
+        <span class="pill__name">{{ process.name }}</span>
+        <span class="pill__state">{{ process.running ? 'running' : 'start' }}</span>
       </button>
-    </mat-form-field>
-
-    <mat-form-field>
-      <mat-label>KovaaK's Clips Folder</mat-label>
-      <input matInput [formField]="form.clips_folder" />
-      <button matIconButton matSuffix type="button" (click)="browse(form.clips_folder)">
-        <mat-icon>folder_open</mat-icon>
-      </button>
-    </mat-form-field>
-
-    <mat-form-field>
-      <mat-label>Aimbeast Stats Folder</mat-label>
-      <input matInput [formField]="form.aimbeast.stats_folder" />
-      <button matIconButton matSuffix type="button" (click)="browse(form.aimbeast.stats_folder)">
-        <mat-icon>folder_open</mat-icon>
-      </button>
-    </mat-form-field>
-
-    <mat-form-field>
-      <mat-label>Aimbeast Clips Folder</mat-label>
-      <input matInput [formField]="form.aimbeast.clips_folder" />
-      <button matIconButton matSuffix type="button" (click)="browse(form.aimbeast.clips_folder)">
-        <mat-icon>folder_open</mat-icon>
-      </button>
-    </mat-form-field>
-
-    <mat-form-field>
-      <mat-label>Cache File</mat-label>
-      <input matInput [formField]="form.cache_file" />
-    </mat-form-field>
-  </mat-card>
-
-  <mat-card appearance="outlined">
-    <mat-card-header>
-      <mat-card-title>OBS</mat-card-title>
-    </mat-card-header>
-
-    <mat-form-field>
-      <mat-label>Host</mat-label>
-      <input matInput [formField]="form.obs.host" />
-    </mat-form-field>
-
-    <mat-form-field>
-      <mat-label>Password</mat-label>
-      <input matInput type="password" [formField]="form.obs.password" />
-    </mat-form-field>
-
-    <mat-form-field>
-      <mat-label>Port</mat-label>
-      <input matInput type="number" [formField]="form.obs.port" />
-    </mat-form-field>
-
-    @if (!sources.value()) {
-      <mat-form-field>
-        <mat-label>KovaaK's Source</mat-label>
-        <input matInput [formField]="form.obs.source_name" />
-      </mat-form-field>
-
-      <mat-form-field>
-        <mat-label>Aimbeast Source</mat-label>
-        <input matInput [formField]="form.aimbeast.obs_source_name" />
-      </mat-form-field>
-    } @else {
-      <mat-form-field>
-        <mat-label>KovaaK's Source</mat-label>
-        <mat-select [formField]="form.obs.source_name">
-          @for (source of sources.value(); track source) {
-            <mat-option [value]="source">{{ source }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-
-      <mat-form-field>
-        <mat-label>Aimbeast Source</mat-label>
-        <mat-select [formField]="form.aimbeast.obs_source_name">
-          @for (source of sources.value(); track source) {
-            <mat-option [value]="source">{{ source }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
     }
-  </mat-card>
 
-  <mat-card appearance="outlined">
-    <mat-card-header>
-      <mat-card-title>Trimming</mat-card-title>
-    </mat-card-header>
-    <mat-form-field>
-      <mat-label>Start Padding (seconds)</mat-label>
-      <input matInput type="number" [formField]="form.trim_padding_start" />
-    </mat-form-field>
+    <span class="rail__spacer"></span>
 
-    <mat-form-field>
-      <mat-label>End Padding (seconds)</mat-label>
-      <input matInput type="number" [formField]="form.trim_padding_end" />
-    </mat-form-field>
-  </mat-card>
+    <button type="button" class="run" [class.run--on]="running" (click)="toggleRunning($event)">
+      <mat-icon>{{ running ? 'stop' : 'play_arrow' }}</mat-icon>
+      {{ running ? 'Stop' : 'Start' }}
+    </button>
+  </div>
 
-  <mat-card appearance="outlined">
-    <mat-card-header>
-      <mat-card-title>
-        <div class="ffmpeg__card-title">
-          FFmpeg
+  <div class="body">
+    <!-- Navigation -->
+    <nav class="nav">
+      @for (item of sections; track item.id) {
+        <button
+          type="button"
+          class="nav__item"
+          [class.nav__item--active]="section() === item.id"
+          (click)="selectSection(item.id)"
+        >
+          {{ item.label }}
+        </button>
+      }
 
-          @let progress = ffmpegDownloadProgress.value();
+      <span class="nav__spacer"></span>
 
-          @switch (progress.state) {
-            @case ('Unknown') {}
-            @case ('Done') {
-              <button matIconButton type="button" matTooltip="Delete downloaded FFmpeg" (click)="deleteFFmpeg()">
-                <mat-icon>delete</mat-icon>
-              </button>
-            }
-            @case ('Starting')
-            @case ('Downloading')
-            @case ('Unpacking') {
-              <mat-progress-spinner
-                class="example-margin"
-                mode="determinate"
-                [diameter]="24"
-                [value]="progress.progress"
-              />
-            }
-            @case ('NotDone') {
-              <button matIconButton type="button" matTooltip="Download FFmpeg" (click)="downloadFFmpeg()">
-                <mat-icon>download</mat-icon>
-              </button>
-            }
+      <button type="button" class="nav__item" (click)="toggleLogs()">Logs</button>
+    </nav>
+
+    <!-- Content -->
+    <div class="content">
+      <div class="content__scroller">
+        @let current = currentSection();
+
+        <header class="section__header">
+          <h2 class="section__title">{{ current.title }}</h2>
+          <p class="section__blurb">{{ current.blurb }}</p>
+        </header>
+
+        @switch (section()) {
+          @case ('kovaaks') {
+            <app-game-settings
+              [statsFolder]="form.stats_folder"
+              [clipsFolder]="form.clips_folder"
+              [sourceName]="form.obs.source_name"
+              [executable]="form.processes.paths.kovaaks"
+              [sources]="sources.value()"
+              [missing]="missingPaths()"
+            />
           }
 
-          <button matIconButton matTooltip="Docs" (click)="openFFmpegHelp()">
-            <mat-icon>info</mat-icon>
-          </button>
-        </div>
-      </mat-card-title>
-    </mat-card-header>
+          @case ('aimbeast') {
+            <app-game-settings
+              [statsFolder]="form.aimbeast.stats_folder"
+              [clipsFolder]="form.aimbeast.clips_folder"
+              [sourceName]="form.aimbeast.obs_source_name"
+              [executable]="form.processes.paths.aimbeast"
+              [sources]="sources.value()"
+              [missing]="missingPaths()"
+            />
+          }
 
-    <p class="ffmpeg__hint">
-      One argument per line, applied after trimming:
-      <code>ffmpeg [global] [input] -i clip [output] out.mp4</code>.
-      Leave all three empty to only trim.
-    </p>
+          @case ('obs') {
+            <div class="fields">
+              <div class="fields__row">
+                <mat-form-field>
+                  <mat-label>Host</mat-label>
+                  <input matInput [formField]="form.obs.host" />
+                </mat-form-field>
 
-    <mat-form-field>
-      <mat-label>Global args</mat-label>
-      <textarea matInput placeholder="e.g. -loglevel warning" type="text" rows="3" [formField]="ffmpegForm.global">
-      </textarea>
-    </mat-form-field>
+                <mat-form-field class="fields__narrow">
+                  <mat-label>Port</mat-label>
+                  <input matInput type="number" [formField]="form.obs.port" />
+                </mat-form-field>
+              </div>
 
-    <mat-form-field>
-      <mat-label>Input args</mat-label>
-      <textarea matInput placeholder="e.g. -hwaccel cuda" type="text" rows="3" [formField]="ffmpegForm.input">
-      </textarea>
-    </mat-form-field>
+              <mat-form-field>
+                <mat-label>Password</mat-label>
+                <input matInput type="password" [formField]="form.obs.password" />
+                <mat-hint>Set under Tools, WebSocket Server Settings, in OBS.</mat-hint>
+              </mat-form-field>
 
-    <mat-form-field>
-      <mat-label>Output args</mat-label>
-      <textarea matInput placeholder="e.g. -c:v libx264" type="text" rows="3" [formField]="ffmpegForm.output">
-      </textarea>
-    </mat-form-field>
-  </mat-card>
+              @if (sources.value(); as found) {
+                <div class="banner">
+                  <mat-icon>check</mat-icon>
+                  <span>Connected. {{ found.length }} sources found.</span>
+                </div>
+              }
 
-  <mat-card appearance="outlined">
-    <mat-card-header>
-      <mat-card-title>Automation</mat-card-title>
-    </mat-card-header>
+              <mat-form-field>
+                <mat-label>Executable</mat-label>
+                <input matInput [formField]="form.processes.paths.obs" />
+                <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.obs)">
+                  <mat-icon>terminal</mat-icon>
+                </button>
+                @if (isMissing(form.processes.paths.obs().value())) {
+                  <mat-hint class="hint--error"
+                    >Cannot find this file, so OBS will not be detected or launched.</mat-hint
+                  >
+                } @else {
+                  <mat-hint>Used to detect and launch OBS.</mat-hint>
+                }
+              </mat-form-field>
+            </div>
+          }
 
-    <mat-checkbox [formField]="form.trim" matTooltip="Should we trim the VODs?">Trim</mat-checkbox>
+          @case ('clips') {
+            <div class="fields">
+              <div class="fields__row">
+                <mat-form-field>
+                  <mat-label>Start padding (seconds)</mat-label>
+                  <input matInput type="number" [formField]="form.trim_padding_start" />
+                </mat-form-field>
 
-    <mat-checkbox [formField]="form.auto_start" matTooltip="Auto start on boot">Auto start</mat-checkbox>
+                <mat-form-field>
+                  <mat-label>End padding (seconds)</mat-label>
+                  <input matInput type="number" [formField]="form.trim_padding_end" />
+                </mat-form-field>
+              </div>
 
-    <mat-checkbox [formField]="form.only_pb" matTooltip="Clips all VODs otherwise">Personal Best (PB)</mat-checkbox>
+              <!-- FFmpeg post-processing, collapsed: most people never touch it -->
+              <section class="panel">
+                <button type="button" class="panel__head" (click)="toggleFfmpeg()">
+                  <span class="panel__text">
+                    <span class="panel__title">Post-processing</span>
+                    <span class="panel__blurb">Runs after the trim. Leave every slot empty to only trim.</span>
+                  </span>
 
-    <mat-checkbox [formField]="form.delete_after_trimming" matTooltip="Deletes saved replay buffers from OBS">
-      Delete saved buffer
-    </mat-checkbox>
+                  @let progress = ffmpegDownloadProgress.value();
+                  @switch (progress.state) {
+                    @case ('Done') {
+                      <span class="panel__badge">FFmpeg ready</span>
+                    }
+                    @case ('NotDone') {
+                      <span class="panel__badge">FFmpeg missing</span>
+                    }
+                    @default {
+                      <mat-progress-spinner mode="determinate" [diameter]="20" [value]="progress.progress" />
+                    }
+                  }
 
-    <mat-checkbox [formField]="form.screenshot.enabled" matTooltip="Takes a screen after saving any clip">
-      Screenshot
-    </mat-checkbox>
-  </mat-card>
+                  <mat-icon class="panel__chevron" [class.panel__chevron--open]="ffmpegOpen()">expand_more</mat-icon>
+                </button>
 
-  <mat-card appearance="outlined">
-    <mat-card-header>
-      <mat-card-title>Processes</mat-card-title>
-    </mat-card-header>
+                @if (ffmpegOpen()) {
+                  <div class="panel__body">
+                    <p class="shape">ffmpeg <em>global</em> <em>input</em> -i clip.mp4 <em>output</em> out.mp4</p>
 
-    <mat-form-field matTooltip="How often should we scan active processes">
-      <mat-label>Scan interval (seconds)</mat-label>
-      <input matInput type="number" [formField]="form.processes.scan_interval_secs" />
-    </mat-form-field>
+                    <div class="panel__actions">
+                      @switch (ffmpegDownloadProgress.value().state) {
+                        @case ('Done') {
+                          <button matButton="outlined" type="button" (click)="deleteFFmpeg()">
+                            <mat-icon>delete</mat-icon>
+                            Delete FFmpeg
+                          </button>
+                        }
+                        @case ('NotDone') {
+                          <button matButton="tonal" type="button" (click)="downloadFFmpeg()">
+                            <mat-icon>download</mat-icon>
+                            Download FFmpeg
+                          </button>
+                        }
+                      }
 
-    <mat-form-field>
-      <mat-label>OBS</mat-label>
-      <input matInput [formField]="form.processes.paths.obs" />
-      <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.obs)">
-        <mat-icon>terminal</mat-icon>
-      </button>
-    </mat-form-field>
+                      <button matButton type="button" (click)="openFFmpegHelp()">
+                        <mat-icon>info</mat-icon>
+                        Docs
+                      </button>
+                    </div>
 
-    <mat-form-field>
-      <mat-label>KovaaK's</mat-label>
-      <input matInput [formField]="form.processes.paths.kovaaks" />
-      <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.kovaaks)">
-        <mat-icon>terminal</mat-icon>
-      </button>
-    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Global args</mat-label>
+                      <textarea matInput rows="2" [formField]="ffmpegForm.global"></textarea>
+                      <mat-hint>One per line, before everything. For example -loglevel warning</mat-hint>
+                    </mat-form-field>
 
-    <mat-form-field>
-      <mat-label>Aimbeast</mat-label>
-      <input matInput [formField]="form.processes.paths.aimbeast" />
-      <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.aimbeast)">
-        <mat-icon>terminal</mat-icon>
-      </button>
-    </mat-form-field>
-  </mat-card>
-</form>
+                    <mat-form-field>
+                      <mat-label>Input args</mat-label>
+                      <textarea matInput rows="2" [formField]="ffmpegForm.input"></textarea>
+                      <mat-hint>One per line, before -i. For example -hwaccel cuda</mat-hint>
+                    </mat-form-field>
+
+                    <mat-form-field>
+                      <mat-label>Output args</mat-label>
+                      <textarea matInput rows="2" [formField]="ffmpegForm.output"></textarea>
+                      <mat-hint>One per line, after -i. For example -c:v libx264</mat-hint>
+                    </mat-form-field>
+                  </div>
+                }
+              </section>
+            </div>
+          }
+
+          @case ('automation') {
+            <div class="toggles">
+              <label class="toggle">
+                <mat-slide-toggle [formField]="form.trim" />
+                <span class="toggle__text">
+                  <span class="toggle__label">Trim clips</span>
+                  <span class="toggle__desc">Cut the replay buffer down to the run. Off copies the whole buffer.</span>
+                </span>
+              </label>
+
+              <label class="toggle">
+                <mat-slide-toggle [formField]="form.auto_start" />
+                <span class="toggle__text">
+                  <span class="toggle__label">Start with Windows</span>
+                  <span class="toggle__desc">Launch KovOBS on boot, minimised to the tray.</span>
+                </span>
+              </label>
+
+              <label class="toggle">
+                <mat-slide-toggle [formField]="form.only_pb" />
+                <span class="toggle__text">
+                  <span class="toggle__label">Personal bests only</span>
+                  <span class="toggle__desc">Keep a clip only when the run beats your best. Off keeps every run.</span>
+                </span>
+              </label>
+
+              <label class="toggle">
+                <mat-slide-toggle [formField]="form.delete_after_trimming" />
+                <span class="toggle__text">
+                  <span class="toggle__label">Delete the buffer</span>
+                  <span class="toggle__desc">Remove the original OBS recording once the clip is saved.</span>
+                </span>
+              </label>
+
+              <label class="toggle">
+                <mat-slide-toggle [formField]="form.screenshot.enabled" />
+                <span class="toggle__text">
+                  <span class="toggle__label">Screenshot the score</span>
+                  <span class="toggle__desc">Capture the end-of-run screen alongside the clip.</span>
+                </span>
+              </label>
+            </div>
+          }
+
+          @case ('advanced') {
+            <div class="fields">
+              <div class="appearance">
+                <span class="appearance__text">
+                  <span class="appearance__label">Theme</span>
+                  <span class="appearance__desc">System follows your Windows light/dark setting.</span>
+                </span>
+                <div class="segmented">
+                  @for (option of themes; track option.id) {
+                    <button
+                      type="button"
+                      class="segmented__item"
+                      [class.segmented__item--active]="form.theme().value() === option.id"
+                      (click)="setTheme(option.id)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <mat-form-field>
+                <mat-label>Scan interval (seconds)</mat-label>
+                <input matInput type="number" [formField]="form.processes.scan_interval_secs" />
+                <mat-hint>How often running processes are checked.</mat-hint>
+              </mat-form-field>
+
+              <mat-form-field>
+                <mat-label>Cache file</mat-label>
+                <input matInput [formField]="form.cache_file" />
+                <mat-hint>Stores your personal bests so they survive a restart.</mat-hint>
+              </mat-form-field>
+
+              <div class="danger">
+                <span class="danger__text">
+                  <span class="danger__label">Clear the cache</span>
+                  <span class="danger__desc">Forgets every personal best. It rebuilds from your stat files.</span>
+                </span>
+                <button matButton="outlined" type="button" (click)="clearCache()">Clear cache</button>
+              </div>
+            </div>
+          }
+
+          @case ('about') {
+            <div class="about">
+              <div class="about__version">
+                <span class="about__label">Version</span>
+                <span class="about__number">{{ about.value()?.version || '—' }}</span>
+              </div>
+
+              @if (update(); as info) {
+                @if (info.update_available) {
+                  <div class="banner">
+                    <mat-icon>upgrade</mat-icon>
+                    <span class="banner__text">Version {{ info.latest }} is available.</span>
+                    <button matButton type="button" (click)="openLatestRelease()">Open release</button>
+                  </div>
+                } @else {
+                  <p class="about__note">You are on the latest release.</p>
+                }
+              } @else if (checkError()) {
+                <p class="about__note about__note--error">{{ checkError() }}</p>
+              } @else {
+                <p class="about__note">Checking is manual, so KovOBS never contacts GitHub on its own.</p>
+              }
+
+              <div class="about__actions">
+                <button matButton="tonal" type="button" [disabled]="checking()" (click)="checkForUpdate()">
+                  {{ checking() ? 'Checking…' : 'Check for updates' }}
+                </button>
+
+                <button matButton="outlined" type="button" (click)="openReleases()">Releases on GitHub</button>
+              </div>
+            </div>
+          }
+        }
+      </div>
+
+      <!-- Save bar -->
+      <div class="savebar">
+        @if (dirty()) {
+          <span class="savebar__dot"></span>
+          <span class="savebar__state">Unsaved changes</span>
+        } @else {
+          <span class="savebar__state">All changes saved</span>
+        }
+
+        <span class="savebar__spacer"></span>
+
+        @if (dirty()) {
+          <button matButton type="button" (click)="discard()">Discard</button>
+        }
+
+        <button
+          matButton="filled"
+          type="button"
+          [disabled]="!dirty()"
+          [matTooltip]="running ? 'KovOBS restarts so the new settings take effect' : null"
+          (click)="save()"
+        >
+          {{ running ? 'Save and restart' : 'Save' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -9,6 +9,10 @@ use tauri::{AppHandle, Manager};
 #[serde(default)]
 pub struct AppConfig {
     pub auto_start: bool,
+    /// False until the first-run checklist is finished or skipped.
+    pub setup_completed: bool,
+    /// "system", "light" or "dark".
+    pub theme: String,
     pub obs: ObsConfig,
     pub clips_folder: String,
     pub stats_folder: String,
@@ -144,6 +148,8 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             auto_start: false,
+            setup_completed: false,
+            theme: "system".into(),
             obs: Default::default(),
             clips_folder: "".into(),
             stats_folder: "".into(),
