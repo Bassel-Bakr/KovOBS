@@ -75,6 +75,10 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     env:
+      # sccache keys on compilation inputs rather than the lockfile, so a
+      # version bump no longer invalidates everything.
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
       VERSION: ${{ needs.prepare.outputs.version }}
 
     steps:
@@ -82,9 +86,15 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - uses: mozilla-actions/sccache-action@v0.0.11
+
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+          # sccache handles compiled artifacts; leaving target/ caching on
+          # would double-store them and push the 10 GB repo cache into
+          # eviction. rust-cache still covers the registry and git deps.
+          cache-targets: false
 
       - name: Cache Tauri bundler tools
         uses: actions/cache@v4
@@ -132,6 +142,10 @@ jobs:
         # Uses the prebuilt CLI that npm ci already installed, rather than
         # compiling tauri-cli from source.
         run: npx tauri build
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats
 
       - name: Prepare release assets (Unix)
         if: runner.os != 'Windows'
