@@ -5,6 +5,7 @@ use crate::shell::ShellExt;
 use crate::{consts, ui_println};
 use anyhow::Context;
 use chrono::TimeDelta;
+use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::path;
 use std::path::PathBuf;
@@ -226,30 +227,49 @@ fn extra_command(
     Ok(command)
 }
 
+/// Renders a command the way it would be typed, so a failed run can be pasted
+/// into a terminal and reproduced.
+///
+/// Only the parts that need it are quoted, and never with backslash escapes:
+/// Windows paths are full of backslashes, and escaping them would make what is
+/// printed differ from what actually ran.
+fn display_command(program: &path::Path, args: &[String]) -> String {
+    std::iter::once(program.to_string_lossy())
+        .chain(args.iter().map(|arg| Cow::from(arg.as_str())))
+        .map(|part| match &*part {
+            // A double quote inside means the single quotes have to do the
+            // grouping. Something holding both isn't worth contorting for.
+            part if part.contains('"') => format!("'{part}'"),
+            part if part.is_empty() || part.contains([' ', '\t', '\n', '\r', '\'']) => {
+                format!("\"{part}\"")
+            }
+            part => part.to_owned(),
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Runs FFmpeg, reporting progress against `total_duration` under `label`.
 async fn run(
     args: &[String],
     total_duration: TimeDelta,
     label: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let ffmpeg_path = {
+    // Falling back to the bare name lets a system-wide FFmpeg work when the
+    // bundled one hasn't been downloaded.
+    let program = {
         let app_handle = APP_HANDLE.get().unwrap();
-        get_ffmpeg_path(app_handle)
+        get_ffmpeg_path(app_handle).unwrap_or_else(|_| PathBuf::from("ffmpeg"))
     };
+    let command_line = display_command(&program, args);
 
-    let mut ffmpeg_cmd = if let Ok(path) = ffmpeg_path {
-        Command::new(path)
-    } else {
-        Command::new("ffmpeg")
-    };
-
-    let mut process = ffmpeg_cmd
+    let mut process = Command::new(&program)
         .no_window()
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .with_context(|| format!("Failed to execute ffmpeg {args:?}"))?;
+        .with_context(|| format!("Failed to execute {command_line}"))?;
 
     // Drained on its own task: if the stderr pipe fills while this is reading
     // stdout, FFmpeg blocks on the write and neither side ever finishes.
@@ -298,15 +318,75 @@ async fn run(
             .map_or_else(|| status.to_string(), |code| code.to_string());
 
         // FFmpeg explains itself on stderr, so that is the part worth reading.
+        // The command goes with it: the args are the user's, and a complaint
+        // about them rarely makes sense without seeing what actually ran.
         let detail = stderr_tail.trim();
 
         return Err(if detail.is_empty() {
-            format!("FFmpeg exited with code {code}")
+            format!("FFmpeg exited with code {code}\n{command_line}")
         } else {
-            format!("FFmpeg exited with code {code}\n{detail}")
+            format!("FFmpeg exited with code {code}\n{command_line}\n\n{detail}")
         }
         .into());
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::display_command;
+    use std::path::Path;
+
+    fn render(args: &[&str]) -> String {
+        let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
+
+        display_command(Path::new("ffmpeg"), &args)
+    }
+
+    #[test]
+    fn plain_args_are_left_alone() {
+        assert_eq!(
+            render(&["-i", "in.mp4", "-crf", "23"]),
+            "ffmpeg -i in.mp4 -crf 23"
+        );
+    }
+
+    /// The whole point of printing this: a Windows path must come back out
+    /// exactly as it went in, backslashes and all.
+    #[test]
+    fn windows_paths_survive_verbatim() {
+        let program = Path::new(r"C:\Users\me\AppData\ffmpeg.exe");
+        let args = [r"D:\Clips\run.mp4".to_owned()];
+
+        assert_eq!(
+            display_command(program, &args),
+            r"C:\Users\me\AppData\ffmpeg.exe D:\Clips\run.mp4"
+        );
+    }
+
+    #[test]
+    fn spaces_are_quoted() {
+        assert_eq!(
+            render(&["-metadata", "title=My Run", r"D:\My Clips\run.mp4"]),
+            "ffmpeg -metadata \"title=My Run\" \"D:\\My Clips\\run.mp4\""
+        );
+    }
+
+    /// A value already holding double quotes gets single ones, so the grouping
+    /// stays unambiguous without inventing an escape the parser doesn't have.
+    #[test]
+    fn embedded_quotes_flip_the_quoting() {
+        assert_eq!(
+            render(&["-metadata", r#"title=He said "go""#]),
+            "ffmpeg -metadata 'title=He said \"go\"'"
+        );
+    }
+
+    /// Otherwise an empty argument vanishes from the line entirely, which is the
+    /// one case where what is printed would mislead.
+    #[test]
+    fn empty_args_stay_visible() {
+        assert_eq!(render(&["-vf", ""]), "ffmpeg -vf \"\"");
+    }
 }
