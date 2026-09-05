@@ -1,3 +1,18 @@
+<div
+  class="logs__resizer"
+  [class.logs__resizer--dragging]="resizing()"
+  role="separator"
+  aria-orientation="horizontal"
+  aria-label="Resize logs"
+  tabindex="0"
+  [attr.aria-valuenow]="globalService.logsHeight()"
+  (pointerdown)="startResize($event)"
+  (pointermove)="resize($event)"
+  (pointerup)="endResize($event)"
+  (pointercancel)="endResize($event)"
+  (keydown)="nudge($event)"
+></div>
+
 <div class="logs__header">
   <span class="logs__title">Logs</span>
 
