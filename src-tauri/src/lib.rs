@@ -69,6 +69,7 @@ pub fn run() {
             cmds::download_ffmpeg,
             cmds::remove_ffmpeg,
             cmds::test_notification,
+            cmds::quit_app,
         ])
         .setup(|app| {
             APP_HANDLE.set(app.handle().clone()).unwrap();
@@ -132,7 +133,9 @@ pub fn run() {
                         let _ = window.set_focus();
                     }
                     "quit" => {
-                        app.exit(0);
+                        // Same path as the button in About, so the cache is
+                        // saved either way.
+                        tauri::async_runtime::spawn(cmds::quit_app());
                     }
                     _ => {}
                 })

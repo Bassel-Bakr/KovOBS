@@ -402,6 +402,16 @@
 
                 <button matButton="outlined" type="button" (click)="openReleases()">Releases on GitHub</button>
               </div>
+
+              <div class="danger">
+                <span class="danger__text">
+                  <span class="danger__label">Quit KovOBS</span>
+                  <span class="danger__desc">
+                    Closes it properly instead of hiding to the tray. Clipping stops until you start it again.
+                  </span>
+                </span>
+                <button matButton="outlined" type="button" (click)="quit()">Quit</button>
+              </div>
             </div>
           }
         }

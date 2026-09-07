@@ -348,6 +348,10 @@ export default class HomeComponent {
     this.globalService.showLogs.update((shown) => !shown);
   }
 
+  protected quit(): void {
+    this.tauriService.quit().subscribe();
+  }
+
   protected clearCache(): void {
     this.cacheService.clearCache().subscribe();
   }

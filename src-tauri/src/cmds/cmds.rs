@@ -85,6 +85,22 @@ pub async fn stop_app() -> Result<(), String> {
     Ok(())
 }
 
+/// Exits for real, rather than hiding to the tray the way closing the window
+/// does.
+///
+/// Stops first: `kovobs::run` saves the cache on its way out, and exiting
+/// straight away skips that and loses whatever personal bests this session
+/// recorded. The tray's Quit goes through here too, so both routes out behave
+/// the same.
+#[tauri::command]
+pub async fn quit_app() {
+    _ = stop_app().await;
+
+    if let Some(app_handle) = APP_HANDLE.get() {
+        app_handle.exit(0);
+    }
+}
+
 #[tauri::command]
 pub async fn get_config() -> Result<AppConfig, String> {
     let state = &APP_STATE.wait().await.lock().await;

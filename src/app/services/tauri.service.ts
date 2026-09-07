@@ -22,6 +22,10 @@ export class TauriService {
     return this.call('stop_app');
   }
 
+  quit(): Observable<void> {
+    return this.call('quit_app');
+  }
+
   restart(): Observable<void> {
     return this.stop().pipe(switchMap(() => this.start()));
   }
