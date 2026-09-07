@@ -1,10 +1,10 @@
 use crate::consts;
-use ts_rs::TS;
 use config::Config;
 use std::default::Default;
 use std::path::Path;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager};
+use ts_rs::TS;
 
 /// Which colour scheme the window uses. `System` follows the OS setting.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, TS)]
@@ -54,7 +54,10 @@ pub struct ObsConfig {
 
 #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize, TS)]
 #[serde(default)]
-#[ts(export, export_to = "../../src/app/models/bindings/screenshot-config.ts")]
+#[ts(
+    export,
+    export_to = "../../src/app/models/bindings/screenshot-config.ts"
+)]
 pub struct ScreenshotConfig {
     pub enabled: bool,
 }
@@ -65,7 +68,10 @@ pub struct ScreenshotConfig {
 /// the behaviour they already had rather than silently losing it.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TS)]
 #[serde(default)]
-#[ts(export, export_to = "../../src/app/models/bindings/notifications-config.ts")]
+#[ts(
+    export,
+    export_to = "../../src/app/models/bindings/notifications-config.ts"
+)]
 pub struct NotificationsConfig {
     pub enabled: bool,
     /// Send saved-clip notifications as urgent too, so Do Not Disturb shows
@@ -144,7 +150,10 @@ where
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TS)]
 #[serde(default)]
-#[ts(export, export_to = "../../src/app/models/bindings/processes-config.ts")]
+#[ts(
+    export,
+    export_to = "../../src/app/models/bindings/processes-config.ts"
+)]
 pub struct ProcessesConfig {
     /// Narrower than it needs to be on purpose: u64 maps to a JS bigint in
     /// the generated types, and no poll interval needs that range.
