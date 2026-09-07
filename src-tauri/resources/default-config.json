@@ -18,7 +18,6 @@
     "enabled": true
   },
   "processes": {
-    "scan_interval_secs": 3,
     "paths": {
       "obs": "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe",
       "kovaaks": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\FPSAimTrainer\\FPSAimTrainer\\Binaries\\Win64\\FPSAimTrainer-Win64-Shipping.exe",

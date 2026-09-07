@@ -226,10 +226,7 @@ impl Default for AppConfig {
             screenshot: Default::default(),
             notifications: Default::default(),
             ffmpeg: Default::default(),
-            processes: ProcessesConfig {
-                scan_interval_secs: 1,
-                paths: Default::default(),
-            },
+            processes: Default::default(),
             aimbeast: Default::default(),
         }
     }
@@ -286,6 +283,18 @@ mod tests {
         assert_eq!(config.ffmpeg.output_args, "-c:v\nlibx264");
         assert!(config.ffmpeg.global_args.is_empty());
         assert!(!config.ffmpeg.is_empty());
+    }
+
+    /// `AppConfig::default` used to hardcode a different interval from
+    /// `ProcessesConfig::default`, so which one applied depended on whether the
+    /// `processes` key happened to be in the file at all.
+    #[test]
+    fn the_scan_interval_is_the_same_either_way() {
+        let whole = load_json("no-processes", "{}");
+        let partial = load_json("partial-processes", r#"{ "processes": { "paths": {} } }"#);
+
+        assert_eq!(whole.processes.scan_interval_secs, 3);
+        assert_eq!(partial.processes.scan_interval_secs, 3);
     }
 
     /// An empty file should fall back to defaults throughout.
