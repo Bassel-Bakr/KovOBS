@@ -59,9 +59,7 @@ jobs:
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
 
       - name: Clippy
-        # Not `-D warnings`: one pre-existing warning in
-        # aimbeast/scenario_statistics.rs would fail every run. Errors still fail.
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
       - name: Test
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib

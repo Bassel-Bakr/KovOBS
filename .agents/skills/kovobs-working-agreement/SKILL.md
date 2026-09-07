@@ -45,9 +45,8 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
 npx ng build
 ```
 
-One clippy warning is pre-existing: `aimbeast/scenario_statistics.rs` uses a
-negated comparison on partially ordered types. Do not treat it as caused by
-your change.
+Clippy is clean, and CI runs it with `-D warnings`. Any warning you see is
+from your change.
 
 ---
 
