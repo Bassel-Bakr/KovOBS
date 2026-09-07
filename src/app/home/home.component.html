@@ -24,7 +24,7 @@
     <span class="rail__spacer"></span>
 
     <button type="button" class="run" [class.run--on]="running" (click)="toggleRunning($event)">
-      <mat-icon>{{ running ? 'stop' : 'play_arrow' }}</mat-icon>
+      <mat-icon class="icon--native-size">{{ running ? 'stop' : 'play_arrow' }}</mat-icon>
       {{ running ? 'Stop' : 'Start' }}
     </button>
   </div>

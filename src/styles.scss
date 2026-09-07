@@ -108,3 +108,12 @@ body {
   text-rendering: optimizeLegibility;
   font-feature-settings: 'liga';
 }
+
+// Material Icons are drawn on a 24px grid. Use this on controls where
+// downscaling the icon font would soften its edges.
+.icon--native-size,
+.mat-mdc-button > .mat-icon.icon--native-size {
+  font-size: 24px;
+  width: 1em;
+  height: 1em;
+}

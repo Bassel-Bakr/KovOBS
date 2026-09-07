@@ -86,12 +86,6 @@
   color: var(--mat-sys-on-primary);
   border: 1px solid transparent;
 
-  mat-icon {
-    font-size: 18px;
-    width: 18px;
-    height: 18px;
-  }
-
   &--on {
     background: transparent;
     color: var(--mat-sys-on-surface-variant);
