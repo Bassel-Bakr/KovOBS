@@ -2,7 +2,6 @@ use crate::stat::Stat;
 use crate::stat::StatType::Aimbeast;
 use chrono::Utc;
 use serde::Deserialize;
-use std::cmp::Ordering;
 use std::time::Duration;
 
 #[derive(Clone, Default, Debug, Deserialize)]
@@ -28,15 +27,14 @@ impl ScenarioStatistics {
 
     /// Whether the last run beat everything before it.
     ///
-    /// Deliberately "not less than" rather than ">=". Scores are floats, and
-    /// `partial_cmp` yields `None` for a NaN; a first run has no previous score
-    /// to compare against at all. Both should count as a personal best, and
-    /// `>=` would report false for both.
+    /// Strictly greater: matching a previous best is not beating it.
+    ///
+    /// The `Option` comparison gives the edge cases for free. A first run is
+    /// `Some(_) > None`, which is true -- there is nothing to beat. A score
+    /// that will not compare, such as a NaN, is false, so a broken reading is
+    /// never mistaken for an improvement.
     pub fn is_pb(&self) -> bool {
-        !matches!(
-            self.last_score().partial_cmp(&self.prev_highscore()),
-            Some(Ordering::Less)
-        )
+        self.last_score() > self.prev_highscore()
     }
 }
 
@@ -71,9 +69,10 @@ mod tests {
         assert!(with(&[100.0]).is_pb());
     }
 
+    /// No run happened, so there is nothing to celebrate or clip.
     #[test]
-    fn no_scores_at_all_is_a_personal_best() {
-        assert!(with(&[]).is_pb());
+    fn no_scores_at_all_is_not_a_personal_best() {
+        assert!(!with(&[]).is_pb());
     }
 
     #[test]
@@ -86,10 +85,10 @@ mod tests {
         assert!(!with(&[100.0, 120.0, 110.0]).is_pb());
     }
 
-    /// Matching the best counts, which is why this is "not less than".
+    /// Matching is not beating.
     #[test]
-    fn tying_the_previous_best_is_a_personal_best() {
-        assert!(with(&[100.0, 100.0]).is_pb());
+    fn tying_the_previous_best_is_not_a_personal_best() {
+        assert!(!with(&[100.0, 100.0]).is_pb());
     }
 
     /// The best is the highest of *all* earlier runs, not the one before.
@@ -98,9 +97,9 @@ mod tests {
         assert!(!with(&[150.0, 90.0, 100.0]).is_pb());
     }
 
-    /// A NaN will not compare. It must not silently read as a failed run.
+    /// A NaN will not compare, so it cannot be an improvement either.
     #[test]
-    fn an_incomparable_score_is_a_personal_best() {
-        assert!(with(&[100.0, f32::NAN]).is_pb());
+    fn an_incomparable_score_is_not_a_personal_best() {
+        assert!(!with(&[100.0, f32::NAN]).is_pb());
     }
 }
