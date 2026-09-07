@@ -1,17 +1,16 @@
 use crate::globals::APP_HANDLE;
 use crate::ui_println;
 use std::path::{Path, PathBuf};
-use tauri_plugin_opener::OpenerExt;
 
 /// XDG only makes the notification body clickable when an action is registered
-/// for it, and the key has to be `default`. Windows reports a body click as no
-/// argument at all, and the button click as whatever key it was given.
+/// for it, and the key has to be `default`.
+#[cfg(not(windows))]
 const DEFAULT_ACTION: &str = "default";
 
 const ACTION_LABEL: &str = "Show in folder";
 
-/// Shows a desktop notification for a saved clip. Clicking it reveals the clip
-/// in the system file manager.
+/// Shows a desktop notification for a saved clip. Clicking it opens the folder
+/// the clip landed in.
 ///
 /// Failures are reported to the log panel rather than propagated: a notification
 /// that didn't appear is never a good reason to fail the clip that was saved.
@@ -20,59 +19,83 @@ pub fn clip_saved(title: &str, body: &str, clip: &Path, sound: bool) {
 }
 
 /// Windows keeps a toast in the Action Center long after it has left the
-/// screen, and a click there activates it just like a click on the toast
-/// itself. The handler therefore has to outlive the toast being displayed,
-/// which rules out `notify-rust`: its `wait_for_response` takes a single
-/// message from a channel fed by *both* activation and dismissal, so the
-/// timeout that moves the toast to the Action Center ends the wait and drops
-/// the receiver. Every later click is then sent to nobody.
+/// screen, so a click can arrive at any point -- including after KovOBS has
+/// been closed.
 ///
-/// Driving the toast directly leaves the activation handler registered for as
-/// long as the notification exists, so clicking it in the Action Center works
-/// too.
+/// That rules out handling the click ourselves. An `on_activated` handler only
+/// exists while the process does, and a click on a toast belonging to a dead
+/// process is routed through a COM activator, which means a registered CLSID
+/// and an `INotificationActivationCallback` implementation.
 ///
-/// `Toast::show` blocks, and sleeps internally, so it gets its own thread
-/// rather than holding a runtime worker. It has no apartment requirement of its
-/// own -- a thread with no COM initialisation at all works.
+/// Declaring the action `activationType="protocol"` hands the whole job to
+/// Windows instead: it opens the `file://` URL with the default handler, which
+/// is Explorer. Nothing has to be listening, so it works with KovOBS closed,
+/// and there is no callback thread to get the COM apartment wrong on.
+///
+/// `tauri-winrt-notification` cannot express this -- its template is a fixed
+/// `<toast {duration} {scenario}>` with nowhere to put `launch` or
+/// `activationType` -- so the XML is built here.
 #[cfg(windows)]
 fn show(title: String, body: String, clip: PathBuf, sound: bool) {
-    use tauri_winrt_notification::{Duration, Sound, Toast};
+    use windows::Data::Xml::Dom::XmlDocument;
+    use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
+    use windows::core::HSTRING;
 
-    std::thread::spawn(move || {
-        let toast = Toast::new(&app_id())
-            .title(&title)
-            .text1(&body)
-            .duration(Duration::Short)
-            .sound(sound.then_some(Sound::Default))
-            .add_button(ACTION_LABEL, DEFAULT_ACTION)
-            .on_activated(move |action| {
-                // A click on the toast body carries no argument; the button
-                // carries its key. Both mean the same thing here.
-                if action.is_none() || action.as_deref() == Some(DEFAULT_ACTION) {
-                    reveal(&clip);
-                }
+    // The folder, not the clip: a file:// URL to a video would play it, which
+    // is not what "Show in folder" says.
+    let Some(folder) = clip.parent() else {
+        return;
+    };
 
-                Ok(())
-            });
+    let target = file_url(folder);
 
-        // Dropping the toast here is fine: WinRT holds its own reference to the
-        // activation handler, which is what has to outlive this.
-        //
-        // Note that Ok only means WinRT accepted the toast. Do Not Disturb
-        // suppresses the banner after this point, and says nothing about it.
-        if let Err(e) = toast.show() {
-            ui_println!("👎 Failed to show notification: {e:?}");
-        }
-    });
+    // Toasts play the default sound unless told not to.
+    let audio = if sound {
+        ""
+    } else {
+        "<audio silent='true'/>"
+    };
+
+    let xml = format!(
+        "<toast duration='long' activationType='protocol' launch='{target}'>\
+           <visual>\
+             <binding template='ToastGeneric'>\
+               <text>{}</text>\
+               <text>{}</text>\
+             </binding>\
+           </visual>\
+           <actions>\
+             <action content='{}' activationType='protocol' arguments='{target}'/>\
+           </actions>\
+           {audio}\
+         </toast>",
+        escape(&title),
+        escape(&body),
+        escape(ACTION_LABEL),
+    );
+
+    let show = || -> windows::core::Result<()> {
+        let document = XmlDocument::new()?;
+        document.LoadXml(&HSTRING::from(&xml))?;
+
+        let toast = ToastNotification::CreateToastNotification(&document)?;
+
+        ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(app_id()))?.Show(&toast)
+    };
+
+    if let Err(e) = show() {
+        ui_println!("👎 Failed to show notification: {e}");
+    }
 }
 
-/// Windows only routes toast activation back to an app that owns an
-/// AppUserModelID, which only an installed build has. Running from `target/`
+/// Windows only attributes a toast to an app that owns an AppUserModelID, which
+/// the installer registers on the Start Menu shortcut. Running from `target/`
 /// there is no id to claim, so the toast borrows PowerShell's: it still shows,
-/// and the in-process handler still fires, but it is not attributed to KovOBS.
+/// but it is not attributed to KovOBS.
 #[cfg(windows)]
 fn app_id() -> String {
-    use tauri_winrt_notification::Toast;
+    const POWERSHELL: &str =
+        "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe";
 
     let installed = || {
         let exe = tauri::utils::platform::current_exe().ok()?;
@@ -87,8 +110,40 @@ fn app_id() -> String {
 
     match (APP_HANDLE.get(), installed()) {
         (Some(app_handle), Some(true)) => app_handle.config().identifier.clone(),
-        _ => Toast::POWERSHELL_APP_ID.to_owned(),
+        _ => POWERSHELL.to_owned(),
     }
+}
+
+/// A `file://` URL Windows will hand to Explorer.
+///
+/// Percent-encoding is the part that matters: a clips folder with a space in it
+/// otherwise produces a URL that opens the wrong place, or nothing at all, with
+/// no error either way.
+#[cfg(windows)]
+fn file_url(folder: &Path) -> String {
+    let mut url = String::from("file:///");
+
+    for byte in folder.to_string_lossy().replace('\\', "/").bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' | b':' => {
+                url.push(byte as char)
+            }
+            _ => url.push_str(&format!("%{byte:02X}")),
+        }
+    }
+
+    url
+}
+
+/// XML-escapes text going into an attribute or element. Scenario names come
+/// from the game by way of the user, so they cannot be assumed XML-safe.
+#[cfg(windows)]
+fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('\'', "&apos;")
+        .replace('"', "&quot;")
 }
 
 #[cfg(not(windows))]
@@ -135,7 +190,10 @@ fn show(title: String, body: String, clip: PathBuf, sound: bool) {
     });
 }
 
+#[cfg(not(windows))]
 fn reveal(clip: &Path) {
+    use tauri_plugin_opener::OpenerExt;
+
     let Some(app_handle) = APP_HANDLE.get() else {
         return;
     };
@@ -148,30 +206,59 @@ fn reveal(clip: &Path) {
         match clip.parent() {
             Some(folder) if folder.exists() => folder,
             _ => {
-                ui_println!("👎 The clip is no longer where it was saved: {}", clip.display());
+                ui_println!(
+                    "👎 The clip is no longer where it was saved: {}",
+                    clip.display()
+                );
                 return;
             }
         }
     };
 
-    // Revealing has to happen on a thread of its own, and the reason is not
-    // obvious. `reveal_item_in_dir` ends in `SHOpenFolderAndSelectItems`, which
-    // needs the calling thread to be in a single-threaded apartment, and gets
-    // there by calling `CoInitialize` and ignoring the result. Windows
-    // dispatches a toast activation on a thread that is already in the
-    // multi-threaded apartment, where that `CoInitialize` fails with
-    // `RPC_E_CHANGED_MODE` -- and the shell call then returns `S_OK` while
-    // opening nothing at all. A brand new thread has no apartment yet, so the
-    // `CoInitialize` inside the plugin succeeds and Explorer actually appears.
-    //
-    // Nothing in the return values shows this: the only difference between the
-    // broken and working case is whether a window is on screen.
-    let target = target.to_path_buf();
-    let app_handle = app_handle.clone();
+    if let Err(e) = app_handle.opener().reveal_item_in_dir(target) {
+        ui_println!("👎 Failed to open the clip folder: {e:?}");
+    }
+}
 
-    std::thread::spawn(move || {
-        if let Err(e) = app_handle.opener().reveal_item_in_dir(&target) {
-            ui_println!("👎 Failed to open the clip folder: {e:?}");
-        }
-    });
+#[cfg(all(test, windows))]
+mod tests {
+    use super::{escape, file_url};
+    use std::path::Path;
+
+    #[test]
+    fn backslashes_become_forward_slashes() {
+        assert_eq!(
+            file_url(Path::new(r"E:\OBS\KovOBS")),
+            "file:///E:/OBS/KovOBS"
+        );
+    }
+
+    /// A space is the case that quietly opens the wrong folder.
+    #[test]
+    fn spaces_are_percent_encoded() {
+        assert_eq!(
+            file_url(Path::new(r"E:\OBS\My Clips")),
+            "file:///E:/OBS/My%20Clips"
+        );
+    }
+
+    /// An unescaped ampersand would end the attribute and break the whole toast,
+    /// so it has to survive both encoding and escaping.
+    #[test]
+    fn ampersands_survive() {
+        assert_eq!(
+            file_url(Path::new(r"E:\Clips\A & B")),
+            "file:///E:/Clips/A%20%26%20B"
+        );
+        assert_eq!(escape("Ctrl<click> & 'go'"), "Ctrl&lt;click&gt; &amp; &apos;go&apos;");
+    }
+
+    /// Scenario names are frequently non-ASCII; those must not reach the XML raw.
+    #[test]
+    fn non_ascii_is_encoded() {
+        assert_eq!(
+            file_url(Path::new(r"E:\Clips\né")),
+            "file:///E:/Clips/n%C3%A9"
+        );
+    }
 }
