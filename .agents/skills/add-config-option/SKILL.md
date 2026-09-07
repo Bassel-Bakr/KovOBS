@@ -14,7 +14,7 @@ Adding any persisted setting: a toggle, a path, an interval, a mode.
 | File | Change | Always? |
 |---|---|---|
 | `src-tauri/src/config.rs` | field on the config struct + its `Default` | yes |
-| *(generated)* | `cargo test` refreshes the TS types and defaults | never by hand |
+| *(generated)* | `npm run generate` refreshes the TS types and defaults | never by hand |
 | `src/app/home/home.component.html` | the control | yes, if user-facing |
 | `src-tauri/resources/default-config.json` | **only if** the shipped value differs from the Rust `Default` | rarely |
 | consumers (`kovobs.rs`, `cmds/`) | nothing, if they take the config struct | rarely |
@@ -78,9 +78,14 @@ fn a_partial_object_keeps_the_other_defaults() {
 ## Generated files
 
 `src/app/models/bindings/` and `src/app/models/default-config.ts` are produced
-from the Rust structs by `ts-rs`, written during `cargo test`. Never edit them.
+from the Rust structs by `ts-rs`. Never edit them.
 
-After changing a config struct, run the tests and commit what they regenerate.
+    npm run generate
+
+That runs the Rust tests, which write the files, then formats them -- ts-rs
+emits a whole type on one line, so the formatting pass is not optional.
+
+After changing a config struct, run it and commit what it regenerates.
 Nothing enforces this -- CI runs no tests -- so a stale commit is possible. The
 frontend build catches a changed *type*, but not a stale default *value*.
 
