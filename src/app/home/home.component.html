@@ -24,7 +24,7 @@
     <span class="rail__spacer"></span>
 
     <button type="button" class="run" [class.run--on]="running" (click)="toggleRunning($event)">
-      <mat-icon>{{ running ? 'stop' : 'play_arrow' }}</mat-icon>
+      <mat-icon class="icon--native-size">{{ running ? 'stop' : 'play_arrow' }}</mat-icon>
       {{ running ? 'Stop' : 'Start' }}
     </button>
   </div>
@@ -69,7 +69,7 @@
               [clipsFolder]="form.clips_folder"
               [sourceName]="form.obs.source_name"
               [executable]="form.processes.paths.kovaaks"
-              [sources]="sources.value()"
+              [sources]="sources()"
               [missing]="missingPaths()"
             />
           }
@@ -80,339 +80,64 @@
               [clipsFolder]="form.aimbeast.clips_folder"
               [sourceName]="form.aimbeast.obs_source_name"
               [executable]="form.processes.paths.aimbeast"
-              [sources]="sources.value()"
+              [sources]="sources()"
               [missing]="missingPaths()"
             />
           }
 
           @case ('obs') {
-            <div class="fields">
-              <div class="fields__row">
-                <mat-form-field>
-                  <mat-label>Host</mat-label>
-                  <input matInput [formField]="form.obs.host" />
-                </mat-form-field>
-
-                <mat-form-field class="fields__narrow">
-                  <mat-label>Port</mat-label>
-                  <input matInput type="number" [formField]="form.obs.port" />
-                </mat-form-field>
-              </div>
-
-              <mat-form-field>
-                <mat-label>Password</mat-label>
-                <input matInput type="password" [formField]="form.obs.password" />
-                <mat-hint>Set under Tools, WebSocket Server Settings, in OBS.</mat-hint>
-              </mat-form-field>
-
-              @if (sources.value(); as found) {
-                <div class="banner">
-                  <mat-icon>check</mat-icon>
-                  <span>Connected. {{ found.length }} sources found.</span>
-                </div>
-              }
-
-              <mat-form-field>
-                <mat-label>Executable</mat-label>
-                <input matInput [formField]="form.processes.paths.obs" />
-                <button matIconButton matSuffix type="button" (click)="browseFile(form.processes.paths.obs)">
-                  <mat-icon>terminal</mat-icon>
-                </button>
-                @if (isMissing(form.processes.paths.obs().value())) {
-                  <mat-hint class="hint--error"
-                    >Cannot find this file, so OBS will not be detected or launched.</mat-hint
-                  >
-                } @else {
-                  <mat-hint>Used to detect and launch OBS.</mat-hint>
-                }
-              </mat-form-field>
-            </div>
+            <app-obs-settings
+              [host]="form.obs.host"
+              [port]="form.obs.port"
+              [password]="form.obs.password"
+              [executable]="form.processes.paths.obs"
+              [sources]="sources()"
+              [missing]="missingPaths()"
+              [loading]="loadingSources()"
+              (refresh)="loadSources()"
+            />
           }
 
           @case ('clips') {
-            <div class="fields">
-              <div class="fields__row">
-                <mat-form-field>
-                  <mat-label>Start padding (seconds)</mat-label>
-                  <input matInput type="number" [formField]="form.trim_padding_start" />
-                </mat-form-field>
-
-                <mat-form-field>
-                  <mat-label>End padding (seconds)</mat-label>
-                  <input matInput type="number" [formField]="form.trim_padding_end" />
-                </mat-form-field>
-              </div>
-
-              <!-- FFmpeg post-processing, collapsed: most people never touch it -->
-              <section class="panel">
-                <button type="button" class="panel__head" (click)="toggleFfmpeg()">
-                  <span class="panel__text">
-                    <span class="panel__title">Post-processing</span>
-                    <span class="panel__blurb">Runs after the trim. Leave every slot empty to only trim.</span>
-                  </span>
-
-                  @let progress = ffmpegDownloadProgress.value();
-                  @switch (progress.state) {
-                    @case ('Done') {
-                      <span class="panel__badge">FFmpeg ready</span>
-                    }
-                    @case ('NotDone') {
-                      <span class="panel__badge">FFmpeg missing</span>
-                    }
-                    @default {
-                      <mat-progress-spinner mode="determinate" [diameter]="20" [value]="progress.progress" />
-                    }
-                  }
-
-                  <mat-icon class="panel__chevron" [class.panel__chevron--open]="ffmpegOpen()">expand_more</mat-icon>
-                </button>
-
-                @if (ffmpegOpen()) {
-                  <div class="panel__body">
-                    <p class="shape">ffmpeg <em>global</em> <em>input</em> -i clip.mp4 <em>output</em> out.mp4</p>
-
-                    <div class="panel__actions">
-                      @switch (ffmpegDownloadProgress.value().state) {
-                        @case ('Done') {
-                          <button matButton="outlined" type="button" (click)="deleteFFmpeg()">
-                            <mat-icon>delete</mat-icon>
-                            Delete FFmpeg
-                          </button>
-                        }
-                        @case ('NotDone') {
-                          <button matButton="tonal" type="button" (click)="downloadFFmpeg()">
-                            <mat-icon>download</mat-icon>
-                            Download FFmpeg
-                          </button>
-                        }
-                      }
-
-                      <button matButton type="button" (click)="openFFmpegHelp()">
-                        <mat-icon>info</mat-icon>
-                        Docs
-                      </button>
-                    </div>
-
-                    <mat-form-field>
-                      <mat-label>Global args</mat-label>
-                      <textarea matInput rows="2" [formField]="form.ffmpeg.global_args"></textarea>
-                      <mat-hint
-                        >Before everything. Quote values with spaces: -metadata &quot;title=My Run&quot;</mat-hint
-                      >
-                    </mat-form-field>
-
-                    <mat-form-field>
-                      <mat-label>Input args</mat-label>
-                      <textarea matInput rows="2" [formField]="form.ffmpeg.input_args"></textarea>
-                      <mat-hint>Before -i. For example -hwaccel cuda</mat-hint>
-                    </mat-form-field>
-
-                    <mat-form-field>
-                      <mat-label>Output args</mat-label>
-                      <textarea matInput rows="2" [formField]="form.ffmpeg.output_args"></textarea>
-                      <mat-hint>After -i. For example -c:v libx264 -crf 23</mat-hint>
-                    </mat-form-field>
-                  </div>
-                }
-              </section>
-            </div>
+            <app-clip-settings
+              [paddingStart]="form.trim_padding_start"
+              [paddingEnd]="form.trim_padding_end"
+              [globalArgs]="form.ffmpeg.global_args"
+              [inputArgs]="form.ffmpeg.input_args"
+              [outputArgs]="form.ffmpeg.output_args"
+              [downloadProgress]="ffmpegDownloadProgress.value()"
+            />
           }
 
           @case ('notifications') {
-            <div class="toggles">
-              <label class="toggle">
-                <mat-slide-toggle [formField]="form.notifications.enabled" />
-                <span class="toggle__text">
-                  <span class="toggle__label">Notify on a saved clip</span>
-                  <span class="toggle__desc">
-                    Show a desktop notification once the clip is trimmed. Clicking it opens the folder it landed in.
-                  </span>
-                </span>
-              </label>
-
-              <label class="toggle">
-                <mat-slide-toggle
-                  [formField]="form.notifications.urgent_clips"
-                  [disabled]="!form.notifications.enabled().value()"
-                />
-                <span class="toggle__text">
-                  <span class="toggle__label">Show saved clips in Do Not Disturb</span>
-                  <span class="toggle__desc">
-                    Uses the same urgent style as failures, so each clip stays on screen until dismissed. Off means
-                    clips are hidden while you play, which is where Do Not Disturb usually turns itself on.
-                  </span>
-                </span>
-              </label>
-
-              <label class="toggle">
-                <mat-slide-toggle [formField]="form.notifications.failures" />
-                <span class="toggle__text">
-                  <span class="toggle__label">Notify when something fails</span>
-                  <span class="toggle__desc">
-                    Tell you if a clip can't be saved or KovOBS stops watching for runs. Shown even in Do Not
-                    Disturb, and stays until you dismiss it, so a broken session can't pass unnoticed.
-                  </span>
-                </span>
-              </label>
-
-              <label class="toggle">
-                <mat-slide-toggle
-                  [formField]="form.notifications.sound"
-                  [disabled]="!form.notifications.enabled().value() && !form.notifications.failures().value()"
-                />
-                <span class="toggle__text">
-                  <span class="toggle__label">Play a sound</span>
-                  <span class="toggle__desc">Use the system notification sound instead of appearing silently.</span>
-                </span>
-              </label>
-
-              <div class="action">
-                <span class="action__text">
-                  <span class="action__label">Send a test notification</span>
-                  <span class="action__desc">
-                    Checks the whole path at once: it should appear, and clicking it should open your clips folder.
-                  </span>
-                </span>
-                <button
-                  matButton="outlined"
-                  type="button"
-                  [disabled]="!form.notifications.enabled().value()"
-                  (click)="sendTestNotification()"
-                >
-                  Send test
-                </button>
-              </div>
-            </div>
+            <app-notification-settings
+              [enabled]="form.notifications.enabled"
+              [urgentClips]="form.notifications.urgent_clips"
+              [failures]="form.notifications.failures"
+              [sound]="form.notifications.sound"
+            />
           }
 
           @case ('automation') {
-            <div class="toggles">
-              <label class="toggle">
-                <mat-slide-toggle [formField]="form.trim" />
-                <span class="toggle__text">
-                  <span class="toggle__label">Trim clips</span>
-                  <span class="toggle__desc">Cut the replay buffer down to the run. Off copies the whole buffer.</span>
-                </span>
-              </label>
-
-              <label class="toggle">
-                <mat-slide-toggle [formField]="form.auto_start" />
-                <span class="toggle__text">
-                  <span class="toggle__label">Start with Windows</span>
-                  <span class="toggle__desc">Launch KovOBS on boot, minimised to the tray.</span>
-                </span>
-              </label>
-
-              <label class="toggle">
-                <mat-slide-toggle [formField]="form.only_pb" />
-                <span class="toggle__text">
-                  <span class="toggle__label">Personal bests only</span>
-                  <span class="toggle__desc">Keep a clip only when the run beats your best. Off keeps every run.</span>
-                </span>
-              </label>
-
-              <label class="toggle">
-                <mat-slide-toggle [formField]="form.delete_after_trimming" />
-                <span class="toggle__text">
-                  <span class="toggle__label">Delete the buffer</span>
-                  <span class="toggle__desc">Remove the original OBS recording once the clip is saved.</span>
-                </span>
-              </label>
-
-              <label class="toggle">
-                <mat-slide-toggle [formField]="form.screenshot.enabled" />
-                <span class="toggle__text">
-                  <span class="toggle__label">Screenshot the score</span>
-                  <span class="toggle__desc">Capture the end-of-run screen alongside the clip.</span>
-                </span>
-              </label>
-            </div>
+            <app-automation-settings
+              [trim]="form.trim"
+              [autoStart]="form.auto_start"
+              [onlyPb]="form.only_pb"
+              [deleteAfterTrimming]="form.delete_after_trimming"
+              [screenshot]="form.screenshot.enabled"
+            />
           }
 
           @case ('advanced') {
-            <div class="fields">
-              <div class="appearance">
-                <span class="appearance__text">
-                  <span class="appearance__label">Theme</span>
-                  <span class="appearance__desc">System follows your Windows light/dark setting.</span>
-                </span>
-                <div class="segmented">
-                  @for (option of themes; track option.id) {
-                    <button
-                      type="button"
-                      class="segmented__item"
-                      [class.segmented__item--active]="form.theme().value() === option.id"
-                      (click)="setTheme(option.id)"
-                    >
-                      {{ option.label }}
-                    </button>
-                  }
-                </div>
-              </div>
-
-              <mat-form-field>
-                <mat-label>Scan interval (seconds)</mat-label>
-                <input matInput type="number" [formField]="form.processes.scan_interval_secs" />
-                <mat-hint>How often running processes are checked.</mat-hint>
-              </mat-form-field>
-
-              <mat-form-field>
-                <mat-label>Cache file</mat-label>
-                <input matInput [formField]="form.cache_file" />
-                <mat-hint>Stores your personal bests so they survive a restart.</mat-hint>
-              </mat-form-field>
-
-              <div class="danger">
-                <span class="danger__text">
-                  <span class="danger__label">Clear the cache</span>
-                  <span class="danger__desc">Forgets every personal best. It rebuilds from your stat files.</span>
-                </span>
-                <button matButton="outlined" type="button" (click)="clearCache()">Clear cache</button>
-              </div>
-            </div>
+            <app-advanced-settings
+              [theme]="form.theme"
+              [scanInterval]="form.processes.scan_interval_secs"
+              [cacheFile]="form.cache_file"
+            />
           }
 
           @case ('about') {
-            <div class="about">
-              <div class="about__version">
-                <span class="about__label">Version</span>
-                <span class="about__number">{{ about.value()?.version || '—' }}</span>
-              </div>
-
-              @if (update(); as info) {
-                @if (info.update_available) {
-                  <div class="banner">
-                    <mat-icon>upgrade</mat-icon>
-                    <span class="banner__text">Version {{ info.latest }} is available.</span>
-                    <button matButton type="button" (click)="openLatestRelease()">Open release</button>
-                  </div>
-                } @else {
-                  <p class="about__note">You are on the latest release.</p>
-                }
-              } @else if (checkError()) {
-                <p class="about__note about__note--error">{{ checkError() }}</p>
-              } @else {
-                <p class="about__note">Checking is manual, so KovOBS never contacts GitHub on its own.</p>
-              }
-
-              <div class="about__actions">
-                <button matButton="tonal" type="button" [disabled]="checking()" (click)="checkForUpdate()">
-                  {{ checking() ? 'Checking…' : 'Check for updates' }}
-                </button>
-
-                <button matButton="outlined" type="button" (click)="openReleases()">Releases on GitHub</button>
-              </div>
-
-              <div class="danger">
-                <span class="danger__text">
-                  <span class="danger__label">Quit KovOBS</span>
-                  <span class="danger__desc">
-                    Closes it properly instead of hiding to the tray. Clipping stops until you start it again.
-                  </span>
-                </span>
-                <button matButton="outlined" type="button" (click)="quit()">Quit</button>
-              </div>
-            </div>
+            <app-about-settings />
           }
         }
       </div>

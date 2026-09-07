@@ -135,6 +135,11 @@ jobs:
         if: steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
+      # A release used to ship on nothing but a successful compile. The crate is
+      # already built by this point, so this is seconds.
+      - name: Test
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
       - name: Build
         # Uses the prebuilt CLI that npm ci already installed, rather than
         # compiling tauri-cli from source.

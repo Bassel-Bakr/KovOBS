@@ -227,7 +227,10 @@ fn observe_processes() {
                 *FFMPEG_DOWNLOAD_PROGRESS.lock().await,
             ));
 
-            tokio::time::sleep(Duration::from_secs(config_processes.scan_interval_secs)).await;
+            tokio::time::sleep(Duration::from_secs(
+                config_processes.scan_interval_secs.into(),
+            ))
+            .await;
         }
     });
 }

@@ -1,39 +1,29 @@
-import { openUrl } from '@tauri-apps/plugin-opener';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ConfigService } from '../services/config.service';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FieldTree, form, FormField } from '@angular/forms/signals';
-import { open } from '@tauri-apps/plugin-dialog';
-import { MatFormField, MatHint, MatInput, MatLabel, MatSuffix } from '@angular/material/input';
-import { MatButton, MatIconButton } from '@angular/material/button';
+import { form } from '@angular/forms/signals';
+import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
 import { TauriService } from '../services/tauri.service';
-import { CacheService } from '../services/cache.service';
 import { EventService } from '../services/event.service';
 import { combineLatest, of, switchMap, tap } from 'rxjs';
 import { GlobalService } from '../services/global.service';
-import { NotificationService } from '../services/notification.service';
-import { FfmpegService } from '../services/ffmpeg.service';
 import { PathService } from '../services/path.service';
-import { AboutInfo, UpdateInfo, UpdateService } from '../services/update.service';
-import { MatProgressSpinner } from '@angular/material/progress-spinner';
-import { MatSlideToggle } from '@angular/material/slide-toggle';
+import { ObsService } from '../services/obs.service';
 import { isEqual } from 'lodash-es';
-import { Config, Theme } from '../models/config';
+import { Config } from '../models/config';
 import { ThemeService } from '../services/theme.service';
 import SetupComponent from '../setup/setup.component';
 import GameSettingsComponent from './game-settings/game-settings.component';
+import AboutSettingsComponent from './about-settings/about-settings.component';
+import ObsSettingsComponent from './obs-settings/obs-settings.component';
+import ClipSettingsComponent from './clip-settings/clip-settings.component';
+import NotificationSettingsComponent from './notification-settings/notification-settings.component';
+import AutomationSettingsComponent from './automation-settings/automation-settings.component';
+import AdvancedSettingsComponent from './advanced-settings/advanced-settings.component';
 
-type SectionId =
-  | 'kovaaks'
-  | 'aimbeast'
-  | 'obs'
-  | 'clips'
-  | 'notifications'
-  | 'automation'
-  | 'advanced'
-  | 'about';
+type SectionId = 'kovaaks' | 'aimbeast' | 'obs' | 'clips' | 'notifications' | 'automation' | 'advanced' | 'about';
 
 type Section = {
   id: SectionId;
@@ -107,20 +97,17 @@ const SECTIONS: Section[] = [
 @Component({
   selector: 'app-home',
   imports: [
-    FormField,
-    MatFormField,
-    MatInput,
-    MatSuffix,
-    MatLabel,
-    MatHint,
-    MatIconButton,
     MatIcon,
     MatTooltip,
     MatButton,
-    MatProgressSpinner,
-    MatSlideToggle,
     SetupComponent,
     GameSettingsComponent,
+    AboutSettingsComponent,
+    ObsSettingsComponent,
+    ClipSettingsComponent,
+    NotificationSettingsComponent,
+    AutomationSettingsComponent,
+    AdvancedSettingsComponent,
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
@@ -128,13 +115,10 @@ const SECTIONS: Section[] = [
 export default class HomeComponent {
   private readonly configService = inject(ConfigService);
   private readonly tauriService = inject(TauriService);
-  private readonly cacheService = inject(CacheService);
   private readonly eventService = inject(EventService);
-  private readonly ffmpegService = inject(FfmpegService);
   private readonly pathService = inject(PathService);
-  private readonly updateService = inject(UpdateService);
+  private readonly obsService = inject(ObsService);
   private readonly themeService = inject(ThemeService);
-  private readonly notificationService = inject(NotificationService);
   protected readonly globalService = inject(GlobalService);
 
   private readonly refresh = signal(new Date());
@@ -147,8 +131,9 @@ export default class HomeComponent {
 
   protected readonly sections = SECTIONS;
   protected readonly section = signal<SectionId>('kovaaks');
-  protected readonly ffmpegOpen = signal(false);
 
+  /// Read by the first-run gating as well as the clips section, so it belongs
+  /// to the page rather than to either of them.
   protected readonly ffmpegDownloadProgress = rxResource({
     stream: () => this.eventService.ffmpegDownloadProgress(),
     defaultValue: { state: 'NotDone', progress: 0 },
@@ -174,10 +159,16 @@ export default class HomeComponent {
     defaultValue: false,
   });
 
-  protected readonly sources = rxResource<string[] | null, unknown>({
-    stream: () => this.eventService.obsSources(),
-    defaultValue: null,
-  });
+  /**
+   * OBS sources for the dropdowns.
+   *
+   * Filled from two directions: a running session pushes them, and
+   * [`loadSources`] asks directly. Without the second, the dropdowns stayed
+   * empty until Start -- which is backwards, since picking a source is
+   * something you do while setting up.
+   */
+  protected readonly sources = signal<string[] | null>(null);
+  protected readonly loadingSources = signal(false);
 
   protected readonly config = rxResource({
     params: () => ({ refresh: this.refresh() }),
@@ -243,59 +234,6 @@ export default class HomeComponent {
     this.refresh.set(new Date());
   }
 
-  protected readonly about = rxResource<AboutInfo | null, unknown>({
-    stream: () => this.updateService.about(),
-    defaultValue: null,
-  });
-
-  protected readonly update = signal<UpdateInfo | null>(null);
-  protected readonly checking = signal(false);
-  protected readonly checkError = signal('');
-
-  protected checkForUpdate(): void {
-    this.checking.set(true);
-    this.checkError.set('');
-
-    this.updateService.check().subscribe({
-      next: (info) => {
-        this.update.set(info);
-        this.checking.set(false);
-      },
-      error: (error: unknown) => {
-        this.checkError.set(String(error));
-        this.checking.set(false);
-      },
-    });
-  }
-
-  /** The releases index, not a specific release. */
-  protected openReleases(): void {
-    const url = this.about.value()?.releases_url;
-
-    if (url) {
-      void openUrl(url);
-    }
-  }
-
-  /** The page for the release the last check found. */
-  protected openLatestRelease(): void {
-    const url = this.update()?.release_url;
-
-    if (url) {
-      void openUrl(url);
-    }
-  }
-
-  protected readonly themes: { id: Theme; label: string }[] = [
-    { id: 'system', label: 'System' },
-    { id: 'light', label: 'Light' },
-    { id: 'dark', label: 'Dark' },
-  ];
-
-  protected setTheme(theme: Theme): void {
-    this.configForm.theme().value.set(theme);
-  }
-
   protected readonly currentSection = computed(
     () => SECTIONS.find((section) => section.id === this.section()) ?? SECTIONS[0]
   );
@@ -307,6 +245,14 @@ export default class HomeComponent {
   ]);
 
   constructor() {
+    // A running session announces them as it connects.
+    this.eventService
+      .obsSources()
+      .pipe(takeUntilDestroyed())
+      .subscribe((sources) => this.sources.set(sources));
+
+    this.loadSources();
+
     effect(() => {
       const value = this.config.value();
       if (value) {
@@ -324,6 +270,24 @@ export default class HomeComponent {
 
   protected readonly missingPaths = computed(() => this.missingPathsResource.value());
 
+  /**
+   * Asks OBS for its sources directly.
+   *
+   * A failure is left silent: OBS simply not being open is the ordinary case
+   * before Start, and an error banner for it would be noise on every launch.
+   */
+  protected loadSources(): void {
+    this.loadingSources.set(true);
+
+    this.obsService.getSources().subscribe({
+      next: (sources) => {
+        this.sources.set(sources);
+        this.loadingSources.set(false);
+      },
+      error: () => this.loadingSources.set(false),
+    });
+  }
+
   protected isMissing(path: string): boolean {
     return this.missingPaths().has(path);
   }
@@ -331,33 +295,15 @@ export default class HomeComponent {
   protected hasFfmpegArgs(): boolean {
     const { ffmpeg } = this.configForm().value();
 
-    return [ffmpeg.global_args, ffmpeg.input_args, ffmpeg.output_args].some(
-      (slot) => slot.trim().length > 0
-    );
+    return [ffmpeg.global_args, ffmpeg.input_args, ffmpeg.output_args].some((slot) => slot.trim().length > 0);
   }
 
   protected selectSection(id: SectionId): void {
     this.section.set(id);
   }
 
-  protected toggleFfmpeg(): void {
-    this.ffmpegOpen.update((open) => !open);
-  }
-
   protected toggleLogs(): void {
     this.globalService.showLogs.update((shown) => !shown);
-  }
-
-  protected quit(): void {
-    this.tauriService.quit().subscribe();
-  }
-
-  protected clearCache(): void {
-    this.cacheService.clearCache().subscribe();
-  }
-
-  protected sendTestNotification(): void {
-    this.notificationService.sendTest().subscribe();
   }
 
   protected discard(): void {
@@ -373,12 +319,15 @@ export default class HomeComponent {
    * save when the app is running so settings can be changed in place.
    */
   protected save(): void {
+    // Stopping is asynchronous. Capture the whole form now so an intervening
+    // config refresh cannot replace the values this click was meant to save.
+    const config = structuredClone(this.configForm().value());
     const wasRunning = this.isRunning.value();
 
     (wasRunning ? this.tauriService.stop() : of(undefined))
       .pipe(
-        switchMap(() => this.configService.saveConfig(this.configForm().value())),
-        switchMap(() => this.tauriService.setAutoStart(this.configForm.auto_start().value())),
+        switchMap(() => this.configService.saveConfig(config)),
+        switchMap(() => this.tauriService.setAutoStart(config.auto_start)),
         switchMap(() => (wasRunning ? this.tauriService.start() : of(undefined)))
       )
       .subscribe(() => {
@@ -403,37 +352,6 @@ export default class HomeComponent {
     } else {
       this.start();
     }
-  }
-
-  protected browse(field: FieldTree<string, string>): void {
-    open({
-      directory: true,
-      multiple: false,
-    }).then((path) => {
-      if (path != null) {
-        field().value.set(path ?? '');
-      }
-    });
-  }
-
-  protected browseFile(field: FieldTree<string, string>): void {
-    open({ multiple: false }).then((path) => {
-      if (path != null) {
-        field().value.set(path ?? '');
-      }
-    });
-  }
-
-  protected openFFmpegHelp(): void {
-    void openUrl('https://ffmpeg.org/ffmpeg.html');
-  }
-
-  protected downloadFFmpeg(): void {
-    this.ffmpegService.download().subscribe();
-  }
-
-  protected deleteFFmpeg(): void {
-    this.ffmpegService.remove().subscribe();
   }
 
   protected runExe(...params: Parameters<typeof this.tauriService.runExe>): void {

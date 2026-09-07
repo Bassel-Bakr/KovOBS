@@ -1,0 +1,44 @@
+<div class="fields">
+  <div class="fields__row">
+    <mat-form-field>
+      <mat-label>Host</mat-label>
+      <input matInput [formField]="host()" />
+    </mat-form-field>
+
+    <mat-form-field class="fields__narrow">
+      <mat-label>Port</mat-label>
+      <input matInput type="number" [formField]="port()" />
+    </mat-form-field>
+  </div>
+
+  <mat-form-field>
+    <mat-label>Password</mat-label>
+    <input matInput type="password" [formField]="password()" />
+    <mat-hint>Set under Tools, WebSocket Server Settings, in OBS.</mat-hint>
+  </mat-form-field>
+
+  @if (sources(); as found) {
+    <div class="banner">
+      <mat-icon>check</mat-icon>
+      <span>Connected. {{ found.length }} sources found.</span>
+    </div>
+  }
+
+  <button matButton type="button" (click)="refresh.emit()" [disabled]="loading()">
+    <mat-icon class="icon--native-size">refresh</mat-icon>
+    {{ loading() ? 'Refreshing sources...' : 'Refresh sources' }}
+  </button>
+
+  <mat-form-field>
+    <mat-label>Executable</mat-label>
+    <input matInput [formField]="executable()" />
+    <button matIconButton matSuffix type="button" (click)="browseFile(executable())">
+      <mat-icon>terminal</mat-icon>
+    </button>
+    @if (isMissing(executable()().value())) {
+      <mat-hint class="hint--error">Cannot find this file, so OBS will not be detected or launched.</mat-hint>
+    } @else {
+      <mat-hint>Used to detect and launch OBS.</mat-hint>
+    }
+  </mat-form-field>
+</div>

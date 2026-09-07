@@ -1,0 +1,211 @@
+// Styles shared by more than one settings section.
+//
+// Angular encapsulates component styles, so a section component does not
+// inherit these from the page that hosts it -- each one has to `@use` this.
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-width: 720px;
+
+  &__row {
+    display: flex;
+    gap: 0.875rem;
+
+    > * {
+      flex: 1;
+    }
+  }
+
+  &__narrow {
+    max-width: 140px;
+    flex: 0 0 140px;
+  }
+
+  mat-form-field {
+    width: 100%;
+  }
+}
+
+.hint--error {
+  color: var(--mat-sys-error);
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.8rem 0.95rem;
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+  font: var(--mat-sys-body-medium);
+
+  &__text {
+    flex: 1;
+  }
+}
+
+.panel {
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.875rem 1rem;
+    cursor: pointer;
+    text-align: left;
+
+    background: var(--mat-sys-surface-container);
+    color: var(--mat-sys-on-surface);
+    border: none;
+  }
+
+  &__text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__title {
+    font: var(--mat-sys-title-small);
+  }
+
+  &__blurb {
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  &__badge {
+    font: var(--mat-sys-label-small);
+    padding: 0.2rem 0.55rem;
+    border-radius: 10px;
+    background: var(--mat-sys-surface-container-high);
+    color: var(--mat-sys-on-surface-variant);
+    white-space: nowrap;
+  }
+
+  &__chevron {
+    color: var(--mat-sys-on-surface-variant);
+    transition: transform 150ms ease;
+
+    &--open {
+      transform: rotate(180deg);
+    }
+  }
+
+  &__body {
+    padding: 1rem;
+    border-top: 1px solid var(--mat-sys-outline-variant);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+}
+
+.toggles {
+  display: flex;
+  flex-direction: column;
+  max-width: 720px;
+}
+
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.8rem 0.75rem;
+  border-radius: 10px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--mat-sys-surface-container-low);
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__label {
+    font: var(--mat-sys-title-small);
+  }
+
+  &__desc {
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+    text-wrap: pretty;
+  }
+}
+
+.danger {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  padding: 0.95rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--mat-sys-outline-variant);
+
+  &__text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__label {
+    font: var(--mat-sys-title-small);
+  }
+
+  &__desc {
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+// Same shape as .danger, for a row that acts rather than warns.
+.action {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+
+  &__text {
+    // Same as .danger__text: without it the description refuses to shrink and
+    // pushes the button off the edge of a narrow window.
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__label {
+    font: var(--mat-sys-title-small);
+  }
+
+  &__desc {
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  button {
+    flex-shrink: 0;
+  }
+}

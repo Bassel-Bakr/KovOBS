@@ -1,0 +1,22 @@
+@use '../section';
+
+.shape {
+  margin: 0 0 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+
+  background: var(--mat-sys-surface-container-low);
+  color: var(--mat-sys-on-surface-variant);
+  font-family: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px;
+
+  em {
+    font-style: normal;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    background: var(--mat-sys-primary-container);
+    color: var(--mat-sys-on-primary-container);
+  }
+}

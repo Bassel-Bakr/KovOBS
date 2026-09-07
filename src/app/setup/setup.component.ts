@@ -1,6 +1,6 @@
 import { Component, computed, effect, inject, output, signal, untracked } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { open } from '@tauri-apps/plugin-dialog';
+import { pickFile, pickFolder } from '../browse';
 import { MatFormField, MatHint, MatInput, MatLabel } from '@angular/material/input';
 import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
@@ -111,7 +111,7 @@ export default class SetupComponent {
   }
 
   protected async pickClipsFolder(): Promise<void> {
-    const folder = await open({ directory: true, multiple: false });
+    const folder = await pickFolder();
 
     if (folder != null) {
       this.patch((config) => ({
@@ -123,7 +123,7 @@ export default class SetupComponent {
   }
 
   protected async pickGame(which: 'kovaaks' | 'aimbeast'): Promise<void> {
-    const file = await open({ multiple: false });
+    const file = await pickFile();
 
     if (file != null) {
       this.patch((config) => ({

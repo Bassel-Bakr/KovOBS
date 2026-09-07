@@ -1,297 +1,27 @@
+//! Noticing that a run has finished.
+//!
+//! Watches each game's stats folder and, when a new run lands, asks OBS to save
+//! its replay buffer and take the screenshot. What OBS then writes is picked up
+//! by [`super::clips`].
+
 use crate::cache::Cache;
 use crate::delay::StatDelay;
-use crate::events::AppEvent;
-use crate::globals::{APP_HANDLE, APP_STATE, AppState};
 use crate::stat::StatType;
-use crate::{
-    cmds, config::AppConfig, consts, events, ffmpeg, notification, stat::Stat, ui_println, utils,
-};
+use crate::{config::AppConfig, consts, stat::Stat, ui_println, utils};
 use anyhow::Context;
-use chrono::{TimeDelta, Utc};
+use chrono::Utc;
 use encoding_rs_io::DecodeReaderBytesBuilder;
-use futures_util::StreamExt;
 use notify::{RecommendedWatcher, Watcher};
+use obws::Client;
 use obws::requests::sources::SaveScreenshot;
-use obws::{Client, events::Event::ReplayBufferSaved};
-use std::{panic, path};
+use std::panic;
 use std::{sync::Arc, time::Duration};
 use tokio::fs;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 use tokio::time::Instant;
-
-pub async fn start() -> Result<(), anyhow::Error> {
-    // Register panic handler
-    panic::set_hook(Box::new(|info| {
-        ui_println!("💥 App crashed: {}", info);
-    }));
-
-    if let Err(err) = run().await {
-        ui_println!("🛑 Error: {}", err);
-    }
-
-    let app_state = &mut APP_STATE.wait().await.lock().await;
-    app_state.is_running = false;
-    _ = events::emit(AppEvent::Running(app_state.is_running));
-
-    Ok(())
-}
-
-pub async fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let app_handle = APP_HANDLE.get().unwrap();
-
-    let config = AppConfig::open(app_handle)?;
-    let config_clone = config.clone();
-    // Set app state
-    let mut app_state = AppState::new();
-    app_state.config.replace(Arc::new(config));
-    app_state.is_ready = true;
-
-    APP_STATE
-        .set(Mutex::new(app_state))
-        .map_err(|e| e.to_string())?;
-
-    _ = events::emit(AppEvent::Config(config_clone.into()));
-
-    Ok(())
-}
-
-async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let config = {
-        let app_state = &APP_STATE.wait().await.lock().await;
-        app_state.config.clone().unwrap()
-    };
-
-    let cache = {
-        let app_handle = APP_HANDLE.get().unwrap();
-        Cache::new(app_handle, &config.cache_file).await?
-    };
-
-    ui_println!("⏺️ Connecting to OBS...");
-    let client = Client::connect(
-        &config.obs.host,
-        config.obs.port,
-        Some(&config.obs.password),
-    )
-    .await?;
-    ui_println!("✅ Done");
-
-    ui_println!("🔃 Making sure replay buffer is enabled...");
-    if let Ok(true) = client.replay_buffer().status().await {
-        ui_println!("😃 Already active!");
-    } else {
-        ui_println!("🫡 Activating...");
-        client.replay_buffer().start().await?;
-    }
-    ui_println!("✅ Done");
-
-    let mut client = Arc::new(client);
-    let cache = Arc::new(Mutex::new(cache));
-
-    // Update app state
-    {
-        let app_state = &mut APP_STATE.wait().await.lock().await;
-
-        app_state.cache.replace(cache.clone());
-        app_state.client.replace(client.clone());
-
-        // We're ready to display the UI now
-        app_state.is_ready = true;
-        app_state.is_running = true;
-    };
-    events::emit(AppEvent::Running(true))?;
-
-    let obs_sources = cmds::get_obs_sources().await?;
-    events::emit(events::AppEvent::ObsSources(obs_sources.into()))?;
-
-    let kovaaks_stats = path::PathBuf::from(&config.stats_folder);
-    let aimbeast_stats = path::PathBuf::from(&config.aimbeast.stats_folder);
-
-    if kovaaks_stats.exists() {
-        tokio::spawn(rebuild_cache(config.clone(), cache.clone()));
-    }
-
-    // Last seen stat
-    let (tx, rx) = mpsc::channel::<Stat>(1);
-
-    let tx = Arc::new(tx);
-
-    let mut tasks = JoinSet::new();
-    let mut watch_tasks = JoinSet::new();
-
-    tasks.spawn(listen_to_obs_events(config.clone(), client.clone(), rx));
-
-    if kovaaks_stats.exists() {
-        watch_tasks.spawn(watch_kovaaks_stats_folder(
-            config.clone(),
-            client.clone(),
-            cache.clone(),
-            tx.clone(),
-        ));
-    }
-
-    if aimbeast_stats.exists() {
-        watch_tasks.spawn(watch_aimbeast_stats_folder(
-            config.clone(),
-            client.clone(),
-            tx.clone(),
-        ));
-    }
-
-    let res: Result<(), Box<dyn std::error::Error + Send + Sync>> = tokio::select! {
-        res = tokio::signal::ctrl_c() => {
-            ui_println!("🔎 Ctrl+C received. Shutting down!");
-            tasks.shutdown().await;
-            res.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
-        }
-        res = tasks.join_next() => {
-            res.transpose()?.transpose().map(|_| ())
-        }
-        // A watcher only ever finishes by failing, and nothing was watching for
-        // that: the session carried on with the tray still showing "running"
-        // while no runs were being noticed at all. The guard matters -- an
-        // empty JoinSet yields None immediately and would spin this select.
-        Some(res) = watch_tasks.join_next(), if !watch_tasks.is_empty() => {
-            let error = match res {
-                Ok(Err(e)) => Some(e.to_string()),
-                Err(e) => Some(e.to_string()),
-                Ok(Ok(())) => None,
-            };
-
-            match error {
-                Some(error) => {
-                    notification::failed(
-                        "stopped watching for runs",
-                        &format!("No more clips will be saved until you restart.\n{error}"),
-                        &config.notifications,
-                    );
-
-                    Err(error.into())
-                }
-                None => Ok(()),
-            }
-        }
-    };
-
-    watch_tasks.shutdown().await;
-
-    if let Err(e) = res {
-        ui_println!("❌ Error: {}", e);
-    }
-
-    ui_println!("📦 Saving cache updates...");
-    cache.clone().lock().await.save(Utc::now())?;
-    ui_println!("✅ Done");
-
-    if let Some(client) = Arc::get_mut(&mut client) {
-        ui_println!("🚫 Disconnecting from OBS...");
-        client.disconnect().await;
-        ui_println!("✅ Done");
-    }
-
-    Ok(())
-}
-
-async fn listen_to_obs_events(
-    config: Arc<AppConfig>,
-    client: Arc<Client>,
-    mut stat_receiver: mpsc::Receiver<Stat>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // 1. Obtain the event stream
-    let mut events = client.events()?;
-
-    ui_println!("🔔 Listening to OBS events");
-
-    // 2. Listen to events as they occur
-    while let Some(event) = events.next().await {
-        if let ReplayBufferSaved {
-            path: replay_buffer,
-        } = event
-        {
-            let stat = match stat_receiver.try_recv() {
-                Ok(stat) => stat,
-                Err(_) => {
-                    ui_println!("ℹ️ Ignoring external ReplayBufferSaved event");
-                    continue;
-                }
-            };
-
-            // One clip failing is not a reason to stop listening. Whatever
-            // went wrong -- a bad FFmpeg arg, an unreadable buffer -- applies
-            // to this run, and the session has to survive it: the alternative
-            // is that a single typo silently ends clipping for the evening.
-            if let Err(e) = store_clip(&config, &replay_buffer, &stat).await {
-                ui_println!("👎 Could not save the clip for {}:\n{e}", stat.scenario);
-
-                notification::failed(
-                    "clip not saved",
-                    &format!("{}\n{e}", stat.scenario),
-                    &config.notifications,
-                );
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Turns a saved replay buffer into the finished clip, notifies, and cleans up.
-///
-/// Distinct from [`save_clip`], which asks OBS to write the buffer out in the
-/// first place. Every failure in here belongs to a single run, so they are
-/// returned rather than propagated out of the event loop.
-async fn store_clip(
-    config: &AppConfig,
-    replay_buffer: &path::Path,
-    stat: &Stat,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let output_path = match stat.stat_type {
-        StatType::Aimbeast => path::Path::new(&config.aimbeast.clips_folder).join(&stat.scenario),
-        StatType::KovaaKs => path::Path::new(&config.clips_folder).join(&stat.scenario),
-    };
-
-    let clip_path = output_path.join(format!("{}.mp4", stat));
-
-    // Calculate duration based on the clip time and scenario end time
-    let trim_start_point = stat.start_dt - Duration::from_secs_f32(config.trim_padding_start);
-    let duration = utils::get_creation_or_modification_time(replay_buffer)? - trim_start_point;
-
-    // TODO: Aimbeast trimming is experimental and fixed at 1m. Figure out how to get the scenario length to fix it
-    let trim_duration = if config.trim {
-        // Trim using ffmpeg
-        duration
-    } else {
-        // Copy the buffer and don't really trim it
-        // Can't think of a scenario longer than 1 day
-        TimeDelta::from_std(Duration::from_hours(24))?
-    };
-
-    ffmpeg::trim(replay_buffer, &clip_path, trim_duration, &config.ffmpeg).await?;
-
-    notification::clip_saved(
-        "Clip saved",
-        &stat.to_string(),
-        &clip_path,
-        &config.notifications,
-    );
-
-    // Delete the replay buffer clip if we no longer need it
-    if config.delete_after_trimming {
-        tokio::fs::remove_file(replay_buffer)
-            .await
-            .with_context(|| {
-                format!(
-                    "Failed to delete replay buffer after trimming: {}",
-                    replay_buffer.display()
-                )
-            })?;
-    }
-
-    Ok(())
-}
-
-async fn watch_kovaaks_stats_folder(
+pub(super) async fn watch_kovaaks_stats_folder(
     config: Arc<AppConfig>,
     client: Arc<Client>,
     cache: Arc<Mutex<Cache>>,
@@ -396,7 +126,7 @@ async fn watch_kovaaks_stats_folder(
     }
 }
 
-async fn watch_aimbeast_stats_folder(
+pub(super) async fn watch_aimbeast_stats_folder(
     config: Arc<AppConfig>,
     client: Arc<Client>,
     stat_sender: Arc<mpsc::Sender<Stat>>,
@@ -597,35 +327,6 @@ async fn save_screenshot(
         })?;
 
     ui_println!("🗃️ Saved screenshot: {}", sc_path.to_string_lossy());
-
-    Ok(())
-}
-
-async fn rebuild_cache(
-    config: Arc<AppConfig>,
-    cache: Arc<Mutex<Cache>>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    ui_println!("📦 Rebuilding cache from stat files...");
-
-    let instant = Instant::now();
-
-    let mut cache = cache.lock().await;
-
-    let res = async {
-        cache.load()?;
-        cache.update(&config.stats_folder)?;
-        Ok::<_, anyhow::Error>(())
-    }
-    .await;
-
-    if let Err(e) = res {
-        ui_println!("❌ Cache rebuild failed: {}", e);
-    }
-
-    ui_println!(
-        "✅ Done rebuilding cache in {:.2}s",
-        instant.elapsed().as_secs_f32()
-    );
 
     Ok(())
 }

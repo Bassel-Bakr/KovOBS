@@ -19,7 +19,7 @@ silently, and never let one bad clip end the session.
 | `src-tauri/src/kovobs.rs` | orchestration: OBS events, stat watchers, task set |
 | `src-tauri/src/ffmpeg.rs` | two-pass trim, then optional user args |
 | `src-tauri/src/config.rs` | all config structs and defaults |
-| `src-tauri/src/cmds/` | commands callable from the frontend |
+| `src-tauri/src/cmds/` | commands callable from the frontend, one file per concern |
 | `src/app/home/` | the settings window |
 | `.github/workflows/` | release and version bump |
 
@@ -42,12 +42,15 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
 ```
 
 ```bash
+npx ng test
+```
+
+```bash
 npx ng build
 ```
 
-Three clippy warnings are pre-existing (`cmds/ffmpeg.rs` redundant import,
-`cmds/mod.rs` module inception, `aimbeast/scenario_statistics.rs` partial
-comparison). Do not treat them as caused by your change.
+Clippy is clean, and CI runs it with `-D warnings`. Any warning you see is
+from your change.
 
 ---
 
@@ -90,8 +93,10 @@ comparison). Do not treat them as caused by your change.
 `.github/workflows/release.yml` triggers on a push to `main` touching
 `src-tauri/Cargo.toml`, and on manual dispatch. It builds and publishes.
 
-**It runs no tests, no clippy, and nothing on pull requests.** Tests gate
-nothing today — verify locally before claiming a change is good.
+`.github/workflows/checks.yml` runs formatting, clippy (`-D warnings`), the
+Rust tests, a generated-types freshness check, and the frontend tests and
+build -- on pull requests, on pushes to `main`, and on demand. `release.yml`
+runs the Rust tests before it builds.
 
 The build caches the registry and `target/` via a Rust cache action. Do not
 reintroduce a compilation cache with a per-object remote backend; it fragmented
