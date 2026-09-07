@@ -1,6 +1,6 @@
 import { Component, input } from '@angular/core';
 import { FieldTree, FormField } from '@angular/forms/signals';
-import { open } from '@tauri-apps/plugin-dialog';
+import { browseFolder, browseFile } from '../../browse';
 import { MatFormField, MatHint, MatInput, MatLabel, MatSuffix } from '@angular/material/input';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
@@ -36,23 +36,10 @@ export default class GameSettingsComponent {
   readonly sources = input<string[] | null>(null);
   readonly missing = input<ReadonlySet<string>>(new Set());
 
+  protected readonly browseFolder = browseFolder;
+  protected readonly browseFile = browseFile;
+
   protected isMissing(path: string): boolean {
     return this.missing().has(path);
-  }
-
-  protected async browseFolder(field: FieldTree<string, string>): Promise<void> {
-    const folder = await open({ directory: true, multiple: false });
-
-    if (folder != null) {
-      field().value.set(folder);
-    }
-  }
-
-  protected async browseFile(field: FieldTree<string, string>): Promise<void> {
-    const file = await open({ multiple: false });
-
-    if (file != null) {
-      field().value.set(file);
-    }
   }
 }

@@ -3,7 +3,7 @@ import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatFormField, MatHint, MatInput, MatLabel, MatSuffix } from '@angular/material/input';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
-import { browseFile } from '../browse';
+import { browseFile } from '../../browse';
 
 /** How KovOBS reaches OBS, and where its executable lives. */
 @Component({
