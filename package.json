@@ -38,10 +38,10 @@
     "@angular/compiler-cli": "^22.0.1",
     "@tauri-apps/cli": "^2",
     "@types/lodash-es": "^4.17.12",
-    "@vitest/browser": "^5.0.0",
+    "@vitest/browser": "^4.1.11",
     "jsdom": "^30.0.1",
     "prettier": "^3.8.4",
     "typescript": "~6.0.3",
-    "vitest": "^5.0.0"
+    "vitest": "^4.1.11"
   }
 }
