@@ -24,6 +24,11 @@
     </div>
   }
 
+  <button matButton type="button" (click)="refresh.emit()" [disabled]="loading()">
+    <mat-icon class="icon--native-size">refresh</mat-icon>
+    {{ loading() ? 'Refreshing sources...' : 'Refresh sources' }}
+  </button>
+
   <mat-form-field>
     <mat-label>Executable</mat-label>
     <input matInput [formField]="executable()" />
