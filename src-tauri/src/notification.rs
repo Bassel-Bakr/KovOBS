@@ -290,7 +290,10 @@ fn reveal(folder: &Path) {
         return;
     }
 
-    if let Err(e) = app_handle.opener().open_path(folder.to_string_lossy(), None::<&str>) {
+    if let Err(e) = app_handle
+        .opener()
+        .open_path(folder.to_string_lossy(), None::<&str>)
+    {
         ui_println!("👎 Failed to open the clip folder: {e:?}");
     }
 }
@@ -373,7 +376,10 @@ mod tests {
             file_url(Path::new(r"E:\Clips\A & B")),
             "file:///E:/Clips/A%20%26%20B"
         );
-        assert_eq!(escape("Ctrl<click> & 'go'"), "Ctrl&lt;click&gt; &amp; &apos;go&apos;");
+        assert_eq!(
+            escape("Ctrl<click> & 'go'"),
+            "Ctrl&lt;click&gt; &amp; &apos;go&apos;"
+        );
     }
 
     /// Scenario names are frequently non-ASCII; those must not reach the XML raw.

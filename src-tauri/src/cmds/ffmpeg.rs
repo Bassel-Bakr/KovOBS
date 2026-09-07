@@ -4,7 +4,6 @@ use crate::events::AppEvent;
 use crate::ffmpeg::FFmpegDownloadProgress;
 use crate::globals::{APP_HANDLE, FFMPEG_DOWNLOAD_PROGRESS};
 use crate::{events, ffmpeg};
-use ffmpeg_sidecar;
 use ffmpeg_sidecar::download::FfmpegDownloadProgressEvent;
 use std::path::PathBuf;
 use tokio::sync::mpsc::UnboundedSender;
