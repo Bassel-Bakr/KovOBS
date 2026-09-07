@@ -8,7 +8,7 @@
     "update": "ng update @angular/core @angular/cli",
     "format": "prettier --write ./src",
     "tauri": "tauri",
-    "generate": "cargo test --manifest-path src-tauri/Cargo.toml --lib && prettier --write src/app/models"
+    "generate": "cargo test --manifest-path src-tauri/Cargo.toml --lib"
   },
   "private": true,
   "dependencies": {

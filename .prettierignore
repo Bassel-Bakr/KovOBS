@@ -1,0 +1,4 @@
+# Written by ts-rs during `cargo test`. Formatting them here would put the
+# working tree in conflict with the generator on every test run.
+src/app/models/bindings/
+src/app/models/default-config.ts
