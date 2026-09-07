@@ -206,13 +206,17 @@ fn trim_args(
 /// Builds `ffmpeg [global] [input] -i in [output] out` from the user's three
 /// slots.
 ///
-/// Only two options are imposed, and both do real work: `-progress pipe:1` is
-/// what `run` reads to report progress, and `-y` stops FFmpeg prompting on stdin
-/// when the output exists, which would hang because nothing writes to stdin.
-/// `-hide_banner`, `-loglevel` and `-nostats` are deliberately absent: they only
-/// shape stderr, which isn't captured, so here they'd do nothing.
+/// Only two options are imposed, and both are mechanically required rather than
+/// a matter of taste: `-progress pipe:1` is what `run` reads to report progress,
+/// and `-y` stops FFmpeg prompting on stdin when the output exists, which would
+/// hang because nothing writes to stdin.
 ///
-/// The user's args come after, so both can still be overridden.
+/// The log-shaping options that `trim_args` sets -- `-hide_banner`,
+/// `-loglevel error`, `-nostats` -- are deliberately absent here. This pass is
+/// the user's command, and its output is theirs to shape. The cost is measured:
+/// on a rejected option, the stderr `run` captures and quotes back runs to 12
+/// lines instead of 2, the extra 10 being the version banner and library list.
+/// Anyone who wants that trimmed can put the same options in the global slot.
 fn extra_command(
     in_file: &path::Path,
     out_file: &path::Path,
