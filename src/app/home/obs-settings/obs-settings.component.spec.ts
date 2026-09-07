@@ -13,6 +13,7 @@ import ObsSettingsComponent from './obs-settings.component';
     [executable]="model.executable"
     [sources]="sources()"
     [missing]="missing()"
+    (refresh)="onRefresh()"
   />`,
 })
 class Host {
@@ -20,6 +21,11 @@ class Host {
 
   readonly sources = signal<string[] | null>(null);
   readonly missing = signal<ReadonlySet<string>>(new Set());
+  refreshes = 0;
+
+  onRefresh(): void {
+    this.refreshes++;
+  }
 }
 
 describe('ObsSettingsComponent', () => {
@@ -38,6 +44,16 @@ describe('ObsSettingsComponent', () => {
 
     expect(inputs.map((i) => i.value)).toContain('localhost');
     expect(inputs.map((i) => i.value)).toContain('4455');
+  });
+
+  it('requests refreshed sources', () => {
+    const fixture = render();
+    const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
+    const button = buttons.find((element) => element.textContent?.includes('Refresh sources'));
+
+    button?.click();
+
+    expect(fixture.componentInstance.refreshes).toBe(1);
   });
 
   /** Nothing is shown until OBS has actually answered. */
