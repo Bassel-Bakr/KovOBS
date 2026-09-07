@@ -53,6 +53,10 @@ pub struct ScreenshotConfig {
 #[serde(default)]
 pub struct NotificationsConfig {
     pub enabled: bool,
+    /// Notify when something goes wrong, not just when a clip lands. Separate
+    /// from `enabled`: someone who finds a toast per clip noisy may still want
+    /// to hear that clipping has stopped working.
+    pub failures: bool,
     pub sound: bool,
 }
 
@@ -60,6 +64,7 @@ impl Default for NotificationsConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            failures: true,
             sound: true,
         }
     }
@@ -293,6 +298,7 @@ mod tests {
         let config = load_json("no-notifications", r#"{ "trim": false }"#);
 
         assert!(config.notifications.enabled);
+        assert!(config.notifications.failures);
         assert!(config.notifications.sound);
     }
 
@@ -302,6 +308,7 @@ mod tests {
         let config = load_json("muted", r#"{ "notifications": { "sound": false } }"#);
 
         assert!(config.notifications.enabled);
+        assert!(config.notifications.failures);
         assert!(!config.notifications.sound);
     }
 }

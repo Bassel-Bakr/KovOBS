@@ -46,6 +46,7 @@ export class ConfigService {
       },
       notifications: {
         enabled: true,
+        failures: true,
         sound: true,
       },
       ffmpeg: {

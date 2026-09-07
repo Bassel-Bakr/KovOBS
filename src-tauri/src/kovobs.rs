@@ -148,6 +148,32 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         res = tasks.join_next() => {
             res.transpose()?.transpose().map(|_| ())
         }
+        // A watcher only ever finishes by failing, and nothing was watching for
+        // that: the session carried on with the tray still showing "running"
+        // while no runs were being noticed at all. The guard matters -- an
+        // empty JoinSet yields None immediately and would spin this select.
+        Some(res) = watch_tasks.join_next(), if !watch_tasks.is_empty() => {
+            let error = match res {
+                Ok(Err(e)) => Some(e.to_string()),
+                Err(e) => Some(e.to_string()),
+                Ok(Ok(())) => None,
+            };
+
+            match error {
+                Some(error) => {
+                    if config.notifications.failures {
+                        notification::failed(
+                            "stopped watching for runs",
+                            &format!("No more clips will be saved until you restart.\n{error}"),
+                            config.notifications.sound,
+                        );
+                    }
+
+                    Err(error.into())
+                }
+                None => Ok(()),
+            }
+        }
     };
 
     watch_tasks.shutdown().await;
@@ -218,7 +244,20 @@ async fn listen_to_obs_events(
                 TimeDelta::from_std(Duration::from_hours(24))?
             };
 
-            ffmpeg::trim(&replay_buffer, &clip_path, trim_duration, &config.ffmpeg).await?;
+            // The run is already over by the time this fails, so the clip is
+            // gone for good -- worth interrupting a game for in a way that a
+            // successful save is not.
+            ffmpeg::trim(&replay_buffer, &clip_path, trim_duration, &config.ffmpeg)
+                .await
+                .inspect_err(|e| {
+                    if config.notifications.failures {
+                        notification::failed(
+                            "clip not saved",
+                            &format!("{}\n{e}", stat.scenario),
+                            config.notifications.sound,
+                        );
+                    }
+                })?;
 
             if config.notifications.enabled {
                 notification::clip_saved(

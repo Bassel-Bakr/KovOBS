@@ -24,6 +24,7 @@
   },
   "notifications": {
     "enabled": true,
+    "failures": true,
     "sound": true
   },
   "processes": {

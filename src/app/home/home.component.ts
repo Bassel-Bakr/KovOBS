@@ -79,7 +79,7 @@ const SECTIONS: Section[] = [
     label: 'Notifications',
     icon: 'notifications',
     title: 'Notifications',
-    blurb: 'The desktop notification shown once a clip is saved and trimmed.',
+    blurb: 'Desktop notifications for a saved clip, and for anything that goes wrong while you play.',
   },
   {
     id: 'automation',

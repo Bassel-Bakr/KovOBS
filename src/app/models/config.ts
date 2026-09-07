@@ -29,6 +29,7 @@ export type Config = {
   };
   notifications: {
     enabled: boolean;
+    failures: boolean;
     sound: boolean;
   };
   ffmpeg: {

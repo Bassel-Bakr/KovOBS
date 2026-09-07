@@ -15,7 +15,27 @@ const ACTION_LABEL: &str = "Show in folder";
 /// Failures are reported to the log panel rather than propagated: a notification
 /// that didn't appear is never a good reason to fail the clip that was saved.
 pub fn clip_saved(title: &str, body: &str, clip: &Path, sound: bool) {
-    show(title.to_owned(), body.to_owned(), clip.to_path_buf(), sound);
+    show(
+        title.to_owned(),
+        body.to_owned(),
+        clip.parent().map(Path::to_path_buf),
+        sound,
+    );
+}
+
+/// Reports something that went wrong while KovOBS was running unattended.
+///
+/// Deliberately has nothing to click: the useful destination would be the log
+/// panel, and there is no way to address it from a notification. Getting told
+/// at all is the point -- the alternative is finding out after the session that
+/// clips silently stopped being saved.
+pub fn failed(what: &str, detail: &str, sound: bool) {
+    show(
+        format!("KovOBS: {what}"),
+        detail.to_owned(),
+        None,
+        sound,
+    );
 }
 
 /// Windows keeps a toast in the Action Center long after it has left the
@@ -36,18 +56,29 @@ pub fn clip_saved(title: &str, body: &str, clip: &Path, sound: bool) {
 /// `<toast {duration} {scenario}>` with nowhere to put `launch` or
 /// `activationType` -- so the XML is built here.
 #[cfg(windows)]
-fn show(title: String, body: String, clip: PathBuf, sound: bool) {
+fn show(title: String, body: String, folder: Option<PathBuf>, sound: bool) {
     use windows::Data::Xml::Dom::XmlDocument;
     use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
     use windows::core::HSTRING;
 
-    // The folder, not the clip: a file:// URL to a video would play it, which
-    // is not what "Show in folder" says.
-    let Some(folder) = clip.parent() else {
-        return;
-    };
+    // A toast with somewhere to go carries the folder on both the body and the
+    // button; one without stays inert rather than pretending to be clickable.
+    let (launch, actions) = match folder {
+        Some(folder) => {
+            let target = file_url(&folder);
 
-    let target = file_url(folder);
+            (
+                format!("activationType='protocol' launch='{target}'"),
+                format!(
+                    "<actions>\
+                       <action content='{}' activationType='protocol' arguments='{target}'/>\
+                     </actions>",
+                    escape(ACTION_LABEL)
+                ),
+            )
+        }
+        None => (String::new(), String::new()),
+    };
 
     // Toasts play the default sound unless told not to.
     let audio = if sound {
@@ -57,21 +88,18 @@ fn show(title: String, body: String, clip: PathBuf, sound: bool) {
     };
 
     let xml = format!(
-        "<toast duration='long' activationType='protocol' launch='{target}'>\
+        "<toast duration='long' {launch}>\
            <visual>\
              <binding template='ToastGeneric'>\
                <text>{}</text>\
                <text>{}</text>\
              </binding>\
            </visual>\
-           <actions>\
-             <action content='{}' activationType='protocol' arguments='{target}'/>\
-           </actions>\
+           {actions}\
            {audio}\
          </toast>",
         escape(&title),
         escape(&body),
-        escape(ACTION_LABEL),
     );
 
     let show = || -> windows::core::Result<()> {
@@ -147,7 +175,7 @@ fn escape(text: &str) -> String {
 }
 
 #[cfg(not(windows))]
-fn show(title: String, body: String, clip: PathBuf, sound: bool) {
+fn show(title: String, body: String, folder: Option<PathBuf>, sound: bool) {
     use notify_rust::{Notification, NotificationResponse};
 
     // `wait_for_response` blocks until the notification is acted on or closes,
@@ -155,10 +183,11 @@ fn show(title: String, body: String, clip: PathBuf, sound: bool) {
     std::thread::spawn(move || {
         let mut notification = Notification::new();
 
-        notification
-            .summary(&title)
-            .body(&body)
-            .action(DEFAULT_ACTION, ACTION_LABEL);
+        notification.summary(&title).body(&body);
+
+        if folder.is_some() {
+            notification.action(DEFAULT_ACTION, ACTION_LABEL);
+        }
 
         if sound {
             // A name from the XDG sound naming spec, passed through as the
@@ -174,12 +203,17 @@ fn show(title: String, body: String, clip: PathBuf, sound: bool) {
             }
         };
 
+        // Nothing to wait for on a notification with no action.
+        let Some(folder) = folder else {
+            return;
+        };
+
         let handler = move |response: &NotificationResponse| {
             let activated = matches!(response, NotificationResponse::Default)
                 || matches!(response, NotificationResponse::Action(action) if action == DEFAULT_ACTION);
 
             if activated {
-                reveal(&clip);
+                reveal(&folder);
             }
         };
 
@@ -191,31 +225,22 @@ fn show(title: String, body: String, clip: PathBuf, sound: bool) {
 }
 
 #[cfg(not(windows))]
-fn reveal(clip: &Path) {
+fn reveal(folder: &Path) {
     use tauri_plugin_opener::OpenerExt;
 
     let Some(app_handle) = APP_HANDLE.get() else {
         return;
     };
 
-    // Reveal needs something to select. If the clip has since been moved or
-    // deleted, fall back to the folder so the click still does something.
-    let target = if clip.exists() {
-        clip
-    } else {
-        match clip.parent() {
-            Some(folder) if folder.exists() => folder,
-            _ => {
-                ui_println!(
-                    "👎 The clip is no longer where it was saved: {}",
-                    clip.display()
-                );
-                return;
-            }
-        }
-    };
+    if !folder.exists() {
+        ui_println!(
+            "👎 The clip folder is no longer there: {}",
+            folder.display()
+        );
+        return;
+    }
 
-    if let Err(e) = app_handle.opener().reveal_item_in_dir(target) {
+    if let Err(e) = app_handle.opener().open_path(folder.to_string_lossy(), None::<&str>) {
         ui_println!("👎 Failed to open the clip folder: {e:?}");
     }
 }

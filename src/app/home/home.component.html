@@ -231,7 +231,21 @@
               </label>
 
               <label class="toggle">
-                <mat-slide-toggle [formField]="form.notifications.sound" [disabled]="!form.notifications.enabled().value()" />
+                <mat-slide-toggle [formField]="form.notifications.failures" />
+                <span class="toggle__text">
+                  <span class="toggle__label">Notify when something fails</span>
+                  <span class="toggle__desc">
+                    Tell you if a clip can't be saved or KovOBS stops watching for runs, which you would otherwise
+                    only find out by opening the logs.
+                  </span>
+                </span>
+              </label>
+
+              <label class="toggle">
+                <mat-slide-toggle
+                  [formField]="form.notifications.sound"
+                  [disabled]="!form.notifications.enabled().value() && !form.notifications.failures().value()"
+                />
                 <span class="toggle__text">
                   <span class="toggle__label">Play a sound</span>
                   <span class="toggle__desc">Use the system notification sound instead of appearing silently.</span>
