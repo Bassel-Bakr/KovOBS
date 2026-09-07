@@ -1,3 +1,4 @@
+use crate::config::NotificationsConfig;
 use crate::globals::APP_HANDLE;
 use crate::ui_println;
 use std::path::{Path, PathBuf};
@@ -12,15 +13,23 @@ const ACTION_LABEL: &str = "Show in folder";
 /// Shows a desktop notification for a saved clip. Clicking it opens the folder
 /// the clip landed in.
 ///
+/// Takes the whole config rather than the settings it happens to read today, so
+/// adding one does not ripple out to every call site. Whether to notify at all
+/// is decided here for the same reason.
+///
 /// Failures are reported to the log panel rather than propagated: a notification
 /// that didn't appear is never a good reason to fail the clip that was saved.
-pub fn clip_saved(title: &str, body: &str, clip: &Path, sound: bool, urgent: bool) {
+pub fn clip_saved(title: &str, body: &str, clip: &Path, config: &NotificationsConfig) {
+    if !config.enabled {
+        return;
+    }
+
     show(
         title.to_owned(),
         body.to_owned(),
         clip.parent().map(Path::to_path_buf),
-        sound,
-        urgent,
+        config.sound,
+        config.urgent_clips,
     );
 }
 
@@ -37,12 +46,16 @@ pub fn clip_saved(title: &str, body: &str, clip: &Path, sound: bool, urgent: boo
 ///
 /// Deliberately has nothing to click beyond dismissing. The useful destination
 /// would be the log panel, and there is no way to address it from a toast.
-pub fn failed(what: &str, detail: &str, sound: bool) {
+pub fn failed(what: &str, detail: &str, config: &NotificationsConfig) {
+    if !config.failures {
+        return;
+    }
+
     show(
         format!("KovOBS: {what}"),
         detail.to_owned(),
         None,
-        sound,
+        config.sound,
         true,
     );
 }
@@ -70,11 +83,33 @@ fn show(title: String, body: String, folder: Option<PathBuf>, sound: bool, urgen
     use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
     use windows::core::HSTRING;
 
+    let xml = toast_xml(&title, &body, folder.as_deref(), sound, urgent);
+
+    let show = || -> windows::core::Result<()> {
+        let document = XmlDocument::new()?;
+        document.LoadXml(&HSTRING::from(&xml))?;
+
+        let toast = ToastNotification::CreateToastNotification(&document)?;
+
+        ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(app_id()))?.Show(&toast)
+    };
+
+    if let Err(e) = show() {
+        ui_println!("👎 Failed to show notification: {e}");
+    }
+}
+
+/// Builds the toast XML.
+///
+/// Separate from showing it so the shape can be tested: every mistake here is
+/// one WinRT reports as a flat rejection, or worse, accepts and renders wrong.
+#[cfg(windows)]
+fn toast_xml(title: &str, body: &str, folder: Option<&Path>, sound: bool, urgent: bool) -> String {
     // A toast with somewhere to go carries the folder on both the body and the
     // button; one without stays inert rather than pretending to be clickable.
     let (launch, mut buttons) = match folder {
         Some(folder) => {
-            let target = file_url(&folder);
+            let target = file_url(folder);
 
             (
                 format!("activationType='protocol' launch='{target}'"),
@@ -109,7 +144,7 @@ fn show(title: String, body: String, folder: Option<PathBuf>, sound: bool, urgen
         (true, false) => "",
     };
 
-    let xml = format!(
+    format!(
         "<toast duration='long' {scenario} {launch}>\
            <visual>\
              <binding template='ToastGeneric'>\
@@ -120,22 +155,9 @@ fn show(title: String, body: String, folder: Option<PathBuf>, sound: bool, urgen
            {actions}\
            {audio}\
          </toast>",
-        escape(&title),
-        escape(&body),
-    );
-
-    let show = || -> windows::core::Result<()> {
-        let document = XmlDocument::new()?;
-        document.LoadXml(&HSTRING::from(&xml))?;
-
-        let toast = ToastNotification::CreateToastNotification(&document)?;
-
-        ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(app_id()))?.Show(&toast)
-    };
-
-    if let Err(e) = show() {
-        ui_println!("👎 Failed to show notification: {e}");
-    }
+        escape(title),
+        escape(body),
+    )
 }
 
 /// Windows only attributes a toast to an app that owns an AppUserModelID, which
@@ -275,8 +297,56 @@ fn reveal(folder: &Path) {
 
 #[cfg(all(test, windows))]
 mod tests {
-    use super::{escape, file_url};
+    use super::{escape, file_url, toast_xml};
     use std::path::Path;
+
+    /// Alarm toasts are rejected outright by WinRT without a button, and a
+    /// failure toast has no folder to offer one.
+    #[test]
+    fn an_urgent_toast_always_has_a_button() {
+        let xml = toast_xml("failed", "detail", None, false, true);
+
+        assert!(xml.contains("scenario='alarm'"), "{xml}");
+        assert!(xml.contains("arguments='dismiss'"), "{xml}");
+    }
+
+    /// A saved clip must not interrupt a game unless asked to.
+    #[test]
+    fn a_normal_toast_has_no_scenario() {
+        let xml = toast_xml("saved", "detail", None, true, false);
+
+        assert!(!xml.contains("scenario"), "{xml}");
+        assert!(!xml.contains("<actions>"), "{xml}");
+    }
+
+    /// The folder goes on the toast body and the button, so either opens it.
+    #[test]
+    fn a_folder_is_offered_twice() {
+        let xml = toast_xml("saved", "detail", Some(Path::new(r"E:\Clips")), true, false);
+
+        assert!(xml.contains("launch='file:///E:/Clips'"), "{xml}");
+        assert!(xml.contains("arguments='file:///E:/Clips'"), "{xml}");
+        assert!(xml.contains("activationType='protocol'"), "{xml}");
+    }
+
+    /// An alarm loops its sound until dismissed, which is intolerable mid-game.
+    #[test]
+    fn an_urgent_toast_never_loops_its_sound() {
+        let loud = toast_xml("failed", "detail", None, true, true);
+        let quiet = toast_xml("failed", "detail", None, false, true);
+
+        assert!(loud.contains("loop='false'"), "{loud}");
+        assert!(quiet.contains("silent='true'"), "{quiet}");
+    }
+
+    /// A scenario name carrying an apostrophe would otherwise close the
+    /// attribute early and take the whole toast with it.
+    #[test]
+    fn body_text_cannot_break_out_of_the_xml() {
+        let xml = toast_xml("saved", "Bardz's <b> & co", None, false, false);
+
+        assert!(xml.contains("Bardz&apos;s &lt;b&gt; &amp; co"), "{xml}");
+    }
 
     #[test]
     fn backslashes_become_forward_slashes() {

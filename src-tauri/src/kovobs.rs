@@ -161,13 +161,11 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
             match error {
                 Some(error) => {
-                    if config.notifications.failures {
-                        notification::failed(
-                            "stopped watching for runs",
-                            &format!("No more clips will be saved until you restart.\n{error}"),
-                            config.notifications.sound,
-                        );
-                    }
+                    notification::failed(
+                        "stopped watching for runs",
+                        &format!("No more clips will be saved until you restart.\n{error}"),
+                        &config.notifications,
+                    );
 
                     Err(error.into())
                 }
@@ -226,13 +224,11 @@ async fn listen_to_obs_events(
             if let Err(e) = store_clip(&config, &replay_buffer, &stat).await {
                 ui_println!("👎 Could not save the clip for {}:\n{e}", stat.scenario);
 
-                if config.notifications.failures {
-                    notification::failed(
-                        "clip not saved",
-                        &format!("{}\n{e}", stat.scenario),
-                        config.notifications.sound,
-                    );
-                }
+                notification::failed(
+                    "clip not saved",
+                    &format!("{}\n{e}", stat.scenario),
+                    &config.notifications,
+                );
             }
         }
     }
@@ -273,15 +269,12 @@ async fn store_clip(
 
     ffmpeg::trim(replay_buffer, &clip_path, trim_duration, &config.ffmpeg).await?;
 
-    if config.notifications.enabled {
-        notification::clip_saved(
-            "Clip saved",
-            &stat.to_string(),
-            &clip_path,
-            config.notifications.sound,
-            config.notifications.urgent_clips,
-        );
-    }
+    notification::clip_saved(
+        "Clip saved",
+        &stat.to_string(),
+        &clip_path,
+        &config.notifications,
+    );
 
     // Delete the replay buffer clip if we no longer need it
     if config.delete_after_trimming {
