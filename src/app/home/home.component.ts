@@ -13,6 +13,7 @@ import { CacheService } from '../services/cache.service';
 import { EventService } from '../services/event.service';
 import { combineLatest, of, switchMap, tap } from 'rxjs';
 import { GlobalService } from '../services/global.service';
+import { NotificationService } from '../services/notification.service';
 import { FfmpegService } from '../services/ffmpeg.service';
 import { PathService } from '../services/path.service';
 import { AboutInfo, UpdateInfo, UpdateService } from '../services/update.service';
@@ -78,7 +79,7 @@ const SECTIONS: Section[] = [
     label: 'Notifications',
     icon: 'notifications',
     title: 'Notifications',
-    blurb: 'The desktop notification shown once a clip is saved and trimmed.',
+    blurb: 'Desktop notifications for a saved clip, and for anything that goes wrong while you play.',
   },
   {
     id: 'automation',
@@ -133,6 +134,7 @@ export default class HomeComponent {
   private readonly pathService = inject(PathService);
   private readonly updateService = inject(UpdateService);
   private readonly themeService = inject(ThemeService);
+  private readonly notificationService = inject(NotificationService);
   protected readonly globalService = inject(GlobalService);
 
   private readonly refresh = signal(new Date());
@@ -346,8 +348,16 @@ export default class HomeComponent {
     this.globalService.showLogs.update((shown) => !shown);
   }
 
+  protected quit(): void {
+    this.tauriService.quit().subscribe();
+  }
+
   protected clearCache(): void {
     this.cacheService.clearCache().subscribe();
+  }
+
+  protected sendTestNotification(): void {
+    this.notificationService.sendTest().subscribe();
   }
 
   protected discard(): void {

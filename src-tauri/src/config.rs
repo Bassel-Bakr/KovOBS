@@ -53,6 +53,14 @@ pub struct ScreenshotConfig {
 #[serde(default)]
 pub struct NotificationsConfig {
     pub enabled: bool,
+    /// Send saved-clip notifications as urgent too, so Do Not Disturb shows
+    /// them. Off by default: it costs a toast that sits on screen until
+    /// dismissed, which is a lot to pay per clip when nothing is wrong.
+    pub urgent_clips: bool,
+    /// Notify when something goes wrong, not just when a clip lands. Separate
+    /// from `enabled`: someone who finds a toast per clip noisy may still want
+    /// to hear that clipping has stopped working.
+    pub failures: bool,
     pub sound: bool,
 }
 
@@ -60,6 +68,8 @@ impl Default for NotificationsConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            urgent_clips: false,
+            failures: true,
             sound: true,
         }
     }
@@ -216,10 +226,7 @@ impl Default for AppConfig {
             screenshot: Default::default(),
             notifications: Default::default(),
             ffmpeg: Default::default(),
-            processes: ProcessesConfig {
-                scan_interval_secs: 1,
-                paths: Default::default(),
-            },
+            processes: Default::default(),
             aimbeast: Default::default(),
         }
     }
@@ -278,6 +285,18 @@ mod tests {
         assert!(!config.ffmpeg.is_empty());
     }
 
+    /// `AppConfig::default` used to hardcode a different interval from
+    /// `ProcessesConfig::default`, so which one applied depended on whether the
+    /// `processes` key happened to be in the file at all.
+    #[test]
+    fn the_scan_interval_is_the_same_either_way() {
+        let whole = load_json("no-processes", "{}");
+        let partial = load_json("partial-processes", r#"{ "processes": { "paths": {} } }"#);
+
+        assert_eq!(whole.processes.scan_interval_secs, 3);
+        assert_eq!(partial.processes.scan_interval_secs, 3);
+    }
+
     /// An empty file should fall back to defaults throughout.
     #[test]
     fn empty_config_loads() {
@@ -293,7 +312,10 @@ mod tests {
         let config = load_json("no-notifications", r#"{ "trim": false }"#);
 
         assert!(config.notifications.enabled);
+        assert!(config.notifications.failures);
         assert!(config.notifications.sound);
+        // The one that defaults off: interrupting a game per clip is opt-in.
+        assert!(!config.notifications.urgent_clips);
     }
 
     /// One key present must not reset the other to `bool::default()`.
@@ -302,6 +324,7 @@ mod tests {
         let config = load_json("muted", r#"{ "notifications": { "sound": false } }"#);
 
         assert!(config.notifications.enabled);
+        assert!(config.notifications.failures);
         assert!(!config.notifications.sound);
     }
 }

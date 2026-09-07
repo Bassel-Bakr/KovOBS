@@ -1,6 +1,6 @@
 [package]
 name = "kovobs"
-version = "0.15.1"
+version = "0.16.0"
 description = "KovOBS"
 authors = ["Bassel Bakr"]
 edition = "2024"
@@ -43,9 +43,12 @@ ffmpeg-sidecar = "2.5.2"
 encoding_rs_io = "0.1.7"
 
 [target.'cfg(windows)'.dependencies]
-# Driven directly rather than through notify-rust, whose Windows handle stops
-# listening at the first event and so misses Action Center clicks.
-tauri-winrt-notification = "0.7.3"
+# The toast XML is built by hand so the action can be activationType="protocol",
+# which tauri-winrt-notification's fixed template cannot express.
+windows = { version = "0.62.2", features = [
+    "Data_Xml_Dom",
+    "UI_Notifications",
+] }
 
 [target.'cfg(not(windows))'.dependencies]
 notify-rust = "4.18.0"

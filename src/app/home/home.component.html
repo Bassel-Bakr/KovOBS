@@ -231,12 +231,57 @@
               </label>
 
               <label class="toggle">
-                <mat-slide-toggle [formField]="form.notifications.sound" [disabled]="!form.notifications.enabled().value()" />
+                <mat-slide-toggle
+                  [formField]="form.notifications.urgent_clips"
+                  [disabled]="!form.notifications.enabled().value()"
+                />
+                <span class="toggle__text">
+                  <span class="toggle__label">Show saved clips in Do Not Disturb</span>
+                  <span class="toggle__desc">
+                    Uses the same urgent style as failures, so each clip stays on screen until dismissed. Off means
+                    clips are hidden while you play, which is where Do Not Disturb usually turns itself on.
+                  </span>
+                </span>
+              </label>
+
+              <label class="toggle">
+                <mat-slide-toggle [formField]="form.notifications.failures" />
+                <span class="toggle__text">
+                  <span class="toggle__label">Notify when something fails</span>
+                  <span class="toggle__desc">
+                    Tell you if a clip can't be saved or KovOBS stops watching for runs. Shown even in Do Not
+                    Disturb, and stays until you dismiss it, so a broken session can't pass unnoticed.
+                  </span>
+                </span>
+              </label>
+
+              <label class="toggle">
+                <mat-slide-toggle
+                  [formField]="form.notifications.sound"
+                  [disabled]="!form.notifications.enabled().value() && !form.notifications.failures().value()"
+                />
                 <span class="toggle__text">
                   <span class="toggle__label">Play a sound</span>
                   <span class="toggle__desc">Use the system notification sound instead of appearing silently.</span>
                 </span>
               </label>
+
+              <div class="action">
+                <span class="action__text">
+                  <span class="action__label">Send a test notification</span>
+                  <span class="action__desc">
+                    Checks the whole path at once: it should appear, and clicking it should open your clips folder.
+                  </span>
+                </span>
+                <button
+                  matButton="outlined"
+                  type="button"
+                  [disabled]="!form.notifications.enabled().value()"
+                  (click)="sendTestNotification()"
+                >
+                  Send test
+                </button>
+              </div>
             </div>
           }
 
@@ -356,6 +401,16 @@
                 </button>
 
                 <button matButton="outlined" type="button" (click)="openReleases()">Releases on GitHub</button>
+              </div>
+
+              <div class="danger">
+                <span class="danger__text">
+                  <span class="danger__label">Quit KovOBS</span>
+                  <span class="danger__desc">
+                    Closes it properly instead of hiding to the tray. Clipping stops until you start it again.
+                  </span>
+                </span>
+                <button matButton="outlined" type="button" (click)="quit()">Quit</button>
               </div>
             </div>
           }

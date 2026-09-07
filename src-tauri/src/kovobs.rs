@@ -148,6 +148,30 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         res = tasks.join_next() => {
             res.transpose()?.transpose().map(|_| ())
         }
+        // A watcher only ever finishes by failing, and nothing was watching for
+        // that: the session carried on with the tray still showing "running"
+        // while no runs were being noticed at all. The guard matters -- an
+        // empty JoinSet yields None immediately and would spin this select.
+        Some(res) = watch_tasks.join_next(), if !watch_tasks.is_empty() => {
+            let error = match res {
+                Ok(Err(e)) => Some(e.to_string()),
+                Err(e) => Some(e.to_string()),
+                Ok(Ok(())) => None,
+            };
+
+            match error {
+                Some(error) => {
+                    notification::failed(
+                        "stopped watching for runs",
+                        &format!("No more clips will be saved until you restart.\n{error}"),
+                        &config.notifications,
+                    );
+
+                    Err(error.into())
+                }
+                None => Ok(()),
+            }
+        }
     };
 
     watch_tasks.shutdown().await;
@@ -193,54 +217,75 @@ async fn listen_to_obs_events(
                 }
             };
 
-            let output_path = match stat.stat_type {
-                StatType::Aimbeast => {
-                    path::Path::new(&config.aimbeast.clips_folder).join(&stat.scenario)
-                }
-                StatType::KovaaKs => path::Path::new(&config.clips_folder).join(&stat.scenario),
-            };
+            // One clip failing is not a reason to stop listening. Whatever
+            // went wrong -- a bad FFmpeg arg, an unreadable buffer -- applies
+            // to this run, and the session has to survive it: the alternative
+            // is that a single typo silently ends clipping for the evening.
+            if let Err(e) = store_clip(&config, &replay_buffer, &stat).await {
+                ui_println!("👎 Could not save the clip for {}:\n{e}", stat.scenario);
 
-            let clip_path = output_path.join(format!("{}.mp4", stat));
-
-            // Calculate duration based on the clip time and scenario end time
-            let trim_start_point =
-                stat.start_dt - Duration::from_secs_f32(config.trim_padding_start);
-            let duration =
-                utils::get_creation_or_modification_time(&replay_buffer)? - trim_start_point;
-
-            // TODO: Aimbeast trimming is experimental and fixed at 1m. Figure out how to get the scenario length to fix it
-            let trim_duration = if config.trim {
-                // Trim using ffmpeg
-                duration
-            } else {
-                // Copy the buffer and don't really trim it
-                // Can't think of a scenario longer than 1 day
-                TimeDelta::from_std(Duration::from_hours(24))?
-            };
-
-            ffmpeg::trim(&replay_buffer, &clip_path, trim_duration, &config.ffmpeg).await?;
-
-            if config.notifications.enabled {
-                notification::clip_saved(
-                    "Clip saved",
-                    &stat.to_string(),
-                    &clip_path,
-                    config.notifications.sound,
+                notification::failed(
+                    "clip not saved",
+                    &format!("{}\n{e}", stat.scenario),
+                    &config.notifications,
                 );
             }
-
-            // Delete the replay buffer clip if we no longer need it
-            if config.delete_after_trimming {
-                tokio::fs::remove_file(&replay_buffer)
-                    .await
-                    .with_context(|| {
-                        format!(
-                            "Failed to delete replay buffer after trimming: {}",
-                            replay_buffer.display()
-                        )
-                    })?;
-            }
         }
+    }
+
+    Ok(())
+}
+
+/// Turns a saved replay buffer into the finished clip, notifies, and cleans up.
+///
+/// Distinct from [`save_clip`], which asks OBS to write the buffer out in the
+/// first place. Every failure in here belongs to a single run, so they are
+/// returned rather than propagated out of the event loop.
+async fn store_clip(
+    config: &AppConfig,
+    replay_buffer: &path::Path,
+    stat: &Stat,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let output_path = match stat.stat_type {
+        StatType::Aimbeast => path::Path::new(&config.aimbeast.clips_folder).join(&stat.scenario),
+        StatType::KovaaKs => path::Path::new(&config.clips_folder).join(&stat.scenario),
+    };
+
+    let clip_path = output_path.join(format!("{}.mp4", stat));
+
+    // Calculate duration based on the clip time and scenario end time
+    let trim_start_point = stat.start_dt - Duration::from_secs_f32(config.trim_padding_start);
+    let duration = utils::get_creation_or_modification_time(replay_buffer)? - trim_start_point;
+
+    // TODO: Aimbeast trimming is experimental and fixed at 1m. Figure out how to get the scenario length to fix it
+    let trim_duration = if config.trim {
+        // Trim using ffmpeg
+        duration
+    } else {
+        // Copy the buffer and don't really trim it
+        // Can't think of a scenario longer than 1 day
+        TimeDelta::from_std(Duration::from_hours(24))?
+    };
+
+    ffmpeg::trim(replay_buffer, &clip_path, trim_duration, &config.ffmpeg).await?;
+
+    notification::clip_saved(
+        "Clip saved",
+        &stat.to_string(),
+        &clip_path,
+        &config.notifications,
+    );
+
+    // Delete the replay buffer clip if we no longer need it
+    if config.delete_after_trimming {
+        tokio::fs::remove_file(replay_buffer)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to delete replay buffer after trimming: {}",
+                    replay_buffer.display()
+                )
+            })?;
     }
 
     Ok(())
