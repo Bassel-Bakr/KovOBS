@@ -29,6 +29,7 @@ export type Config = {
   };
   notifications: {
     enabled: boolean;
+    urgent_clips: boolean;
     failures: boolean;
     sound: boolean;
   };

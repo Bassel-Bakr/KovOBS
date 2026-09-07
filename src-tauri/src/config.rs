@@ -53,6 +53,10 @@ pub struct ScreenshotConfig {
 #[serde(default)]
 pub struct NotificationsConfig {
     pub enabled: bool,
+    /// Send saved-clip notifications as urgent too, so Do Not Disturb shows
+    /// them. Off by default: it costs a toast that sits on screen until
+    /// dismissed, which is a lot to pay per clip when nothing is wrong.
+    pub urgent_clips: bool,
     /// Notify when something goes wrong, not just when a clip lands. Separate
     /// from `enabled`: someone who finds a toast per clip noisy may still want
     /// to hear that clipping has stopped working.
@@ -64,6 +68,7 @@ impl Default for NotificationsConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            urgent_clips: false,
             failures: true,
             sound: true,
         }
@@ -300,6 +305,8 @@ mod tests {
         assert!(config.notifications.enabled);
         assert!(config.notifications.failures);
         assert!(config.notifications.sound);
+        // The one that defaults off: interrupting a game per clip is opt-in.
+        assert!(!config.notifications.urgent_clips);
     }
 
     /// One key present must not reset the other to `bool::default()`.

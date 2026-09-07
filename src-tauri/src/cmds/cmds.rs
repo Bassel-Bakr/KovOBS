@@ -301,6 +301,7 @@ pub async fn test_notification() -> Result<(), String> {
         "If clicking this opens your clips folder, notifications are working.",
         &target,
         config.notifications.sound,
+        config.notifications.urgent_clips,
     );
 
     Ok(())

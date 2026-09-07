@@ -24,6 +24,7 @@
   },
   "notifications": {
     "enabled": true,
+    "urgent_clips": false,
     "failures": true,
     "sound": true
   },

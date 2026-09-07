@@ -231,6 +231,20 @@
               </label>
 
               <label class="toggle">
+                <mat-slide-toggle
+                  [formField]="form.notifications.urgent_clips"
+                  [disabled]="!form.notifications.enabled().value()"
+                />
+                <span class="toggle__text">
+                  <span class="toggle__label">Show saved clips in Do Not Disturb</span>
+                  <span class="toggle__desc">
+                    Uses the same urgent style as failures, so each clip stays on screen until dismissed. Off means
+                    clips are hidden while you play, which is where Do Not Disturb usually turns itself on.
+                  </span>
+                </span>
+              </label>
+
+              <label class="toggle">
                 <mat-slide-toggle [formField]="form.notifications.failures" />
                 <span class="toggle__text">
                   <span class="toggle__label">Notify when something fails</span>

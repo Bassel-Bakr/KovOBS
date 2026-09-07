@@ -279,6 +279,7 @@ async fn store_clip(
             &stat.to_string(),
             &clip_path,
             config.notifications.sound,
+            config.notifications.urgent_clips,
         );
     }
 

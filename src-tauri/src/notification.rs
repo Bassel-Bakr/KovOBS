@@ -14,13 +14,13 @@ const ACTION_LABEL: &str = "Show in folder";
 ///
 /// Failures are reported to the log panel rather than propagated: a notification
 /// that didn't appear is never a good reason to fail the clip that was saved.
-pub fn clip_saved(title: &str, body: &str, clip: &Path, sound: bool) {
+pub fn clip_saved(title: &str, body: &str, clip: &Path, sound: bool, urgent: bool) {
     show(
         title.to_owned(),
         body.to_owned(),
         clip.parent().map(Path::to_path_buf),
         sound,
-        false,
+        urgent,
     );
 }
 

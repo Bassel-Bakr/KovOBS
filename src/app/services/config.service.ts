@@ -46,6 +46,7 @@ export class ConfigService {
       },
       notifications: {
         enabled: true,
+        urgent_clips: false,
         failures: true,
         sound: true,
       },
