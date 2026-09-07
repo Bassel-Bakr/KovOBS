@@ -14,8 +14,7 @@ Adding any persisted setting: a toggle, a path, an interval, a mode.
 | File | Change | Always? |
 |---|---|---|
 | `src-tauri/src/config.rs` | field on the config struct + its `Default` | yes |
-| `src/app/models/config.ts` | matching field on the TS interface | yes |
-| `src/app/services/config.service.ts` | value in `getEmptyConfig()` | yes |
+| *(generated)* | `cargo test` refreshes the TS types and defaults | never by hand |
 | `src/app/home/home.component.html` | the control | yes, if user-facing |
 | `src-tauri/resources/default-config.json` | **only if** the shipped value differs from the Rust `Default` | rarely |
 | consumers (`kovobs.rs`, `cmds/`) | nothing, if they take the config struct | rarely |
@@ -76,9 +75,20 @@ fn a_partial_object_keeps_the_other_defaults() {
 - Dependent controls disable correctly when their parent option is off.
 - A config file **without** the new key loads and behaves as before.
 
-## Known duplication
+## Generated files
 
-`src/app/models/config.ts` and `getEmptyConfig()` are a hand-maintained mirror
-of the Rust structs; nothing prevents drift beyond the build failing on a type
-mismatch. Generating them from Rust (`ts-rs`, or a Tauri type-generation
-plugin) would remove both files from this list. Not done — it adds a build step.
+`src/app/models/bindings/` and `src/app/models/default-config.ts` are produced
+from the Rust structs by `ts-rs`, written during `cargo test`. Never edit them.
+
+After changing a config struct, run the tests and commit what they regenerate.
+Nothing enforces this -- CI runs no tests -- so a stale commit is possible. The
+frontend build catches a changed *type*, but not a stale default *value*.
+
+Two constraints this puts on the Rust side:
+
+- A field's type must map to something usable. `u64` becomes a TypeScript
+  `bigint`, which the number inputs reject -- use `u32` for anything the UI
+  edits.
+- A string field with a fixed set of values should be a Rust enum with
+  `#[serde(rename_all = "lowercase")]`, so the generated type is a union
+  (`"system" | "light" | "dark"`) rather than a bare `string`.
