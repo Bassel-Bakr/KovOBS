@@ -154,7 +154,24 @@ fn reveal(clip: &Path) {
         }
     };
 
-    if let Err(e) = app_handle.opener().reveal_item_in_dir(target) {
-        ui_println!("👎 Failed to open the clip folder: {e:?}");
-    }
+    // Revealing has to happen on a thread of its own, and the reason is not
+    // obvious. `reveal_item_in_dir` ends in `SHOpenFolderAndSelectItems`, which
+    // needs the calling thread to be in a single-threaded apartment, and gets
+    // there by calling `CoInitialize` and ignoring the result. Windows
+    // dispatches a toast activation on a thread that is already in the
+    // multi-threaded apartment, where that `CoInitialize` fails with
+    // `RPC_E_CHANGED_MODE` -- and the shell call then returns `S_OK` while
+    // opening nothing at all. A brand new thread has no apartment yet, so the
+    // `CoInitialize` inside the plugin succeeds and Explorer actually appears.
+    //
+    // Nothing in the return values shows this: the only difference between the
+    // broken and working case is whether a window is on screen.
+    let target = target.to_path_buf();
+    let app_handle = app_handle.clone();
+
+    std::thread::spawn(move || {
+        if let Err(e) = app_handle.opener().reveal_item_in_dir(&target) {
+            ui_println!("👎 Failed to open the clip folder: {e:?}");
+        }
+    });
 }
