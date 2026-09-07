@@ -42,6 +42,10 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
 ```
 
 ```bash
+npx ng test
+```
+
+```bash
 npx ng build
 ```
 
@@ -89,8 +93,10 @@ from your change.
 `.github/workflows/release.yml` triggers on a push to `main` touching
 `src-tauri/Cargo.toml`, and on manual dispatch. It builds and publishes.
 
-**It runs no tests, no clippy, and nothing on pull requests.** Tests gate
-nothing today — verify locally before claiming a change is good.
+`.github/workflows/checks.yml` runs formatting, clippy (`-D warnings`), the
+Rust tests, a generated-types freshness check, and the frontend tests and
+build -- on pull requests, on pushes to `main`, and on demand. `release.yml`
+runs the Rust tests before it builds.
 
 The build caches the registry and `target/` via a Rust cache action. Do not
 reintroduce a compilation cache with a per-object remote backend; it fragmented

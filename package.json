@@ -8,7 +8,8 @@
     "update": "ng update @angular/core @angular/cli",
     "format": "prettier --write ./src",
     "tauri": "tauri",
-    "generate": "cargo test --manifest-path src-tauri/Cargo.toml --lib"
+    "generate": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
+    "test": "ng test"
   },
   "private": true,
   "dependencies": {
@@ -37,7 +38,10 @@
     "@angular/compiler-cli": "^22.0.1",
     "@tauri-apps/cli": "^2",
     "@types/lodash-es": "^4.17.12",
+    "@vitest/browser": "^5.0.0",
+    "jsdom": "^30.0.1",
     "prettier": "^3.8.4",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.0"
   }
 }
