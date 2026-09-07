@@ -106,4 +106,5 @@ the entries it needed.
 |---|---|
 | `preview-ui-without-tauri` | seeing and measuring UI changes |
 | `add-config-option` | adding a persisted setting end to end |
+| `ffmpeg-two-pass` | changing how clips are trimmed or user args applied |
 | `verify-by-effect` | anything that reports success but produces no effect |
