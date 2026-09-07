@@ -1,18 +1,30 @@
 use crate::consts;
+use ts_rs::TS;
 use config::Config;
 use std::default::Default;
 use std::path::Path;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager};
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+/// Which colour scheme the window uses. `System` follows the OS setting.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, export_to = "../../src/app/models/bindings/")]
+pub enum Theme {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TS)]
 #[serde(default)]
+#[ts(export, export_to = "../../src/app/models/bindings/")]
 pub struct AppConfig {
     pub auto_start: bool,
     /// False until the first-run checklist is finished or skipped.
     pub setup_completed: bool,
-    /// "system", "light" or "dark".
-    pub theme: String,
+    pub theme: Theme,
     pub obs: ObsConfig,
     pub clips_folder: String,
     pub stats_folder: String,
@@ -30,8 +42,9 @@ pub struct AppConfig {
     pub aimbeast: AimbeastConfig,
 }
 
-#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize, TS)]
 #[serde(default)]
+#[ts(export, export_to = "../../src/app/models/bindings/")]
 pub struct ObsConfig {
     pub host: String,
     pub port: u16,
@@ -39,8 +52,9 @@ pub struct ObsConfig {
     pub source_name: String,
 }
 
-#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize, TS)]
 #[serde(default)]
+#[ts(export, export_to = "../../src/app/models/bindings/")]
 pub struct ScreenshotConfig {
     pub enabled: bool,
 }
@@ -49,8 +63,9 @@ pub struct ScreenshotConfig {
 ///
 /// Both default to on: this shipped unconditional, so anyone upgrading keeps
 /// the behaviour they already had rather than silently losing it.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TS)]
 #[serde(default)]
+#[ts(export, export_to = "../../src/app/models/bindings/")]
 pub struct NotificationsConfig {
     pub enabled: bool,
     /// Send saved-clip notifications as urgent too, so Do Not Disturb shows
@@ -83,8 +98,9 @@ impl Default for NotificationsConfig {
 ///
 /// These apply to the pass that runs *after* trimming, so they can't interfere
 /// with the trim's own options. When all three are empty no second pass runs.
-#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize, TS)]
 #[serde(default)]
+#[ts(export, export_to = "../../src/app/models/bindings/")]
 pub struct FFmpegConfig {
     #[serde(deserialize_with = "arg_slot")]
     pub global_args: String,
@@ -126,10 +142,13 @@ where
     )
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, TS)]
 #[serde(default)]
+#[ts(export, export_to = "../../src/app/models/bindings/")]
 pub struct ProcessesConfig {
-    pub scan_interval_secs: u64,
+    /// Narrower than it needs to be on purpose: u64 maps to a JS bigint in
+    /// the generated types, and no poll interval needs that range.
+    pub scan_interval_secs: u32,
     pub paths: ProcessPaths,
 }
 
@@ -142,16 +161,18 @@ impl Default for ProcessesConfig {
     }
 }
 
-#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize, TS)]
 #[serde(default)]
+#[ts(export, export_to = "../../src/app/models/bindings/")]
 pub struct ProcessPaths {
     pub obs: String,
     pub kovaaks: String,
     pub aimbeast: String,
 }
 
-#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize, TS)]
 #[serde(default)]
+#[ts(export, export_to = "../../src/app/models/bindings/")]
 pub struct AimbeastConfig {
     pub stats_folder: String,
     pub clips_folder: String,
@@ -212,7 +233,7 @@ impl Default for AppConfig {
         Self {
             auto_start: false,
             setup_completed: false,
-            theme: "system".into(),
+            theme: Theme::default(),
             obs: Default::default(),
             clips_folder: "".into(),
             stats_folder: "".into(),
@@ -295,6 +316,23 @@ mod tests {
 
         assert_eq!(whole.processes.scan_interval_secs, 3);
         assert_eq!(partial.processes.scan_interval_secs, 3);
+    }
+
+    /// Writes the defaults the frontend starts from, so its placeholder config
+    /// cannot disagree with this one. Runs alongside the ts-rs type exports, so
+    /// `cargo test` refreshes both.
+    #[test]
+    fn export_default_config() {
+        let json = serde_json::to_string_pretty(&AppConfig::default()).unwrap();
+
+        let contents = format!(
+            "// Generated from AppConfig::default(). Do not edit this file manually.\n\
+             import type {{ AppConfig }} from './bindings/AppConfig';\n\
+             \n\
+             export const DEFAULT_CONFIG: AppConfig = {json};\n"
+        );
+
+        std::fs::write("../src/app/models/default-config.ts", contents).unwrap();
     }
 
     /// An empty file should fall back to defaults throughout.

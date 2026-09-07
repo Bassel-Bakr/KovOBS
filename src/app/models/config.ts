@@ -1,49 +1,5 @@
-export type Theme = 'system' | 'light' | 'dark';
-
-export type Config = {
-  auto_start: boolean;
-  setup_completed: boolean;
-  theme: Theme;
-  stats_folder: string;
-  clips_folder: string;
-  obs: {
-    host: string;
-    port: number;
-    password: string;
-    source_name: string;
-  };
-  aimbeast: {
-    stats_folder: string;
-    clips_folder: string;
-    obs_source_name: string;
-  };
-  trim: boolean;
-  trim_padding_start: number;
-  trim_padding_end: number;
-  delete_after_trimming: boolean;
-  only_pb: boolean;
-  cache_version: string;
-  cache_file: string;
-  screenshot: {
-    enabled: boolean;
-  };
-  notifications: {
-    enabled: boolean;
-    urgent_clips: boolean;
-    failures: boolean;
-    sound: boolean;
-  };
-  ffmpeg: {
-    global_args: string;
-    input_args: string;
-    output_args: string;
-  };
-  processes: {
-    scan_interval_secs: number;
-    paths: {
-      obs: string;
-      kovaaks: string;
-      aimbeast: string;
-    };
-  };
-};
+// The config types come from the Rust structs, so the two cannot disagree.
+// `cargo test` regenerates ./bindings and ./default-config.
+export type { AppConfig as Config } from './bindings/AppConfig';
+export type { Theme } from './bindings/Theme';
+export { DEFAULT_CONFIG } from './default-config';
