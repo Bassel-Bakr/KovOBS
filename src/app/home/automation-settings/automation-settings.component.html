@@ -1,0 +1,41 @@
+<div class="toggles">
+  <label class="toggle">
+    <mat-slide-toggle [formField]="trim()" />
+    <span class="toggle__text">
+      <span class="toggle__label">Trim clips</span>
+      <span class="toggle__desc">Cut the replay buffer down to the run. Off copies the whole buffer.</span>
+    </span>
+  </label>
+
+  <label class="toggle">
+    <mat-slide-toggle [formField]="autoStart()" />
+    <span class="toggle__text">
+      <span class="toggle__label">Start with Windows</span>
+      <span class="toggle__desc">Launch KovOBS on boot, minimised to the tray.</span>
+    </span>
+  </label>
+
+  <label class="toggle">
+    <mat-slide-toggle [formField]="onlyPb()" />
+    <span class="toggle__text">
+      <span class="toggle__label">Personal bests only</span>
+      <span class="toggle__desc">Keep a clip only when the run beats your best. Off keeps every run.</span>
+    </span>
+  </label>
+
+  <label class="toggle">
+    <mat-slide-toggle [formField]="deleteAfterTrimming()" />
+    <span class="toggle__text">
+      <span class="toggle__label">Delete the buffer</span>
+      <span class="toggle__desc">Remove the original OBS recording once the clip is saved.</span>
+    </span>
+  </label>
+
+  <label class="toggle">
+    <mat-slide-toggle [formField]="screenshot()" />
+    <span class="toggle__text">
+      <span class="toggle__label">Screenshot the score</span>
+      <span class="toggle__desc">Capture the end-of-run screen alongside the clip.</span>
+    </span>
+  </label>
+</div>

@@ -1,29 +1,26 @@
-import { openUrl } from '@tauri-apps/plugin-opener';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ConfigService } from '../services/config.service';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FieldTree, form, FormField } from '@angular/forms/signals';
-import { open } from '@tauri-apps/plugin-dialog';
-import { MatFormField, MatHint, MatInput, MatLabel, MatSuffix } from '@angular/material/input';
-import { MatButton, MatIconButton } from '@angular/material/button';
+import { form } from '@angular/forms/signals';
+import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
 import { TauriService } from '../services/tauri.service';
-import { CacheService } from '../services/cache.service';
 import { EventService } from '../services/event.service';
 import { combineLatest, of, switchMap, tap } from 'rxjs';
 import { GlobalService } from '../services/global.service';
-import { NotificationService } from '../services/notification.service';
-import { FfmpegService } from '../services/ffmpeg.service';
 import { PathService } from '../services/path.service';
-import { MatProgressSpinner } from '@angular/material/progress-spinner';
-import { MatSlideToggle } from '@angular/material/slide-toggle';
 import { isEqual } from 'lodash-es';
-import { Config, Theme } from '../models/config';
+import { Config } from '../models/config';
 import { ThemeService } from '../services/theme.service';
 import SetupComponent from '../setup/setup.component';
 import GameSettingsComponent from './game-settings/game-settings.component';
 import AboutSettingsComponent from './about-settings/about-settings.component';
+import ObsSettingsComponent from './obs-settings/obs-settings.component';
+import ClipSettingsComponent from './clip-settings/clip-settings.component';
+import NotificationSettingsComponent from './notification-settings/notification-settings.component';
+import AutomationSettingsComponent from './automation-settings/automation-settings.component';
+import AdvancedSettingsComponent from './advanced-settings/advanced-settings.component';
 
 type SectionId = 'kovaaks' | 'aimbeast' | 'obs' | 'clips' | 'notifications' | 'automation' | 'advanced' | 'about';
 
@@ -99,21 +96,17 @@ const SECTIONS: Section[] = [
 @Component({
   selector: 'app-home',
   imports: [
-    FormField,
-    MatFormField,
-    MatInput,
-    MatSuffix,
-    MatLabel,
-    MatHint,
-    MatIconButton,
     MatIcon,
     MatTooltip,
     MatButton,
-    MatProgressSpinner,
-    MatSlideToggle,
     SetupComponent,
     GameSettingsComponent,
     AboutSettingsComponent,
+    ObsSettingsComponent,
+    ClipSettingsComponent,
+    NotificationSettingsComponent,
+    AutomationSettingsComponent,
+    AdvancedSettingsComponent,
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
@@ -121,12 +114,9 @@ const SECTIONS: Section[] = [
 export default class HomeComponent {
   private readonly configService = inject(ConfigService);
   private readonly tauriService = inject(TauriService);
-  private readonly cacheService = inject(CacheService);
   private readonly eventService = inject(EventService);
-  private readonly ffmpegService = inject(FfmpegService);
   private readonly pathService = inject(PathService);
   private readonly themeService = inject(ThemeService);
-  private readonly notificationService = inject(NotificationService);
   protected readonly globalService = inject(GlobalService);
 
   private readonly refresh = signal(new Date());
@@ -139,8 +129,9 @@ export default class HomeComponent {
 
   protected readonly sections = SECTIONS;
   protected readonly section = signal<SectionId>('kovaaks');
-  protected readonly ffmpegOpen = signal(false);
 
+  /// Read by the first-run gating as well as the clips section, so it belongs
+  /// to the page rather than to either of them.
   protected readonly ffmpegDownloadProgress = rxResource({
     stream: () => this.eventService.ffmpegDownloadProgress(),
     defaultValue: { state: 'NotDone', progress: 0 },
@@ -235,16 +226,6 @@ export default class HomeComponent {
     this.refresh.set(new Date());
   }
 
-  protected readonly themes: { id: Theme; label: string }[] = [
-    { id: 'system', label: 'System' },
-    { id: 'light', label: 'Light' },
-    { id: 'dark', label: 'Dark' },
-  ];
-
-  protected setTheme(theme: Theme): void {
-    this.configForm.theme().value.set(theme);
-  }
-
   protected readonly currentSection = computed(
     () => SECTIONS.find((section) => section.id === this.section()) ?? SECTIONS[0]
   );
@@ -287,20 +268,8 @@ export default class HomeComponent {
     this.section.set(id);
   }
 
-  protected toggleFfmpeg(): void {
-    this.ffmpegOpen.update((open) => !open);
-  }
-
   protected toggleLogs(): void {
     this.globalService.showLogs.update((shown) => !shown);
-  }
-
-  protected clearCache(): void {
-    this.cacheService.clearCache().subscribe();
-  }
-
-  protected sendTestNotification(): void {
-    this.notificationService.sendTest().subscribe();
   }
 
   protected discard(): void {
@@ -346,37 +315,6 @@ export default class HomeComponent {
     } else {
       this.start();
     }
-  }
-
-  protected browse(field: FieldTree<string, string>): void {
-    open({
-      directory: true,
-      multiple: false,
-    }).then((path) => {
-      if (path != null) {
-        field().value.set(path ?? '');
-      }
-    });
-  }
-
-  protected browseFile(field: FieldTree<string, string>): void {
-    open({ multiple: false }).then((path) => {
-      if (path != null) {
-        field().value.set(path ?? '');
-      }
-    });
-  }
-
-  protected openFFmpegHelp(): void {
-    void openUrl('https://ffmpeg.org/ffmpeg.html');
-  }
-
-  protected downloadFFmpeg(): void {
-    this.ffmpegService.download().subscribe();
-  }
-
-  protected deleteFFmpeg(): void {
-    this.ffmpegService.remove().subscribe();
   }
 
   protected runExe(...params: Parameters<typeof this.tauriService.runExe>): void {

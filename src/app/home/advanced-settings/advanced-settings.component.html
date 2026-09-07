@@ -1,0 +1,40 @@
+<div class="fields">
+  <div class="appearance">
+    <span class="appearance__text">
+      <span class="appearance__label">Theme</span>
+      <span class="appearance__desc">System follows your Windows light/dark setting.</span>
+    </span>
+    <div class="segmented">
+      @for (option of themes; track option.id) {
+        <button
+          type="button"
+          class="segmented__item"
+          [class.segmented__item--active]="theme()().value() === option.id"
+          (click)="setTheme(option.id)"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <mat-form-field>
+    <mat-label>Scan interval (seconds)</mat-label>
+    <input matInput type="number" [formField]="scanInterval()" />
+    <mat-hint>How often running processes are checked.</mat-hint>
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Cache file</mat-label>
+    <input matInput [formField]="cacheFile()" />
+    <mat-hint>Stores your personal bests so they survive a restart.</mat-hint>
+  </mat-form-field>
+
+  <div class="danger">
+    <span class="danger__text">
+      <span class="danger__label">Clear the cache</span>
+      <span class="danger__desc">Forgets every personal best. It rebuilds from your stat files.</span>
+    </span>
+    <button matButton="outlined" type="button" (click)="clearCache()">Clear cache</button>
+  </div>
+</div>
