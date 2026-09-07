@@ -319,12 +319,15 @@ export default class HomeComponent {
    * save when the app is running so settings can be changed in place.
    */
   protected save(): void {
+    // Stopping is asynchronous. Capture the whole form now so an intervening
+    // config refresh cannot replace the values this click was meant to save.
+    const config = structuredClone(this.configForm().value());
     const wasRunning = this.isRunning.value();
 
     (wasRunning ? this.tauriService.stop() : of(undefined))
       .pipe(
-        switchMap(() => this.configService.saveConfig(this.configForm().value())),
-        switchMap(() => this.tauriService.setAutoStart(this.configForm.auto_start().value())),
+        switchMap(() => this.configService.saveConfig(config)),
+        switchMap(() => this.tauriService.setAutoStart(config.auto_start)),
         switchMap(() => (wasRunning ? this.tauriService.start() : of(undefined)))
       )
       .subscribe(() => {
