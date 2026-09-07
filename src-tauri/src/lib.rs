@@ -68,6 +68,7 @@ pub fn run() {
             cmds::is_ffmpeg_downloaded,
             cmds::download_ffmpeg,
             cmds::remove_ffmpeg,
+            cmds::test_notification,
         ])
         .setup(|app| {
             APP_HANDLE.set(app.handle().clone()).unwrap();

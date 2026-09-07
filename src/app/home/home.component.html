@@ -237,6 +237,23 @@
                   <span class="toggle__desc">Use the system notification sound instead of appearing silently.</span>
                 </span>
               </label>
+
+              <div class="action">
+                <span class="action__text">
+                  <span class="action__label">Send a test notification</span>
+                  <span class="action__desc">
+                    Checks the whole path at once: it should appear, and clicking it should open your clips folder.
+                  </span>
+                </span>
+                <button
+                  matButton="outlined"
+                  type="button"
+                  [disabled]="!form.notifications.enabled().value()"
+                  (click)="sendTestNotification()"
+                >
+                  Send test
+                </button>
+              </div>
             </div>
           }
 

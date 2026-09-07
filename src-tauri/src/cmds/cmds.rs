@@ -5,8 +5,8 @@ use crate::config::AppConfig;
 use crate::events::AppEvent;
 use crate::globals::{APP_HANDLE, APP_STATE};
 use crate::shell::ShellExt;
-use crate::{events, kovobs, ui_println};
-use std::path::Path;
+use crate::{events, kovobs, notification, ui_println};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, UpdateKind};
 use tauri_plugin_autostart::ManagerExt;
@@ -273,4 +273,62 @@ fn is_process_running(exe: &Path) -> bool {
         .processes()
         .values()
         .any(|process| process.exe() == Some(exe))
+}
+
+/// Fires the same notification a saved clip would, so the whole chain -- the
+/// toast appearing, the click reaching us, the folder opening -- can be checked
+/// on demand instead of only after a run that has already been lost.
+#[tauri::command]
+pub async fn test_notification() -> Result<(), String> {
+    let config = {
+        let state = &APP_STATE.wait().await.lock().await;
+        state.config.as_ref().cloned().unwrap_or_default()
+    };
+
+    let folder = [&config.clips_folder, &config.aimbeast.clips_folder]
+        .into_iter()
+        .map(Path::new)
+        .find(|folder| folder.is_dir())
+        .ok_or("Set a clips folder first, otherwise there is nothing to open.")?;
+
+    // Point at a real clip when there is one. Revealing a folder selects it in
+    // its parent, so a test against the folder itself would open the level
+    // above the one a real notification opens.
+    let target = newest_clip(folder).unwrap_or_else(|| folder.to_path_buf());
+
+    notification::clip_saved(
+        "KovOBS test",
+        "If clicking this opens your clips folder, notifications are working.",
+        &target,
+        config.notifications.sound,
+    );
+
+    Ok(())
+}
+
+/// The most recently written clip, or `None` if nothing has been saved yet.
+///
+/// Looks one level down as well as in the folder itself, because clips are
+/// filed under a directory per scenario -- the top level holds those
+/// directories, not clips. Extensions are not filtered: what ends up there is
+/// whatever the user's own FFmpeg args produced.
+fn newest_clip(folder: &Path) -> Option<PathBuf> {
+    fn files_in(folder: &Path) -> impl Iterator<Item = PathBuf> {
+        std::fs::read_dir(folder)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|entry| entry.path())
+    }
+
+    files_in(folder)
+        .flat_map(|path| {
+            if path.is_dir() {
+                files_in(&path).collect::<Vec<_>>()
+            } else {
+                vec![path]
+            }
+        })
+        .filter(|path| path.is_file())
+        .max_by_key(|path| path.metadata().and_then(|meta| meta.modified()).ok())
 }

@@ -527,3 +527,34 @@
     }
   }
 }
+
+// Same shape as .danger, for a row that acts rather than warns.
+.action {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+
+  &__text {
+    // Same as .danger__text: without it the description refuses to shrink and
+    // pushes the button off the edge of a narrow window.
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__label {
+    font: var(--mat-sys-title-small);
+  }
+
+  &__desc {
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  button {
+    flex-shrink: 0;
+  }
+}
