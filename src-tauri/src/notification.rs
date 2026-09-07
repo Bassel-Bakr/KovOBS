@@ -29,30 +29,41 @@ pub fn clip_saved(title: &str, body: &str, clip: &Path, sound: bool) {
 ///
 /// Driving the toast directly leaves the activation handler registered for as
 /// long as the notification exists, so clicking it in the Action Center works
-/// too. It also needs no thread: the callback is invoked by the system.
+/// too.
+///
+/// `Toast::show` blocks, and sleeps internally, so it gets its own thread
+/// rather than holding a runtime worker. It has no apartment requirement of its
+/// own -- a thread with no COM initialisation at all works.
 #[cfg(windows)]
 fn show(title: String, body: String, clip: PathBuf, sound: bool) {
     use tauri_winrt_notification::{Duration, Sound, Toast};
 
-    let toast = Toast::new(&app_id())
-        .title(&title)
-        .text1(&body)
-        .duration(Duration::Short)
-        .sound(sound.then_some(Sound::Default))
-        .add_button(ACTION_LABEL, DEFAULT_ACTION)
-        .on_activated(move |action| {
-            // A click on the toast body carries no argument; the button carries
-            // its key. Both mean the same thing here.
-            if action.is_none() || action.as_deref() == Some(DEFAULT_ACTION) {
-                reveal(&clip);
-            }
+    std::thread::spawn(move || {
+        let toast = Toast::new(&app_id())
+            .title(&title)
+            .text1(&body)
+            .duration(Duration::Short)
+            .sound(sound.then_some(Sound::Default))
+            .add_button(ACTION_LABEL, DEFAULT_ACTION)
+            .on_activated(move |action| {
+                // A click on the toast body carries no argument; the button
+                // carries its key. Both mean the same thing here.
+                if action.is_none() || action.as_deref() == Some(DEFAULT_ACTION) {
+                    reveal(&clip);
+                }
 
-            Ok(())
-        });
+                Ok(())
+            });
 
-    if let Err(e) = toast.show() {
-        ui_println!("👎 Failed to show notification: {e:?}");
-    }
+        // Dropping the toast here is fine: WinRT holds its own reference to the
+        // activation handler, which is what has to outlive this.
+        //
+        // Note that Ok only means WinRT accepted the toast. Do Not Disturb
+        // suppresses the banner after this point, and says nothing about it.
+        if let Err(e) = toast.show() {
+            ui_println!("👎 Failed to show notification: {e:?}");
+        }
+    });
 }
 
 /// Windows only routes toast activation back to an app that owns an
