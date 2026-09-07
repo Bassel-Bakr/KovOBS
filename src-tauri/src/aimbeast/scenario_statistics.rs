@@ -17,12 +17,21 @@ impl ScenarioStatistics {
         self.scores.last()
     }
 
+    /// The best of every run before the last one, ignoring readings that are
+    /// not a real number.
+    ///
+    /// The filter is what makes this safe rather than tidy: `partial_cmp`
+    /// returns `None` against a NaN, and unwrapping that panicked the whole
+    /// clipping session on a single bad line in a stats file. Filtering first
+    /// means `total_cmp` is a total order over what remains, with nothing to
+    /// unwrap.
     pub fn prev_highscore(&self) -> Option<&f32> {
         self.scores
             .iter()
             .rev()
             .skip(1)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .filter(|score| score.is_finite())
+            .max_by(|a, b| a.total_cmp(b))
     }
 
     /// Whether the last run beat everything before it.
@@ -95,6 +104,26 @@ mod tests {
     #[test]
     fn the_previous_best_is_the_maximum_not_the_last() {
         assert!(!with(&[150.0, 90.0, 100.0]).is_pb());
+    }
+
+    /// A NaN among the earlier scores used to panic here, taking the session
+    /// with it. It needs two prior scores to reach the comparison.
+    #[test]
+    fn an_earlier_nan_does_not_panic() {
+        assert!(with(&[f32::NAN, 1.0, 2.0]).is_pb());
+        assert!(!with(&[100.0, f32::NAN, 50.0]).is_pb());
+    }
+
+    /// An infinite score is not a real reading, so it cannot be the bar to beat.
+    #[test]
+    fn an_infinite_earlier_score_is_ignored() {
+        assert!(with(&[f32::INFINITY, 10.0, 20.0]).is_pb());
+    }
+
+    /// Nothing comparable came before, so the run stands on its own.
+    #[test]
+    fn only_unusable_earlier_scores_leaves_no_bar() {
+        assert!(with(&[f32::NAN, f32::NAN, 10.0]).is_pb());
     }
 
     /// A NaN will not compare, so it cannot be an improvement either.
