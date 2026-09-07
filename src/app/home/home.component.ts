@@ -16,7 +16,6 @@ import { GlobalService } from '../services/global.service';
 import { NotificationService } from '../services/notification.service';
 import { FfmpegService } from '../services/ffmpeg.service';
 import { PathService } from '../services/path.service';
-import { AboutInfo, UpdateInfo, UpdateService } from '../services/update.service';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { MatSlideToggle } from '@angular/material/slide-toggle';
 import { isEqual } from 'lodash-es';
@@ -24,16 +23,9 @@ import { Config, Theme } from '../models/config';
 import { ThemeService } from '../services/theme.service';
 import SetupComponent from '../setup/setup.component';
 import GameSettingsComponent from './game-settings/game-settings.component';
+import AboutSettingsComponent from './about-settings/about-settings.component';
 
-type SectionId =
-  | 'kovaaks'
-  | 'aimbeast'
-  | 'obs'
-  | 'clips'
-  | 'notifications'
-  | 'automation'
-  | 'advanced'
-  | 'about';
+type SectionId = 'kovaaks' | 'aimbeast' | 'obs' | 'clips' | 'notifications' | 'automation' | 'advanced' | 'about';
 
 type Section = {
   id: SectionId;
@@ -121,6 +113,7 @@ const SECTIONS: Section[] = [
     MatSlideToggle,
     SetupComponent,
     GameSettingsComponent,
+    AboutSettingsComponent,
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
@@ -132,7 +125,6 @@ export default class HomeComponent {
   private readonly eventService = inject(EventService);
   private readonly ffmpegService = inject(FfmpegService);
   private readonly pathService = inject(PathService);
-  private readonly updateService = inject(UpdateService);
   private readonly themeService = inject(ThemeService);
   private readonly notificationService = inject(NotificationService);
   protected readonly globalService = inject(GlobalService);
@@ -243,49 +235,6 @@ export default class HomeComponent {
     this.refresh.set(new Date());
   }
 
-  protected readonly about = rxResource<AboutInfo | null, unknown>({
-    stream: () => this.updateService.about(),
-    defaultValue: null,
-  });
-
-  protected readonly update = signal<UpdateInfo | null>(null);
-  protected readonly checking = signal(false);
-  protected readonly checkError = signal('');
-
-  protected checkForUpdate(): void {
-    this.checking.set(true);
-    this.checkError.set('');
-
-    this.updateService.check().subscribe({
-      next: (info) => {
-        this.update.set(info);
-        this.checking.set(false);
-      },
-      error: (error: unknown) => {
-        this.checkError.set(String(error));
-        this.checking.set(false);
-      },
-    });
-  }
-
-  /** The releases index, not a specific release. */
-  protected openReleases(): void {
-    const url = this.about.value()?.releases_url;
-
-    if (url) {
-      void openUrl(url);
-    }
-  }
-
-  /** The page for the release the last check found. */
-  protected openLatestRelease(): void {
-    const url = this.update()?.release_url;
-
-    if (url) {
-      void openUrl(url);
-    }
-  }
-
   protected readonly themes: { id: Theme; label: string }[] = [
     { id: 'system', label: 'System' },
     { id: 'light', label: 'Light' },
@@ -331,9 +280,7 @@ export default class HomeComponent {
   protected hasFfmpegArgs(): boolean {
     const { ffmpeg } = this.configForm().value();
 
-    return [ffmpeg.global_args, ffmpeg.input_args, ffmpeg.output_args].some(
-      (slot) => slot.trim().length > 0
-    );
+    return [ffmpeg.global_args, ffmpeg.input_args, ffmpeg.output_args].some((slot) => slot.trim().length > 0);
   }
 
   protected selectSection(id: SectionId): void {
@@ -346,10 +293,6 @@ export default class HomeComponent {
 
   protected toggleLogs(): void {
     this.globalService.showLogs.update((shown) => !shown);
-  }
-
-  protected quit(): void {
-    this.tauriService.quit().subscribe();
   }
 
   protected clearCache(): void {
