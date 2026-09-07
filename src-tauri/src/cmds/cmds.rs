@@ -88,17 +88,43 @@ pub async fn stop_app() -> Result<(), String> {
 /// Exits for real, rather than hiding to the tray the way closing the window
 /// does.
 ///
-/// Stops first: `kovobs::run` saves the cache on its way out, and exiting
-/// straight away skips that and loses whatever personal bests this session
-/// recorded. The tray's Quit goes through here too, so both routes out behave
-/// the same.
+/// Asks first. Quitting stops clipping silently, and the window closing to the
+/// tray trains you to expect that a close is harmless -- so the one action that
+/// isn't should say so. Confirming here rather than in the UI covers the tray's
+/// Quit and the window's context menu at the same time.
+///
+/// Stops before exiting: `kovobs::run` saves the cache on its way out, and
+/// exiting straight away skips that, losing whatever personal bests this
+/// session recorded.
 #[tauri::command]
 pub async fn quit_app() {
-    _ = stop_app().await;
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
-    if let Some(app_handle) = APP_HANDLE.get() {
-        app_handle.exit(0);
-    }
+    let Some(app_handle) = APP_HANDLE.get() else {
+        return;
+    };
+
+    let handle = app_handle.clone();
+
+    app_handle
+        .dialog()
+        .message("Clips will stop being saved until you start KovOBS again.")
+        .title("Quit KovOBS?")
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Quit".into(),
+            "Cancel".into(),
+        ))
+        .show(move |confirmed| {
+            if !confirmed {
+                return;
+            }
+
+            tauri::async_runtime::spawn(async move {
+                _ = stop_app().await;
+                handle.exit(0);
+            });
+        });
 }
 
 #[tauri::command]

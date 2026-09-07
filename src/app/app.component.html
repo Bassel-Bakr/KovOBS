@@ -15,9 +15,25 @@
         <mat-icon>crop_square</mat-icon>
       </button>
 
-      <button matIconButton color="warn" (click)="close()">
+      <button matIconButton color="warn" (click)="close()" (contextmenu)="openQuitMenu($event)">
         <mat-icon>close</mat-icon>
       </button>
+
+      <!-- Anchors the context menu where the pointer was. The trigger cannot be
+           the close button itself: that would open the menu on a left click. -->
+      <div
+        class="quit-anchor"
+        [style.left.px]="quitMenuAt().x"
+        [style.top.px]="quitMenuAt().y"
+        [matMenuTriggerFor]="quitMenu"
+      ></div>
+
+      <mat-menu #quitMenu>
+        <button mat-menu-item type="button" (click)="quit()">
+          <mat-icon>power_settings_new</mat-icon>
+          <span>Quit KovOBS</span>
+        </button>
+      </mat-menu>
     </div>
   </mat-toolbar>
 

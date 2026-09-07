@@ -41,3 +41,9 @@ mat-toolbar {
     margin: 0;
   }
 }
+
+// Invisible, and only there to give the context menu somewhere to hang.
+.quit-anchor {
+  position: fixed;
+  visibility: hidden;
+}
