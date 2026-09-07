@@ -172,6 +172,11 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     };
 
+    // Both sets, whichever branch ended the session. Only the Ctrl+C path shut
+    // `tasks` down itself, so a watcher failing used to leave the OBS listener
+    // running here -- holding a clone of the client, which made the disconnect
+    // below silently impossible.
+    tasks.shutdown().await;
     watch_tasks.shutdown().await;
 
     if let Err(e) = res {
