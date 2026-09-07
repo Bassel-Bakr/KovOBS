@@ -1,6 +1,6 @@
 [package]
 name = "kovobs"
-version = "0.16.1"
+version = "0.17.0"
 description = "KovOBS"
 authors = ["Bassel Bakr"]
 edition = "2024"
