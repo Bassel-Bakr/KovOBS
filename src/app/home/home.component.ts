@@ -10,6 +10,7 @@ import { EventService } from '../services/event.service';
 import { combineLatest, of, switchMap, tap } from 'rxjs';
 import { GlobalService } from '../services/global.service';
 import { PathService } from '../services/path.service';
+import { ObsService } from '../services/obs.service';
 import { isEqual } from 'lodash-es';
 import { Config } from '../models/config';
 import { ThemeService } from '../services/theme.service';
@@ -116,6 +117,7 @@ export default class HomeComponent {
   private readonly tauriService = inject(TauriService);
   private readonly eventService = inject(EventService);
   private readonly pathService = inject(PathService);
+  private readonly obsService = inject(ObsService);
   private readonly themeService = inject(ThemeService);
   protected readonly globalService = inject(GlobalService);
 
@@ -157,10 +159,16 @@ export default class HomeComponent {
     defaultValue: false,
   });
 
-  protected readonly sources = rxResource<string[] | null, unknown>({
-    stream: () => this.eventService.obsSources(),
-    defaultValue: null,
-  });
+  /**
+   * OBS sources for the dropdowns.
+   *
+   * Filled from two directions: a running session pushes them, and
+   * [`loadSources`] asks directly. Without the second, the dropdowns stayed
+   * empty until Start -- which is backwards, since picking a source is
+   * something you do while setting up.
+   */
+  protected readonly sources = signal<string[] | null>(null);
+  protected readonly loadingSources = signal(false);
 
   protected readonly config = rxResource({
     params: () => ({ refresh: this.refresh() }),
@@ -237,6 +245,14 @@ export default class HomeComponent {
   ]);
 
   constructor() {
+    // A running session announces them as it connects.
+    this.eventService
+      .obsSources()
+      .pipe(takeUntilDestroyed())
+      .subscribe((sources) => this.sources.set(sources));
+
+    this.loadSources();
+
     effect(() => {
       const value = this.config.value();
       if (value) {
@@ -253,6 +269,24 @@ export default class HomeComponent {
   }
 
   protected readonly missingPaths = computed(() => this.missingPathsResource.value());
+
+  /**
+   * Asks OBS for its sources directly.
+   *
+   * A failure is left silent: OBS simply not being open is the ordinary case
+   * before Start, and an error banner for it would be noise on every launch.
+   */
+  protected loadSources(): void {
+    this.loadingSources.set(true);
+
+    this.obsService.getSources().subscribe({
+      next: (sources) => {
+        this.sources.set(sources);
+        this.loadingSources.set(false);
+      },
+      error: () => this.loadingSources.set(false),
+    });
+  }
 
   protected isMissing(path: string): boolean {
     return this.missingPaths().has(path);
