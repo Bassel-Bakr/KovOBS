@@ -20,21 +20,30 @@ pub fn clip_saved(title: &str, body: &str, clip: &Path, sound: bool) {
         body.to_owned(),
         clip.parent().map(Path::to_path_buf),
         sound,
+        false,
     );
 }
 
 /// Reports something that went wrong while KovOBS was running unattended.
 ///
-/// Deliberately has nothing to click: the useful destination would be the log
-/// panel, and there is no way to address it from a notification. Getting told
-/// at all is the point -- the alternative is finding out after the session that
-/// clips silently stopped being saved.
+/// Sent as urgent, which on Windows means the alarm scenario. That is the only
+/// thing Do Not Disturb's full-screen rule lets past, and a game in full screen
+/// is exactly when this fires -- a failure nobody sees is the same as no
+/// failure notification at all. Measured: under that rule a normal toast and an
+/// `urgent` one are both suppressed, and only `alarm` appears.
+///
+/// The cost is that it stays on screen until dismissed. That is the point: the
+/// alternative is finding out after the session that clips stopped saving.
+///
+/// Deliberately has nothing to click beyond dismissing. The useful destination
+/// would be the log panel, and there is no way to address it from a toast.
 pub fn failed(what: &str, detail: &str, sound: bool) {
     show(
         format!("KovOBS: {what}"),
         detail.to_owned(),
         None,
         sound,
+        true,
     );
 }
 
@@ -56,23 +65,21 @@ pub fn failed(what: &str, detail: &str, sound: bool) {
 /// `<toast {duration} {scenario}>` with nowhere to put `launch` or
 /// `activationType` -- so the XML is built here.
 #[cfg(windows)]
-fn show(title: String, body: String, folder: Option<PathBuf>, sound: bool) {
+fn show(title: String, body: String, folder: Option<PathBuf>, sound: bool, urgent: bool) {
     use windows::Data::Xml::Dom::XmlDocument;
     use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
     use windows::core::HSTRING;
 
     // A toast with somewhere to go carries the folder on both the body and the
     // button; one without stays inert rather than pretending to be clickable.
-    let (launch, actions) = match folder {
+    let (launch, mut buttons) = match folder {
         Some(folder) => {
             let target = file_url(&folder);
 
             (
                 format!("activationType='protocol' launch='{target}'"),
                 format!(
-                    "<actions>\
-                       <action content='{}' activationType='protocol' arguments='{target}'/>\
-                     </actions>",
+                    "<action content='{}' activationType='protocol' arguments='{target}'/>",
                     escape(ACTION_LABEL)
                 ),
             )
@@ -80,15 +87,30 @@ fn show(title: String, body: String, folder: Option<PathBuf>, sound: bool) {
         None => (String::new(), String::new()),
     };
 
-    // Toasts play the default sound unless told not to.
-    let audio = if sound {
-        ""
+    // The alarm scenario is rejected without at least one button, and an urgent
+    // toast has no folder to offer, so give it a way to be dismissed.
+    if urgent && buttons.is_empty() {
+        buttons = "<action content='Dismiss' activationType='system' arguments='dismiss'/>".into();
+    }
+
+    let actions = if buttons.is_empty() {
+        String::new()
     } else {
-        "<audio silent='true'/>"
+        format!("<actions>{buttons}</actions>")
+    };
+
+    let scenario = if urgent { "scenario='alarm'" } else { "" };
+
+    let audio = match (sound, urgent) {
+        (false, _) => "<audio silent='true'/>",
+        // Alarms loop their sound until dismissed, which is intolerable over a
+        // game. One pass is enough to be noticed.
+        (true, true) => "<audio loop='false'/>",
+        (true, false) => "",
     };
 
     let xml = format!(
-        "<toast duration='long' {launch}>\
+        "<toast duration='long' {scenario} {launch}>\
            <visual>\
              <binding template='ToastGeneric'>\
                <text>{}</text>\
@@ -175,8 +197,8 @@ fn escape(text: &str) -> String {
 }
 
 #[cfg(not(windows))]
-fn show(title: String, body: String, folder: Option<PathBuf>, sound: bool) {
-    use notify_rust::{Notification, NotificationResponse};
+fn show(title: String, body: String, folder: Option<PathBuf>, sound: bool, urgent: bool) {
+    use notify_rust::{Notification, NotificationResponse, Urgency};
 
     // `wait_for_response` blocks until the notification is acted on or closes,
     // so it gets its own thread rather than a runtime worker.
@@ -184,6 +206,12 @@ fn show(title: String, body: String, folder: Option<PathBuf>, sound: bool) {
         let mut notification = Notification::new();
 
         notification.summary(&title).body(&body);
+
+        if urgent {
+            // The XDG equivalent of the alarm scenario: daemons keep a critical
+            // notification on screen instead of timing it out.
+            notification.urgency(Urgency::Critical);
+        }
 
         if folder.is_some() {
             notification.action(DEFAULT_ACTION, ACTION_LABEL);
