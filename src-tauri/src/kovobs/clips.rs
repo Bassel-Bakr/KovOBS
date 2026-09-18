@@ -76,7 +76,6 @@ async fn store_clip(
     let trim_start_point = stat.start_dt - Duration::from_secs_f32(config.trim_padding_start);
     let duration = utils::get_creation_or_modification_time(replay_buffer)? - trim_start_point;
 
-    // TODO: Aimbeast trimming is experimental and fixed at 1m. Figure out how to get the scenario length to fix it
     let trim_duration = if config.trim {
         // Trim using ffmpeg
         duration

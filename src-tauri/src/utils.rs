@@ -11,6 +11,16 @@ pub fn get_creation_or_modification_time(
     Ok(DateTime::<Utc>::from(time))
 }
 
+/// When the file was last written.
+///
+/// Distinct from [`get_creation_or_modification_time`], which prefers the
+/// creation time: that is the right answer for a file written once per run,
+/// and the wrong one for a file that is rewritten every run, where creation
+/// dates from whenever the scenario was first played.
+pub fn get_modification_time(path: &path::Path) -> Result<DateTime<Utc>, std::io::Error> {
+    Ok(DateTime::<Utc>::from(fs::metadata(path)?.modified()?))
+}
+
 pub fn parse_local_datetime(date_time_str: &str) -> Option<DateTime<Utc>> {
     NaiveDateTime::parse_from_str(date_time_str, consts::STAT_DATE_TIME_FORMAT)
         .ok()

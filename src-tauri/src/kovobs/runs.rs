@@ -9,7 +9,6 @@ use crate::delay::StatDelay;
 use crate::stat::StatType;
 use crate::{config::AppConfig, consts, stat::Stat, ui_println, utils};
 use anyhow::Context;
-use chrono::Utc;
 use encoding_rs_io::DecodeReaderBytesBuilder;
 use notify::{RecommendedWatcher, Watcher};
 use obws::Client;
@@ -198,6 +197,12 @@ pub(super) async fn watch_aimbeast_stats_folder(
                        // Wait until it's stable
                        utils::wait_for_file(path).await?;
 
+                       // The run ended when Aimbeast wrote this file, not now:
+                       // the debounce, the wait above, and a busy loop all sit
+                       // between the two, and a clock reading here would push
+                       // the whole clip window that far late.
+                       let end_dt = utils::get_modification_time(path)?;
+
                        let f = std::fs::File::open(path)?;
 
                        let mut reader = DecodeReaderBytesBuilder::new()
@@ -237,11 +242,24 @@ pub(super) async fn watch_aimbeast_stats_folder(
                            }
                        }
 
-                       let stat: Stat = stat.into();
+                       let length = crate::aimbeast::scenario_length(stats_folder, &stat.scenario)
+                           .unwrap_or_else(|| {
+                               ui_println!(
+                                   "⏱️ No training data for {}, assuming {}s",
+                                   stat.scenario,
+                                   crate::aimbeast::DEFAULT_SCENARIO_LENGTH.as_secs()
+                               );
+
+                               crate::aimbeast::DEFAULT_SCENARIO_LENGTH
+                           });
+
+                       let stat = stat.into_stat(end_dt, length);
                        stat_sender.send(stat.clone()).await?;
 
+                       // Padding is measured from the run, so a late start
+                       // shortens the wait rather than extending the clip.
                        let delay = Arc::new(StatDelay {
-                           end_dt: Utc::now(),
+                           end_dt,
                            duration: Duration::from_secs_f32(config.trim_padding_end),
                        });
 

@@ -1,6 +1,6 @@
 use crate::stat::Stat;
 use crate::stat::StatType::Aimbeast;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use std::time::Duration;
 
@@ -45,17 +45,23 @@ impl ScenarioStatistics {
     pub fn is_pb(&self) -> bool {
         self.last_score() > self.prev_highscore()
     }
-}
 
-impl From<ScenarioStatistics> for Stat {
-    fn from(value: ScenarioStatistics) -> Self {
-        let s = &value;
-        let end_dt = Utc::now();
+    /// Turns the finished run into a [`Stat`] covering the `length` that led up
+    /// to `end_dt`.
+    ///
+    /// Aimbeast records no times of its own, so both ends come from the caller:
+    /// `end_dt` from when the statistics file was written, and `length` from
+    /// [`crate::aimbeast::scenario_length`]. Neither is read from the clock
+    /// here, so whatever the watcher spends noticing the run does not move the
+    /// window.
+    pub fn into_stat(self, end_dt: DateTime<Utc>, length: Duration) -> Stat {
+        let score = self.last_score().cloned().unwrap_or_default();
+
         Stat {
-            scenario: s.scenario.clone(),
-            score: s.last_score().cloned().unwrap_or_default(),
+            scenario: self.scenario,
+            score,
             end_dt,
-            start_dt: end_dt - Duration::from_mins(1),
+            start_dt: end_dt - length,
             stat_type: Aimbeast,
         }
     }
@@ -64,6 +70,8 @@ impl From<ScenarioStatistics> for Stat {
 #[cfg(test)]
 mod tests {
     use super::ScenarioStatistics;
+    use chrono::Utc;
+    use std::time::Duration;
 
     fn with(scores: &[f32]) -> ScenarioStatistics {
         ScenarioStatistics {
@@ -130,5 +138,27 @@ mod tests {
     #[test]
     fn an_incomparable_score_is_not_a_personal_best() {
         assert!(!with(&[100.0, f32::NAN]).is_pb());
+    }
+
+    /// The window is the scenario length, ending when the file was written.
+    #[test]
+    fn the_run_spans_the_scenario_length_up_to_the_end() {
+        let end_dt = Utc::now();
+        let stat = with(&[10.0, 20.0]).into_stat(end_dt, Duration::from_secs(15));
+
+        assert_eq!(stat.end_dt, end_dt);
+        assert_eq!(stat.start_dt, end_dt - Duration::from_secs(15));
+        assert_eq!(stat.scenario, "test");
+        assert_eq!(stat.score, 20.0);
+    }
+
+    /// Nothing was played, so the clock is all there is to go on.
+    #[test]
+    fn a_run_without_a_score_still_keeps_its_window() {
+        let end_dt = Utc::now();
+        let stat = with(&[]).into_stat(end_dt, Duration::from_secs(60));
+
+        assert_eq!(stat.start_dt, end_dt - Duration::from_secs(60));
+        assert_eq!(stat.score, 0.0);
     }
 }
