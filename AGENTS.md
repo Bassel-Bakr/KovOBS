@@ -1,6 +1,11 @@
 # Working in This Repository
 
-Conventions and commands for KovOBS. Read before the first change in a session.
+Conventions and commands for KovOBS. This file is loaded for you; the skills in
+`.agents/skills/` are not, so read the relevant one before starting on its area.
+
+`CLAUDE.md` is one line importing this file, and is not redundant: Claude Code
+does not pick `AGENTS.md` up on its own. Deleting it silently drops everything
+below out of context, which is how this was found.
 
 ## What the app is
 
@@ -106,12 +111,15 @@ the entries it needed.
 
 ---
 
-## Related skills
+## Skills
+
+Depth lives in `.agents/skills/`. Read the one that covers what you are about
+to touch.
 
 | Skill | For |
 |---|---|
-| `preview-ui-without-tauri` | seeing and measuring UI changes |
-| `add-config-option` | adding a persisted setting end to end |
-| `ffmpeg-two-pass` | changing how clips are trimmed or user args applied |
 | `aimbeast-stat-files` | anything reading Aimbeast's statistics or training log |
+| `ffmpeg-two-pass` | changing how clips are trimmed or user args applied |
+| `add-config-option` | adding a persisted setting end to end |
+| `preview-ui-without-tauri` | seeing and measuring UI changes |
 | `verify-by-effect` | anything that reports success but produces no effect |
