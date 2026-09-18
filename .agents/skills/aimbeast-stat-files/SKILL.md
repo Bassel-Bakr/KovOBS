@@ -34,7 +34,7 @@ Both are **UTF-16 with a BOM**. Decode the bytes; do not read them as UTF-8.
 
 The watcher only watches `Normal` and `Ranked`.
 
-### Deriving the scenario length
+### Deriving how long a run lasted
 
 The statistics file carries no duration, so the length comes from the sibling
 training log, whose entries look like:
@@ -43,15 +43,33 @@ training log, whose entries look like:
 {"19/9/2026": {"1 WALL 6 TARGETS": {"Completed Sessions Time": 120, "Completed Sessions": 2, "Total Time": 129}}}
 ```
 
-`Completed Sessions Time / Completed Sessions` is the scenario length — every
-completed run of a scenario lasts exactly as long as the one before it.
+**Do not read a scenario's length as a constant.** Scenarios that end early —
+on a miss, on running out of lives — last a different time every run.
+`SPHERE FRENZY BAZ 10S 1SHOT` is nominally 10 seconds and recorded 93 seconds
+across 14 completed runs: an average of 6.64 that describes none of them.
+
+The totals only move when a run completes, and by exactly that run's duration,
+so measure rather than assume:
+
+```
+length = ΔCompleted Sessions Time / ΔCompleted Sessions
+```
+
+between the reading taken for the previous run and this one. `ScenarioLengths`
+keeps those readings, in memory and per scenario per day.
+
+The day's own average, `Completed Sessions Time / Completed Sessions`, is only
+the fallback — the first run of a scenario since launch, or since the day
+rolled over, has nothing to measure against. It is right for fixed-length
+scenarios and wrong for the rest, which is the reason it is not the answer.
 
 **`Total Time` cannot give you a length.** It counts abandoned runs too: 49
 seconds across 3 sessions of a 15 second scenario.
 
 Day keys are `d/m/yyyy`, unpadded. Take the log's own newest day rather than
 today's date — the run being clipped was just written, so it is that day, and
-the system clock only adds ways to disagree with the file.
+the system clock only adds ways to disagree with the file. Two readings are
+only comparable within one day; the totals restart at midnight.
 
 ## Timing
 

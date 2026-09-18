@@ -218,6 +218,7 @@ pub(super) async fn watch_aimbeast_stats_folder(
     ui_println!("📁 Watching Aimbeast stats");
 
     let mut pending = PendingRuns::default();
+    let mut lengths = crate::aimbeast::ScenarioLengths::default();
     let mut timer = Box::pin(tokio::time::sleep(Duration::MAX));
 
     loop {
@@ -244,7 +245,8 @@ pub(super) async fn watch_aimbeast_stats_folder(
                 // Sequentially, so OBS is never asked to save two buffers at
                 // once and the clips stay paired with the runs that made them.
                 for path in pending.take() {
-                    if let Err(e) = handle_aimbeast_run(&path, &config, &client, &stat_sender).await
+                    if let Err(e) =
+                        handle_aimbeast_run(&path, &mut lengths, &config, &client, &stat_sender).await
                     {
                         ui_println!(
                             "👎 Could not handle the run in {:?}:\n{e}",
@@ -282,6 +284,7 @@ fn read_statistics(
 /// that window waits here rather than overlapping with this one.
 async fn handle_aimbeast_run(
     path: &std::path::Path,
+    lengths: &mut crate::aimbeast::ScenarioLengths,
     config: &Arc<AppConfig>,
     client: &Arc<Client>,
     stat_sender: &mpsc::Sender<Stat>,
@@ -327,8 +330,9 @@ async fn handle_aimbeast_run(
 
     let stats_folder = std::path::Path::new(&config.aimbeast.stats_folder);
 
-    let length =
-        crate::aimbeast::scenario_length(stats_folder, &stat.scenario).unwrap_or_else(|| {
+    let length = lengths
+        .last_run_length(stats_folder, &stat.scenario)
+        .unwrap_or_else(|| {
             ui_println!(
                 "⏱️ No training data for {}, assuming {}s",
                 stat.scenario,
