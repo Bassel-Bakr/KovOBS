@@ -16,7 +16,8 @@ silently, and never let one bad clip end the session.
 
 | Path | |
 |---|---|
-| `src-tauri/src/kovobs.rs` | orchestration: OBS events, stat watchers, task set |
+| `src-tauri/src/kovobs/` | orchestration: `runs.rs` watches the stat folders, `clips.rs` turns saved buffers into clips |
+| `src-tauri/src/aimbeast/` | reading Aimbeast's statistics and training log |
 | `src-tauri/src/ffmpeg.rs` | two-pass trim, then optional user args |
 | `src-tauri/src/config.rs` | all config structs and defaults |
 | `src-tauri/src/cmds/` | commands callable from the frontend, one file per concern |
@@ -112,4 +113,5 @@ the entries it needed.
 | `preview-ui-without-tauri` | seeing and measuring UI changes |
 | `add-config-option` | adding a persisted setting end to end |
 | `ffmpeg-two-pass` | changing how clips are trimmed or user args applied |
+| `aimbeast-stat-files` | anything reading Aimbeast's statistics or training log |
 | `verify-by-effect` | anything that reports success but produces no effect |
