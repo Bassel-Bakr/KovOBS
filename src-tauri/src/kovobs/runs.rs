@@ -20,13 +20,74 @@ use tokio::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 use tokio::time::Instant;
+
+/// How many file events can wait while a run is being handled.
+///
+/// Handling a run outlives the run itself by `trim_padding_end`, so the next
+/// run can finish while this one is still being dealt with. Anything short of
+/// a real queue here blocks the watcher thread and loses that run.
+const EVENT_QUEUE_SIZE: usize = 64;
+
+/// How long to let a file settle before treating it as one run.
+const DEBOUNCE: Duration = Duration::from_millis(100);
+
+/// The statistics files waiting to be handled, in the order they arrived.
+///
+/// A queue rather than a single slot: handling a run outlives the run by
+/// `trim_padding_end`, so the next run can finish while this one is still being
+/// dealt with, and holding one entry overall would drop it.
+#[derive(Debug, Default)]
+struct PendingRuns(Vec<std::path::PathBuf>);
+
+impl PendingRuns {
+    /// Queues a statistics file, and says whether it was new.
+    ///
+    /// One run is written in several bursts, so the same file arriving again is
+    /// already queued and is not a second run.
+    fn queue(&mut self, path: &std::path::Path) -> bool {
+        let is_stat_file = path.extension().is_some_and(|ext| ext == "json");
+
+        if !is_stat_file || self.0.iter().any(|queued| queued == path) {
+            return false;
+        }
+
+        self.0.push(path.to_path_buf());
+
+        true
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn take(&mut self) -> Vec<std::path::PathBuf> {
+        std::mem::take(&mut self.0)
+    }
+}
+
+/// The files a watcher event says were written, and nothing for the events that
+/// only read or removed one.
+fn written_paths(event: &notify::Event) -> &[std::path::PathBuf] {
+    match event.kind {
+        notify::EventKind::Create(_) | notify::EventKind::Modify(_) => &event.paths,
+        _ => &[],
+    }
+}
+
+/// Whether the file is one of KovaaK's per-run statistics files.
+fn is_kovaaks_stat_file(file_name: &std::ffi::OsStr) -> bool {
+    file_name
+        .as_encoded_bytes()
+        .ends_with(consts::STAT_FILE_SUFFIX.as_bytes())
+}
+
 pub(super) async fn watch_kovaaks_stats_folder(
     config: Arc<AppConfig>,
     client: Arc<Client>,
     cache: Arc<Mutex<Cache>>,
     stat_sender: Arc<mpsc::Sender<Stat>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let (tx, mut rx) = mpsc::channel(1);
+    let (tx, mut rx) = mpsc::channel(EVENT_QUEUE_SIZE);
 
     let mut watcher = RecommendedWatcher::new(
         move |res: Result<notify::Event, notify::Error>| {
@@ -58,11 +119,7 @@ pub(super) async fn watch_kovaaks_stats_folder(
                     continue;
                 };
 
-                let is_stat_file = file_name
-                    .as_encoded_bytes()
-                    .ends_with(consts::STAT_FILE_SUFFIX.as_bytes());
-
-                if !is_stat_file {
+                if !is_kovaaks_stat_file(file_name) {
                     continue;
                 }
 
@@ -130,7 +187,7 @@ pub(super) async fn watch_aimbeast_stats_folder(
     client: Arc<Client>,
     stat_sender: Arc<mpsc::Sender<Stat>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let (tx, mut rx) = mpsc::channel(1);
+    let (tx, mut rx) = mpsc::channel(EVENT_QUEUE_SIZE);
 
     let stats_folder = std::path::Path::new(&config.aimbeast.stats_folder);
 
@@ -160,127 +217,138 @@ pub(super) async fn watch_aimbeast_stats_folder(
 
     ui_println!("📁 Watching Aimbeast stats");
 
-    let mut pending = None;
+    let mut pending = PendingRuns::default();
     let mut timer = Box::pin(tokio::time::sleep(Duration::MAX));
-    let mut debounce: Option<tokio::task::JoinHandle<()>> = None;
 
     loop {
         tokio::select! {
             Some(event) = rx.recv() => {
-                pending = Some(event);
-                // Restart the debounce timer
-                timer.as_mut().reset(Instant::now() + Duration::from_millis(100));
+                let event = event.map_err(Box::new)?;
+
+                for path in written_paths(&event) {
+                    if pending.queue(path) {
+                        ui_println!(
+                            "🆕 New stat file detected: {:?}",
+                            path.file_name().unwrap_or_default()
+                        );
+                    }
+                }
+
+                if !pending.is_empty() {
+                    // Restart the debounce timer
+                    timer.as_mut().reset(Instant::now() + DEBOUNCE);
+                }
             }
 
-            _ = &mut timer, if pending.is_some() => {
-                match pending.take() {
-                   Some(Ok(notify::Event {
-                       kind: notify::EventKind::Create(_) | notify::EventKind::Modify(_),
-                       ref paths,
-                       ..
-                   })) => {
-                       let path = paths.first().with_context(|| "Failed to read path")?;
-
-                       if path.extension().is_none_or(|ext| ext != "json") {
-                           continue;
-                       }
-
-                       if let Some(task) = debounce.take() {
-                           task.abort();
-                       }
-
-                       ui_println!(
-                           "🆕 New stat file detected: {:?}",
-                           path.file_name().unwrap_or_default()
-                       );
-
-                       // Wait until it's stable
-                       utils::wait_for_file(path).await?;
-
-                       // The run ended when Aimbeast wrote this file, not now:
-                       // the debounce, the wait above, and a busy loop all sit
-                       // between the two, and a clock reading here would push
-                       // the whole clip window that far late.
-                       let end_dt = utils::get_modification_time(path)?;
-
-                       let f = std::fs::File::open(path)?;
-
-                       let mut reader = DecodeReaderBytesBuilder::new()
-                           .encoding(None) // Auto-detect from BOM, otherwise UTF-8
-                           .build(f);
-
-                       let mut stat =
-                           serde_json::from_reader::<_, crate::aimbeast::ScenarioStatistics>(&mut reader)?;
-
-                       stat.scenario = path
-                           .file_stem()
-                           .map(|stem| stem.to_string_lossy().to_string())
-                           .unwrap_or_default();
-
-                       let (new_pb, old_high_score, new_score) = {
-                           // let mut cache = cache.lock().await;
-                           (stat.is_pb(), stat.prev_highscore(), stat.last_score())
-                       };
-
-                       if new_pb {
-                           ui_println!(
-                               "😃 New high score! Scenario: {}, Old: {}, New: {}",
-                               stat.scenario,
-                               old_high_score.unwrap_or(&0f32),
-                               new_score.unwrap_or(&0f32)
-                           );
-                       } else {
-                           ui_println!(
-                               "😔 No new high score. Scenario: {}, Old: {}, New: {}",
-                               stat.scenario,
-                               old_high_score.unwrap_or(&0f32),
-                               new_score.unwrap_or(&0f32)
-                           );
-
-                           if config.only_pb {
-                               continue;
-                           }
-                       }
-
-                       let length = crate::aimbeast::scenario_length(stats_folder, &stat.scenario)
-                           .unwrap_or_else(|| {
-                               ui_println!(
-                                   "⏱️ No training data for {}, assuming {}s",
-                                   stat.scenario,
-                                   crate::aimbeast::DEFAULT_SCENARIO_LENGTH.as_secs()
-                               );
-
-                               crate::aimbeast::DEFAULT_SCENARIO_LENGTH
-                           });
-
-                       let stat = stat.into_stat(end_dt, length);
-                       stat_sender.send(stat.clone()).await?;
-
-                       // Padding is measured from the run, so a late start
-                       // shortens the wait rather than extending the clip.
-                       let delay = Arc::new(StatDelay {
-                           end_dt,
-                           duration: Duration::from_secs_f32(config.trim_padding_end),
-                       });
-
-                       let mut tasks = JoinSet::new();
-
-                       tasks.spawn(save_clip(client.clone(), delay.clone()));
-                       tasks.spawn(save_screenshot(
-                           client.clone(),
-                           config.clone(),
-                           delay.clone(),
-                           stat,
-                       ));
-
-                       tasks.join_all().await;
-                   }
-                   Some(Err(e)) => return Err(Box::from(e)),
-                   _ => (),
-                };
+            _ = &mut timer, if !pending.is_empty() => {
+                // Sequentially, so OBS is never asked to save two buffers at
+                // once and the clips stay paired with the runs that made them.
+                for path in pending.take() {
+                    if let Err(e) = handle_aimbeast_run(&path, &config, &client, &stat_sender).await
+                    {
+                        ui_println!(
+                            "👎 Could not handle the run in {:?}:\n{e}",
+                            path.file_name().unwrap_or_default()
+                        );
+                    }
+                }
             }
         }
     }
+}
+
+/// Turns one written Aimbeast statistics file into a clip and a screenshot.
+///
+/// Returns once OBS has been asked for both, which is `trim_padding_end` after
+/// the run ended. Runs are handled one at a time, so a run finishing inside
+/// that window waits here rather than overlapping with this one.
+async fn handle_aimbeast_run(
+    path: &std::path::Path,
+    config: &Arc<AppConfig>,
+    client: &Arc<Client>,
+    stat_sender: &mpsc::Sender<Stat>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Wait until it's stable
+    utils::wait_for_file(path).await?;
+
+    // The run ended when Aimbeast wrote this file, not now: the debounce, the
+    // wait above, and a watcher still busy with the previous run all sit
+    // between the two, and a clock reading here would push the whole clip
+    // window that far late.
+    let end_dt = utils::get_modification_time(path)?;
+
+    let f = std::fs::File::open(path)?;
+
+    let mut reader = DecodeReaderBytesBuilder::new()
+        .encoding(None) // Auto-detect from BOM, otherwise UTF-8
+        .build(f);
+
+    let mut stat = serde_json::from_reader::<_, crate::aimbeast::ScenarioStatistics>(&mut reader)?;
+
+    stat.scenario = path
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    let (new_pb, old_high_score, new_score) =
+        (stat.is_pb(), stat.prev_highscore(), stat.last_score());
+
+    if new_pb {
+        ui_println!(
+            "😃 New high score! Scenario: {}, Old: {}, New: {}",
+            stat.scenario,
+            old_high_score.unwrap_or(&0f32),
+            new_score.unwrap_or(&0f32)
+        );
+    } else {
+        ui_println!(
+            "😔 No new high score. Scenario: {}, Old: {}, New: {}",
+            stat.scenario,
+            old_high_score.unwrap_or(&0f32),
+            new_score.unwrap_or(&0f32)
+        );
+
+        if config.only_pb {
+            return Ok(());
+        }
+    }
+
+    let stats_folder = std::path::Path::new(&config.aimbeast.stats_folder);
+
+    let length =
+        crate::aimbeast::scenario_length(stats_folder, &stat.scenario).unwrap_or_else(|| {
+            ui_println!(
+                "⏱️ No training data for {}, assuming {}s",
+                stat.scenario,
+                crate::aimbeast::DEFAULT_SCENARIO_LENGTH.as_secs()
+            );
+
+            crate::aimbeast::DEFAULT_SCENARIO_LENGTH
+        });
+
+    let stat = stat.into_stat(end_dt, length);
+    stat_sender.send(stat.clone()).await?;
+
+    // Padding is measured from the run, so a late start shortens the wait
+    // rather than extending the clip.
+    let delay = Arc::new(StatDelay {
+        end_dt,
+        duration: Duration::from_secs_f32(config.trim_padding_end),
+    });
+
+    let mut tasks = JoinSet::new();
+
+    tasks.spawn(save_clip(client.clone(), delay.clone()));
+    tasks.spawn(save_screenshot(
+        client.clone(),
+        config.clone(),
+        delay.clone(),
+        stat,
+    ));
+
+    tasks.join_all().await;
+
+    Ok(())
 }
 
 async fn save_clip(
@@ -347,4 +415,130 @@ async fn save_screenshot(
     ui_println!("🗃️ Saved screenshot: {}", sc_path.to_string_lossy());
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PendingRuns, is_kovaaks_stat_file, written_paths};
+    use std::path::{Path, PathBuf};
+
+    fn event(kind: notify::EventKind, paths: &[&str]) -> notify::Event {
+        notify::Event {
+            kind,
+            paths: paths.iter().map(PathBuf::from).collect(),
+            attrs: Default::default(),
+        }
+    }
+
+    fn queued(pending: &PendingRuns) -> Vec<String> {
+        pending
+            .0
+            .iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn a_statistics_file_is_queued() {
+        let mut pending = PendingRuns::default();
+
+        assert!(pending.queue(Path::new("/stats/TEST.json")));
+        assert_eq!(queued(&pending), ["/stats/TEST.json"]);
+    }
+
+    /// Aimbeast writes plenty beside the per-scenario statistics.
+    #[test]
+    fn anything_that_is_not_json_is_ignored() {
+        let mut pending = PendingRuns::default();
+
+        assert!(!pending.queue(Path::new("/stats/steam_autocloud.vdf")));
+        assert!(!pending.queue(Path::new("/stats/TEST")));
+        assert!(pending.is_empty());
+    }
+
+    /// One run is written in bursts, and the bursts are not separate runs.
+    #[test]
+    fn the_same_file_is_only_queued_once() {
+        let mut pending = PendingRuns::default();
+
+        assert!(pending.queue(Path::new("/stats/TEST.json")));
+        assert!(!pending.queue(Path::new("/stats/TEST.json")));
+        assert_eq!(queued(&pending), ["/stats/TEST.json"]);
+    }
+
+    /// The case this queue exists for: a second run landing while the first is
+    /// still being handled must not replace it.
+    #[test]
+    fn a_second_scenario_does_not_evict_the_first() {
+        let mut pending = PendingRuns::default();
+
+        pending.queue(Path::new("/stats/FIRST.json"));
+        pending.queue(Path::new("/stats/SECOND.json"));
+
+        assert_eq!(
+            queued(&pending),
+            ["/stats/FIRST.json", "/stats/SECOND.json"]
+        );
+    }
+
+    /// Runs are handled in the order they were played.
+    #[test]
+    fn taking_the_queue_empties_it_in_order() {
+        let mut pending = PendingRuns::default();
+
+        pending.queue(Path::new("/stats/FIRST.json"));
+        pending.queue(Path::new("/stats/SECOND.json"));
+
+        let taken = pending.take();
+
+        assert_eq!(
+            taken,
+            [
+                PathBuf::from("/stats/FIRST.json"),
+                PathBuf::from("/stats/SECOND.json")
+            ]
+        );
+        assert!(pending.is_empty());
+
+        // The same file is a new run once the previous one has been handled.
+        assert!(pending.queue(Path::new("/stats/FIRST.json")));
+    }
+
+    #[test]
+    fn a_written_file_is_taken_from_the_event() {
+        use notify::event::{CreateKind, ModifyKind};
+
+        for kind in [
+            notify::EventKind::Create(CreateKind::File),
+            notify::EventKind::Modify(ModifyKind::Any),
+        ] {
+            assert_eq!(
+                written_paths(&event(kind, &["/stats/TEST.json"])),
+                [PathBuf::from("/stats/TEST.json")]
+            );
+        }
+    }
+
+    /// Reading or deleting a statistics file is not a finished run.
+    #[test]
+    fn an_event_that_wrote_nothing_has_no_paths() {
+        use notify::event::{AccessKind, RemoveKind};
+
+        for kind in [
+            notify::EventKind::Access(AccessKind::Any),
+            notify::EventKind::Remove(RemoveKind::File),
+            notify::EventKind::Other,
+        ] {
+            assert!(written_paths(&event(kind, &["/stats/TEST.json"])).is_empty());
+        }
+    }
+
+    #[test]
+    fn a_kovaaks_statistics_file_is_recognised_by_its_suffix() {
+        assert!(is_kovaaks_stat_file(
+            "scenario - Challenge - 2026.09.19-00.05.29 Stats.csv".as_ref()
+        ));
+        assert!(!is_kovaaks_stat_file("scenario.csv".as_ref()));
+        assert!(!is_kovaaks_stat_file("Stats.csv".as_ref()));
+    }
 }

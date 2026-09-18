@@ -48,3 +48,54 @@ pub async fn wait_for_file(path: &path::Path) -> Result<(), std::io::Error> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{get_modification_time, wait_for_file};
+    use chrono::Utc;
+    use std::time::Duration;
+
+    fn temp_file(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("kovobs_utils_{name}"))
+    }
+
+    /// Aimbeast rewrites one file per scenario, so the run's time is the latest
+    /// write, not the first.
+    #[tokio::test]
+    async fn the_modification_time_follows_the_latest_write() {
+        let path = temp_file("rewritten.json");
+
+        std::fs::write(&path, "first").expect("written");
+        let first = get_modification_time(&path).expect("read");
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        std::fs::write(&path, "second").expect("rewritten");
+        let second = get_modification_time(&path).expect("read");
+
+        assert!(second > first, "{second} is not after {first}");
+        assert!(
+            (Utc::now() - second).num_seconds().abs() < 5,
+            "{second} is not around now"
+        );
+
+        std::fs::remove_file(&path).expect("cleaned up");
+    }
+
+    #[tokio::test]
+    async fn a_file_that_stops_growing_is_stable() {
+        let path = temp_file("stable.json");
+
+        std::fs::write(&path, "done").expect("written");
+
+        wait_for_file(&path).await.expect("stable");
+
+        std::fs::remove_file(&path).expect("cleaned up");
+    }
+
+    #[tokio::test]
+    async fn a_file_that_is_not_there_is_an_error() {
+        assert!(get_modification_time(&temp_file("missing.json")).is_err());
+        assert!(wait_for_file(&temp_file("missing.json")).await.is_err());
+    }
+}
