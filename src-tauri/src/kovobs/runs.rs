@@ -257,6 +257,24 @@ pub(super) async fn watch_aimbeast_stats_folder(
     }
 }
 
+/// Reads a run out of an Aimbeast statistics file, and closes the file again.
+///
+/// Closing it matters as much as reading it. Aimbeast opens these files without
+/// sharing them, so while a handle of ours is open its next write to that
+/// scenario fails, silently and without touching the file. Holding one across
+/// the padding wait cost every run played within `trim_padding_end` of the
+/// last: the training log counted them, the statistics file never got them, and
+/// nothing was ever clipped for them.
+fn read_statistics(
+    path: &std::path::Path,
+) -> Result<crate::aimbeast::ScenarioStatistics, Box<dyn std::error::Error + Send + Sync>> {
+    let mut reader = DecodeReaderBytesBuilder::new()
+        .encoding(None) // Auto-detect from BOM, otherwise UTF-8
+        .build(std::fs::File::open(path)?);
+
+    Ok(serde_json::from_reader(&mut reader)?)
+}
+
 /// Turns one written Aimbeast statistics file into a clip and a screenshot.
 ///
 /// Returns once OBS has been asked for both, which is `trim_padding_end` after
@@ -277,13 +295,7 @@ async fn handle_aimbeast_run(
     // window that far late.
     let end_dt = utils::get_modification_time(path)?;
 
-    let f = std::fs::File::open(path)?;
-
-    let mut reader = DecodeReaderBytesBuilder::new()
-        .encoding(None) // Auto-detect from BOM, otherwise UTF-8
-        .build(f);
-
-    let mut stat = serde_json::from_reader::<_, crate::aimbeast::ScenarioStatistics>(&mut reader)?;
+    let mut stat = read_statistics(path)?;
 
     stat.scenario = path
         .file_stem()
@@ -540,5 +552,34 @@ mod tests {
         ));
         assert!(!is_kovaaks_stat_file("scenario.csv".as_ref()));
         assert!(!is_kovaaks_stat_file("Stats.csv".as_ref()));
+    }
+
+    /// The file must be closed by the time the run is read out of it. Aimbeast
+    /// opens these files without sharing them, so a handle left open makes its
+    /// next write to that scenario fail without a trace.
+    #[cfg(windows)]
+    #[test]
+    fn reading_a_run_does_not_keep_the_file_open() {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let path = std::env::temp_dir().join("kovobs_runs_read_statistics.json");
+        let json = r#"{"Score":[10.0,20.0]}"#;
+
+        let mut bytes = vec![0xFF, 0xFE];
+        bytes.extend(json.encode_utf16().flat_map(u16::to_le_bytes));
+        std::fs::write(&path, &bytes).expect("written");
+
+        let stat = super::read_statistics(&path).expect("read");
+        assert_eq!(stat.last_score(), Some(&20.0));
+
+        // Opening with no sharing at all is how Aimbeast writes: it succeeds
+        // only while nothing else holds the file.
+        std::fs::OpenOptions::new()
+            .write(true)
+            .share_mode(0)
+            .open(&path)
+            .expect("nothing else holds the file");
+
+        std::fs::remove_file(&path).expect("cleaned up");
     }
 }

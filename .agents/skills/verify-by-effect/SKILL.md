@@ -221,3 +221,10 @@ rejected without explanation, or rendered wrong.
 **Assumed filesystem layout.** Scanning one level, or filtering by extension,
 when the real layout nests or varies. Symptom: a fallback path always runs and
 the feature appears to work.
+
+**A held handle blocking the writer.** Reading a file another process owns, and
+keeping the handle past the parse. On Windows a writer that opens without
+sharing then fails, usually without an error the user sees. Symptom: the
+operation you watched succeeds, and the *next* one silently never happens —
+which reads as throttling or rate limiting on the other program's side. *Test:*
+close your process and repeat the sequence.
