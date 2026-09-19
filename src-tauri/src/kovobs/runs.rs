@@ -31,6 +31,10 @@ const EVENT_QUEUE_SIZE: usize = 64;
 /// How long to let a file settle before treating it as one run.
 const DEBOUNCE: Duration = Duration::from_millis(100);
 
+/// Where Aimbeast files a scenario's statistics, by where the scenario came
+/// from.
+const AIMBEAST_SCENARIO_FOLDERS: [&str; 3] = ["Normal", "Ranked", "Custom"];
+
 /// The statistics files waiting to be handled, in the order they arrived.
 ///
 /// A queue rather than a single slot: handling a run outlives the run by
@@ -196,9 +200,6 @@ pub(super) async fn watch_aimbeast_stats_folder(
         return Err(Box::from(msg));
     }
 
-    let normal_scenarios = stats_folder.join("Normal");
-    let ranked_scenarios = stats_folder.join("Ranked");
-
     let mut watcher = RecommendedWatcher::new(
         move |res: Result<notify::Event, notify::Error>| {
             tx.blocking_send(res).expect("Failed to send file event");
@@ -207,17 +208,38 @@ pub(super) async fn watch_aimbeast_stats_folder(
     )
     .with_context(|| "Failed to create watcher")?;
 
-    watcher
-        .watch(&normal_scenarios, notify::RecursiveMode::NonRecursive)
-        .with_context(|| "Failed to watch stats folder")?;
+    // A scenario you built yourself is still a run worth clipping, and Aimbeast
+    // files those under `Custom`. Only the folders that exist are watched: a
+    // player who has never made one has no `Custom` folder, and refusing to
+    // start over that would cost them the other two.
+    let watched: Vec<_> = AIMBEAST_SCENARIO_FOLDERS
+        .iter()
+        .map(|kind| stats_folder.join(kind))
+        .filter(|folder| folder.exists())
+        .collect();
 
-    watcher
-        .watch(&ranked_scenarios, notify::RecursiveMode::NonRecursive)
-        .with_context(|| "Failed to watch stats folder")?;
+    if watched.is_empty() {
+        let msg = format!(
+            "No Aimbeast scenario folders under {}",
+            stats_folder.display()
+        );
+        return Err(Box::from(msg));
+    }
+
+    for folder in &watched {
+        watcher
+            .watch(folder, notify::RecursiveMode::NonRecursive)
+            .with_context(|| format!("Failed to watch {}", folder.display()))?;
+    }
 
     ui_println!("📁 Watching Aimbeast stats");
 
     let mut pending = PendingRuns::default();
+
+    // Read the totals before any run lands, so the first one of the session is
+    // measured rather than averaged.
+    let mut lengths = crate::aimbeast::ScenarioLengths::default();
+    lengths.prime(stats_folder);
     let mut timer = Box::pin(tokio::time::sleep(Duration::MAX));
 
     loop {
@@ -244,7 +266,8 @@ pub(super) async fn watch_aimbeast_stats_folder(
                 // Sequentially, so OBS is never asked to save two buffers at
                 // once and the clips stay paired with the runs that made them.
                 for path in pending.take() {
-                    if let Err(e) = handle_aimbeast_run(&path, &config, &client, &stat_sender).await
+                    if let Err(e) =
+                        handle_aimbeast_run(&path, &mut lengths, &config, &client, &stat_sender).await
                     {
                         ui_println!(
                             "👎 Could not handle the run in {:?}:\n{e}",
@@ -282,6 +305,7 @@ fn read_statistics(
 /// that window waits here rather than overlapping with this one.
 async fn handle_aimbeast_run(
     path: &std::path::Path,
+    lengths: &mut crate::aimbeast::ScenarioLengths,
     config: &Arc<AppConfig>,
     client: &Arc<Client>,
     stat_sender: &mpsc::Sender<Stat>,
@@ -327,8 +351,9 @@ async fn handle_aimbeast_run(
 
     let stats_folder = std::path::Path::new(&config.aimbeast.stats_folder);
 
-    let length =
-        crate::aimbeast::scenario_length(stats_folder, &stat.scenario).unwrap_or_else(|| {
+    let length = lengths
+        .last_run_length(stats_folder, &stat.scenario, end_dt)
+        .unwrap_or_else(|| {
             ui_println!(
                 "⏱️ No training data for {}, assuming {}s",
                 stat.scenario,
@@ -337,6 +362,11 @@ async fn handle_aimbeast_run(
 
             crate::aimbeast::DEFAULT_SCENARIO_LENGTH
         });
+
+    // The one number the user cannot check for themselves. A clip that opens
+    // too early or cuts the start off is this being wrong, and without it there
+    // is nothing to compare against the run they just played.
+    ui_println!("⏱️ Run lasted {:.2}s", length.as_secs_f32());
 
     let stat = stat.into_stat(end_dt, length);
     stat_sender.send(stat.clone()).await?;

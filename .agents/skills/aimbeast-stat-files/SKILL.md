@@ -32,9 +32,13 @@ Both are **UTF-16 with a BOM**. Decode the bytes; do not read them as UTF-8.
 | written | in place, every run | in place, every run |
 | holds a duration | **no** | yes, indirectly |
 
-The watcher only watches `Normal` and `Ranked`.
+All three folders are watched, and which one a scenario lands in is the only
+thing that distinguishes them: `Custom` holds scenarios the player built, and
+went unwatched long enough for custom scenarios to produce no clips at all.
+Only the folders that exist are watched, since a player who has never built a
+scenario has no `Custom` folder.
 
-### Deriving the scenario length
+### Deriving how long a run lasted
 
 The statistics file carries no duration, so the length comes from the sibling
 training log, whose entries look like:
@@ -43,15 +47,45 @@ training log, whose entries look like:
 {"19/9/2026": {"1 WALL 6 TARGETS": {"Completed Sessions Time": 120, "Completed Sessions": 2, "Total Time": 129}}}
 ```
 
-`Completed Sessions Time / Completed Sessions` is the scenario length — every
-completed run of a scenario lasts exactly as long as the one before it.
+**A "Completed Session" is a run whose timer ran out.** Verified by playing the
+two kinds back to back: clearing a scenario early, and ending it on a miss,
+both leave `Completed Sessions`, `Completed Sessions Time` and `Total Time`
+untouched. Only a run that goes the distance is recorded.
+
+So the log describes exactly the runs whose length you could have guessed, and
+is silent about every run that ended early. Nothing else on disk covers them
+either: watching every file Aimbeast touches during a run shows writes only
+when one *ends*, and the window title never changes. There is no scenario-start
+signal in any file.
+
+The totals only move when a run completes, and by exactly that run's duration,
+so measure rather than assume:
+
+```
+length = ΔCompleted Sessions Time / ΔCompleted Sessions
+```
+
+between the reading taken for the previous run and this one. `ScenarioLengths`
+keeps those readings, in memory and per scenario per day.
+
+The day's own average, `Completed Sessions Time / Completed Sessions`, is the
+fallback — the first run of a scenario since launch, or since the day rolled
+over, has nothing to measure against. Since only timer-expiry runs are counted,
+that average is the scenario's timer, so it is right for a run that went the
+distance and too long for one that ended early. Too long is the safe direction:
+the clip keeps the whole run and some lead-in, rather than losing the start.
+
+A run that ended early is then capped by the time since that scenario's
+previous run ended. The player was in the scenario for the whole gap, so the
+run cannot have outlasted it. An upper bound, not a measurement.
 
 **`Total Time` cannot give you a length.** It counts abandoned runs too: 49
 seconds across 3 sessions of a 15 second scenario.
 
 Day keys are `d/m/yyyy`, unpadded. Take the log's own newest day rather than
 today's date — the run being clipped was just written, so it is that day, and
-the system clock only adds ways to disagree with the file.
+the system clock only adds ways to disagree with the file. Two readings are
+only comparable within one day; the totals restart at midnight.
 
 ## Timing
 
