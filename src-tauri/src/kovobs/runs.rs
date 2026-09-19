@@ -359,6 +359,11 @@ async fn handle_aimbeast_run(
             crate::aimbeast::DEFAULT_SCENARIO_LENGTH
         });
 
+    // The one number the user cannot check for themselves. A clip that opens
+    // too early or cuts the start off is this being wrong, and without it there
+    // is nothing to compare against the run they just played.
+    ui_println!("⏱️ Run lasted {:.2}s", length.as_secs_f32());
+
     let stat = stat.into_stat(end_dt, length);
     stat_sender.send(stat.clone()).await?;
 
