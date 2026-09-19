@@ -31,6 +31,10 @@ const EVENT_QUEUE_SIZE: usize = 64;
 /// How long to let a file settle before treating it as one run.
 const DEBOUNCE: Duration = Duration::from_millis(100);
 
+/// Where Aimbeast files a scenario's statistics, by where the scenario came
+/// from.
+const AIMBEAST_SCENARIO_FOLDERS: [&str; 3] = ["Normal", "Ranked", "Custom"];
+
 /// The statistics files waiting to be handled, in the order they arrived.
 ///
 /// A queue rather than a single slot: handling a run outlives the run by
@@ -196,9 +200,6 @@ pub(super) async fn watch_aimbeast_stats_folder(
         return Err(Box::from(msg));
     }
 
-    let normal_scenarios = stats_folder.join("Normal");
-    let ranked_scenarios = stats_folder.join("Ranked");
-
     let mut watcher = RecommendedWatcher::new(
         move |res: Result<notify::Event, notify::Error>| {
             tx.blocking_send(res).expect("Failed to send file event");
@@ -207,13 +208,29 @@ pub(super) async fn watch_aimbeast_stats_folder(
     )
     .with_context(|| "Failed to create watcher")?;
 
-    watcher
-        .watch(&normal_scenarios, notify::RecursiveMode::NonRecursive)
-        .with_context(|| "Failed to watch stats folder")?;
+    // A scenario you built yourself is still a run worth clipping, and Aimbeast
+    // files those under `Custom`. Only the folders that exist are watched: a
+    // player who has never made one has no `Custom` folder, and refusing to
+    // start over that would cost them the other two.
+    let watched: Vec<_> = AIMBEAST_SCENARIO_FOLDERS
+        .iter()
+        .map(|kind| stats_folder.join(kind))
+        .filter(|folder| folder.exists())
+        .collect();
 
-    watcher
-        .watch(&ranked_scenarios, notify::RecursiveMode::NonRecursive)
-        .with_context(|| "Failed to watch stats folder")?;
+    if watched.is_empty() {
+        let msg = format!(
+            "No Aimbeast scenario folders under {}",
+            stats_folder.display()
+        );
+        return Err(Box::from(msg));
+    }
+
+    for folder in &watched {
+        watcher
+            .watch(folder, notify::RecursiveMode::NonRecursive)
+            .with_context(|| format!("Failed to watch {}", folder.display()))?;
+    }
 
     ui_println!("📁 Watching Aimbeast stats");
 
