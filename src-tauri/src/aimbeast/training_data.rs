@@ -1,6 +1,6 @@
 //! Aimbeast's training log, and the scenario length hidden inside it.
 
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use encoding_rs_io::DecodeReaderBytesBuilder;
 use serde::Deserialize;
 use std::cmp::Reverse;
@@ -84,7 +84,17 @@ impl ScenarioDay {
 /// Aimbeast writes the training log just before the statistics file, so the run
 /// being clipped is already counted by the time this is read.
 #[derive(Debug, Default)]
-pub struct ScenarioLengths(HashMap<String, (String, ScenarioDay)>);
+pub struct ScenarioLengths(HashMap<String, Seen>);
+
+/// What the last look at a scenario found.
+#[derive(Clone, Debug)]
+struct Seen {
+    day: String,
+    totals: ScenarioDay,
+    /// When its previous run ended, once one has been watched. Priming leaves
+    /// this empty: it reads totals, not runs.
+    ended: Option<DateTime<Utc>>,
+}
 
 impl ScenarioLengths {
     /// Takes a reading of every scenario before any run is watched.
@@ -113,33 +123,72 @@ impl ScenarioLengths {
                     let newer_than_seen = self
                         .0
                         .get(scenario)
-                        .is_none_or(|(seen, _)| day_date(seen) < day_date(day));
+                        .is_none_or(|seen| day_date(&seen.day) < day_date(day));
 
                     if newer_than_seen {
-                        self.0.insert(scenario.clone(), (day.clone(), *totals));
+                        self.0.insert(
+                            scenario.clone(),
+                            Seen {
+                                day: day.clone(),
+                                totals: *totals,
+                                ended: None,
+                            },
+                        );
                     }
                 }
             }
         }
     }
 
-    /// The length of the run just written, and remembers the totals behind it.
+    /// The length of the run that ended at `ended`, and remembers what it was
+    /// worked out from.
     ///
     /// Falls back to the day's average when there is nothing to compare
     /// against: the first run of a scenario since the app started, or since the
     /// day rolled over. When runs were missed -- the app was closed for some of
     /// them -- the difference covers all of them at once, and their average is
     /// still closer than the whole day's.
-    pub fn last_run_length(&mut self, stats_folder: &Path, scenario: &str) -> Option<Duration> {
+    ///
+    /// Whatever the source, the answer is capped by the time since this
+    /// scenario's previous run ended. Aimbeast only counts a run that ran its
+    /// timer out, so a scenario cleared early is left to the average, which is
+    /// then the timer -- longer than the run every time. The player was in the
+    /// scenario for the whole gap, so the run cannot have outlasted it.
+    ///
+    /// The cap is only ever an upper bound, so it can shorten the answer toward
+    /// the truth but never past it -- unless Aimbeast writes the same run
+    /// twice, further apart than the watcher's debounce, which would read as
+    /// two runs a moment apart.
+    pub fn last_run_length(
+        &mut self,
+        stats_folder: &Path,
+        scenario: &str,
+        ended: DateTime<Utc>,
+    ) -> Option<Duration> {
         let (day, totals) = latest_totals(stats_folder, scenario)?;
+        let seen = self.0.get(scenario);
 
-        let length = match self.0.get(scenario) {
-            Some((seen_day, seen)) if *seen_day == day => totals.length_since(seen),
+        let measured = match seen {
+            Some(seen) if seen.day == day => totals.length_since(&seen.totals),
             _ => None,
-        }
-        .or_else(|| totals.average_length());
+        };
 
-        self.0.insert(scenario.to_owned(), (day, totals));
+        let since_previous_run = seen
+            .and_then(|seen| seen.ended)
+            .and_then(|before| (ended - before).to_std().ok());
+
+        let length = measured
+            .or_else(|| totals.average_length())
+            .map(|length| since_previous_run.map_or(length, |gap| length.min(gap)));
+
+        self.0.insert(
+            scenario.to_owned(),
+            Seen {
+                day,
+                totals,
+                ended: Some(ended),
+            },
+        );
 
         length
     }
@@ -240,7 +289,7 @@ mod tests {
         ScenarioDay, ScenarioLengths, TrainingLog, day_date, log_files, parse_log, totals_in,
         training_data_folder, year_of,
     };
-    use chrono::NaiveDate;
+    use chrono::{DateTime, NaiveDate, Utc};
     use std::path::{Path, PathBuf};
     use std::time::Duration;
 
@@ -256,6 +305,18 @@ mod tests {
     /// earlier reading to measure against.
     fn average(log: &TrainingLog, scenario: &str) -> Option<Duration> {
         totals_in(log, scenario)?.1.average_length()
+    }
+
+    /// A moment far enough after the previous one that the cap never applies,
+    /// for the tests that are not about the cap.
+    fn much_later() -> DateTime<Utc> {
+        static NEXT: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+        let step = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        DateTime::from_timestamp(1_700_000_000 + step * 3600, 0).expect("valid moment")
+    }
+
+    fn at(seconds: i64) -> DateTime<Utc> {
+        DateTime::from_timestamp(1_800_000_000 + seconds, 0).expect("valid moment")
     }
 
     fn totals(seconds: f64, runs: u32) -> ScenarioDay {
@@ -348,7 +409,7 @@ mod tests {
     fn a_stats_folder_without_a_parent_has_no_training_log() {
         assert_eq!(training_data_folder(Path::new("")), None);
         assert_eq!(
-            ScenarioLengths::default().last_run_length(Path::new(""), "TEST"),
+            ScenarioLengths::default().last_run_length(Path::new(""), "TEST", much_later()),
             None
         );
     }
@@ -526,7 +587,7 @@ mod tests {
 
         // 93 / 14, the average of runs that each ended early.
         assert_eq!(
-            lengths.last_run_length(&stats_folder, "TEST"),
+            lengths.last_run_length(&stats_folder, "TEST", much_later()),
             Some(Duration::from_secs_f64(93.0 / 14.0))
         );
 
@@ -536,7 +597,7 @@ mod tests {
         );
 
         assert_eq!(
-            lengths.last_run_length(&stats_folder, "TEST"),
+            lengths.last_run_length(&stats_folder, "TEST", much_later()),
             Some(Duration::from_secs(4))
         );
 
@@ -555,7 +616,7 @@ mod tests {
         let mut lengths = ScenarioLengths::default();
 
         assert_eq!(
-            lengths.last_run_length(&stats_folder, "TEST"),
+            lengths.last_run_length(&stats_folder, "TEST", much_later()),
             Some(Duration::from_secs(60))
         );
 
@@ -568,7 +629,7 @@ mod tests {
         );
 
         assert_eq!(
-            lengths.last_run_length(&stats_folder, "TEST"),
+            lengths.last_run_length(&stats_folder, "TEST", much_later()),
             Some(Duration::from_secs(15))
         );
 
@@ -595,7 +656,7 @@ mod tests {
 
         // 32/5 is 6.4; the run itself was 12.
         assert_eq!(
-            lengths.last_run_length(&stats_folder, "TEST"),
+            lengths.last_run_length(&stats_folder, "TEST", much_later()),
             Some(Duration::from_secs(12))
         );
 
@@ -623,7 +684,7 @@ mod tests {
         );
 
         assert_eq!(
-            lengths.last_run_length(&stats_folder, "TEST"),
+            lengths.last_run_length(&stats_folder, "TEST", much_later()),
             Some(Duration::from_secs(12))
         );
 
@@ -660,12 +721,108 @@ mod tests {
 
         // TEST was primed from 19/9 at 99/9, not from 18/9.
         assert_eq!(
-            lengths.last_run_length(&stats_folder, "TEST"),
+            lengths.last_run_length(&stats_folder, "TEST", much_later()),
             Some(Duration::from_secs(10))
         );
         assert_eq!(
-            lengths.last_run_length(&stats_folder, "OTHER"),
+            lengths.last_run_length(&stats_folder, "OTHER", much_later()),
             Some(Duration::from_secs(15))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// A cleared scenario is never counted by Aimbeast, so it falls back to the
+    /// day's average, which is the timer. The run cannot have outlasted the gap
+    /// since the previous one ended.
+    #[test]
+    fn a_run_cannot_be_longer_than_the_gap_since_the_previous_one() {
+        let stats_folder = install_with_log(
+            "capped",
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":60,"Completed Sessions":2,"Total Time":60}}}"#,
+        );
+
+        let mut lengths = ScenarioLengths::default();
+
+        // Nothing before it, so the average stands: a 30 second timer.
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST", at(0)),
+            Some(Duration::from_secs(30))
+        );
+
+        // Cleared four seconds later. The totals did not move, so the average
+        // would say 30 again.
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST", at(4)),
+            Some(Duration::from_secs(4))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// The cap is a ceiling, not an answer: a measured run below it is left
+    /// alone.
+    #[test]
+    fn the_cap_never_lengthens_a_measured_run() {
+        let stats_folder = install_with_log(
+            "cap_leaves_measured",
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":30,"Completed Sessions":3,"Total Time":30}}}"#,
+        );
+
+        let mut lengths = ScenarioLengths::default();
+        lengths.prime(&stats_folder);
+
+        rewrite_log(
+            &stats_folder,
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":36,"Completed Sessions":4,"Total Time":36}}}"#,
+        );
+
+        // Measured at 6 seconds, and 50 seconds have passed, so nothing is cut.
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST", at(50)),
+            Some(Duration::from_secs(6))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// Leaving the scenario and coming back later says nothing, so a wide gap
+    /// leaves the fallback as it was.
+    #[test]
+    fn a_wide_gap_caps_nothing() {
+        let stats_folder = install_with_log(
+            "wide_gap",
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":60,"Completed Sessions":2,"Total Time":60}}}"#,
+        );
+
+        let mut lengths = ScenarioLengths::default();
+
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST", at(0)),
+            Some(Duration::from_secs(30))
+        );
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST", at(600)),
+            Some(Duration::from_secs(30))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// Priming reads totals, not runs, so it leaves no moment to cap against.
+    #[test]
+    fn priming_alone_caps_nothing() {
+        let stats_folder = install_with_log(
+            "prime_no_cap",
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":60,"Completed Sessions":2,"Total Time":60}}}"#,
+        );
+
+        let mut lengths = ScenarioLengths::default();
+        lengths.prime(&stats_folder);
+
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST", at(1)),
+            Some(Duration::from_secs(30))
         );
 
         std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
@@ -685,11 +842,11 @@ mod tests {
         let mut lengths = ScenarioLengths::default();
 
         assert_eq!(
-            lengths.last_run_length(&stats_folder, "TEST"),
+            lengths.last_run_length(&stats_folder, "TEST", much_later()),
             Some(Duration::from_secs(60))
         );
         assert_eq!(
-            lengths.last_run_length(&stats_folder, "OTHER"),
+            lengths.last_run_length(&stats_folder, "OTHER", much_later()),
             Some(Duration::from_secs(15))
         );
 
@@ -702,7 +859,7 @@ mod tests {
         );
 
         assert_eq!(
-            lengths.last_run_length(&stats_folder, "OTHER"),
+            lengths.last_run_length(&stats_folder, "OTHER", much_later()),
             Some(Duration::from_secs(10))
         );
 

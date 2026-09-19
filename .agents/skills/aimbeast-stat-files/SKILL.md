@@ -47,10 +47,16 @@ training log, whose entries look like:
 {"19/9/2026": {"1 WALL 6 TARGETS": {"Completed Sessions Time": 120, "Completed Sessions": 2, "Total Time": 129}}}
 ```
 
-**Do not read a scenario's length as a constant.** Scenarios that end early —
-on a miss, on running out of lives — last a different time every run.
-`SPHERE FRENZY BAZ 10S 1SHOT` is nominally 10 seconds and recorded 93 seconds
-across 14 completed runs: an average of 6.64 that describes none of them.
+**A "Completed Session" is a run whose timer ran out.** Verified by playing the
+two kinds back to back: clearing a scenario early, and ending it on a miss,
+both leave `Completed Sessions`, `Completed Sessions Time` and `Total Time`
+untouched. Only a run that goes the distance is recorded.
+
+So the log describes exactly the runs whose length you could have guessed, and
+is silent about every run that ended early. Nothing else on disk covers them
+either: watching every file Aimbeast touches during a run shows writes only
+when one *ends*, and the window title never changes. There is no scenario-start
+signal in any file.
 
 The totals only move when a run completes, and by exactly that run's duration,
 so measure rather than assume:
@@ -62,10 +68,16 @@ length = ΔCompleted Sessions Time / ΔCompleted Sessions
 between the reading taken for the previous run and this one. `ScenarioLengths`
 keeps those readings, in memory and per scenario per day.
 
-The day's own average, `Completed Sessions Time / Completed Sessions`, is only
-the fallback — the first run of a scenario since launch, or since the day
-rolled over, has nothing to measure against. It is right for fixed-length
-scenarios and wrong for the rest, which is the reason it is not the answer.
+The day's own average, `Completed Sessions Time / Completed Sessions`, is the
+fallback — the first run of a scenario since launch, or since the day rolled
+over, has nothing to measure against. Since only timer-expiry runs are counted,
+that average is the scenario's timer, so it is right for a run that went the
+distance and too long for one that ended early. Too long is the safe direction:
+the clip keeps the whole run and some lead-in, rather than losing the start.
+
+A run that ended early is then capped by the time since that scenario's
+previous run ended. The player was in the scenario for the whole gap, so the
+run cannot have outlasted it. An upper bound, not a measurement.
 
 **`Total Time` cannot give you a length.** It counts abandoned runs too: 49
 seconds across 3 sessions of a 15 second scenario.

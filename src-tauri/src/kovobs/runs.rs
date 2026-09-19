@@ -352,7 +352,7 @@ async fn handle_aimbeast_run(
     let stats_folder = std::path::Path::new(&config.aimbeast.stats_folder);
 
     let length = lengths
-        .last_run_length(stats_folder, &stat.scenario)
+        .last_run_length(stats_folder, &stat.scenario, end_dt)
         .unwrap_or_else(|| {
             ui_println!(
                 "⏱️ No training data for {}, assuming {}s",
