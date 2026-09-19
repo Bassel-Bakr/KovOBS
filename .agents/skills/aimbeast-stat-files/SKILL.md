@@ -32,7 +32,11 @@ Both are **UTF-16 with a BOM**. Decode the bytes; do not read them as UTF-8.
 | written | in place, every run | in place, every run |
 | holds a duration | **no** | yes, indirectly |
 
-The watcher only watches `Normal` and `Ranked`.
+All three folders are watched, and which one a scenario lands in is the only
+thing that distinguishes them: `Custom` holds scenarios the player built, and
+went unwatched long enough for custom scenarios to produce no clips at all.
+Only the folders that exist are watched, since a player who has never built a
+scenario has no `Custom` folder.
 
 ### Deriving how long a run lasted
 
