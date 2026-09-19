@@ -99,6 +99,10 @@ from your change.
 `.github/workflows/release.yml` triggers on a push to `main` touching
 `src-tauri/Cargo.toml`, and on manual dispatch. It builds and publishes.
 
+**Never bump the version by hand.** CI owns it, and the `chore(#N): bump
+version` commits in the history are its work, not a convention to copy onto a
+branch.
+
 `.github/workflows/checks.yml` runs formatting, clippy (`-D warnings`), the
 Rust tests, a generated-types freshness check, and the frontend tests and
 build -- on pull requests, on pushes to `main`, and on demand. `release.yml`
