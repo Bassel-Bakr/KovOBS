@@ -235,7 +235,11 @@ pub(super) async fn watch_aimbeast_stats_folder(
     ui_println!("📁 Watching Aimbeast stats");
 
     let mut pending = PendingRuns::default();
+
+    // Read the totals before any run lands, so the first one of the session is
+    // measured rather than averaged.
     let mut lengths = crate::aimbeast::ScenarioLengths::default();
+    lengths.prime(stats_folder);
     let mut timer = Box::pin(tokio::time::sleep(Duration::MAX));
 
     loop {

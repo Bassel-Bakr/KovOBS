@@ -87,6 +87,42 @@ impl ScenarioDay {
 pub struct ScenarioLengths(HashMap<String, (String, ScenarioDay)>);
 
 impl ScenarioLengths {
+    /// Takes a reading of every scenario before any run is watched.
+    ///
+    /// Without it the first run of each scenario after the app starts has
+    /// nothing to measure against and settles for the day's average, which is
+    /// worst exactly where measuring matters: a scenario whose runs vary was
+    /// seen at 6.4 seconds averaged over the day while the run in hand lasted
+    /// 12.
+    ///
+    /// Only reruns of a day already underway need this. The first run of a new
+    /// day writes `1` completed session, so the average of that day is the run
+    /// itself.
+    pub fn prime(&mut self, stats_folder: &Path) {
+        let Some(folder) = training_data_folder(stats_folder) else {
+            return;
+        };
+
+        for log in log_files(&folder).iter().filter_map(|path| read_log(path)) {
+            for (day, scenarios) in &log {
+                for (scenario, totals) in scenarios {
+                    if totals.average_length().is_none() {
+                        continue;
+                    }
+
+                    let newer_than_seen = self
+                        .0
+                        .get(scenario)
+                        .is_none_or(|(seen, _)| day_date(seen) < day_date(day));
+
+                    if newer_than_seen {
+                        self.0.insert(scenario.clone(), (day.clone(), *totals));
+                    }
+                }
+            }
+        }
+    }
+
     /// The length of the run just written, and remembers the totals behind it.
     ///
     /// Falls back to the day's average when there is nothing to compare
@@ -533,6 +569,102 @@ mod tests {
 
         assert_eq!(
             lengths.last_run_length(&stats_folder, "TEST"),
+            Some(Duration::from_secs(15))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// The case that sent a 12 second run out as 6.4: the app restarts partway
+    /// through a day, and without a reading taken up front the first run of
+    /// each scenario settles for the day's average.
+    #[test]
+    fn priming_measures_the_first_run_after_a_restart() {
+        let stats_folder = install_with_log(
+            "primed",
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":20,"Completed Sessions":4,"Total Time":20}}}"#,
+        );
+
+        let mut lengths = ScenarioLengths::default();
+        lengths.prime(&stats_folder);
+
+        rewrite_log(
+            &stats_folder,
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":32,"Completed Sessions":5,"Total Time":32}}}"#,
+        );
+
+        // 32/5 is 6.4; the run itself was 12.
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST"),
+            Some(Duration::from_secs(12))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// Priming reads whatever is there, so a day that has not started yet
+    /// leaves the first run of it to the average -- which is that run itself.
+    #[test]
+    fn priming_an_older_day_still_leaves_the_new_day_to_itself() {
+        let stats_folder = install_with_log(
+            "primed_older_day",
+            r#"{"18/9/2026":{"TEST":{"Completed Sessions Time":20,"Completed Sessions":4,"Total Time":20}}}"#,
+        );
+
+        let mut lengths = ScenarioLengths::default();
+        lengths.prime(&stats_folder);
+
+        rewrite_log(
+            &stats_folder,
+            r#"{
+                "18/9/2026":{"TEST":{"Completed Sessions Time":20,"Completed Sessions":4,"Total Time":20}},
+                "19/9/2026":{"TEST":{"Completed Sessions Time":12,"Completed Sessions":1,"Total Time":12}}
+            }"#,
+        );
+
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST"),
+            Some(Duration::from_secs(12))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// Each scenario is primed from its own newest day, not one shared date.
+    #[test]
+    fn priming_takes_each_scenario_from_its_own_newest_day() {
+        let stats_folder = install_with_log(
+            "primed_per_scenario",
+            r#"{
+                "18/9/2026":{
+                    "TEST":{"Completed Sessions Time":20,"Completed Sessions":4,"Total Time":20},
+                    "OTHER":{"Completed Sessions Time":30,"Completed Sessions":2,"Total Time":30}
+                },
+                "19/9/2026":{"TEST":{"Completed Sessions Time":99,"Completed Sessions":9,"Total Time":99}}
+            }"#,
+        );
+
+        let mut lengths = ScenarioLengths::default();
+        lengths.prime(&stats_folder);
+
+        rewrite_log(
+            &stats_folder,
+            r#"{
+                "18/9/2026":{
+                    "TEST":{"Completed Sessions Time":20,"Completed Sessions":4,"Total Time":20},
+                    "OTHER":{"Completed Sessions Time":45,"Completed Sessions":3,"Total Time":45}
+                },
+                "19/9/2026":{"TEST":{"Completed Sessions Time":109,"Completed Sessions":10,"Total Time":109}}
+            }"#,
+        );
+
+        // TEST was primed from 19/9 at 99/9, not from 18/9.
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST"),
+            Some(Duration::from_secs(10))
+        );
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "OTHER"),
             Some(Duration::from_secs(15))
         );
 
