@@ -2,7 +2,7 @@
 
 Automatically save your best Kovaak's (and Aimbeast) runs with OBS Replay Buffer.
 
-KovOBS watches your score files, detects when you achieve a new personal best, and tells OBS to save the replay buffer so you never lose your best clips.
+KovOBS watches your score files and, when a run finishes, tells OBS to save the replay buffer and trims it down to the run itself.
 
 No more remembering to press a hotkey after a good run.
 
@@ -10,35 +10,35 @@ No more remembering to press a hotkey after a good run.
 
 ## Features
 
-- 🏆 Automatically detects new Personal Bests
-- 🎥 Saves the OBS Replay Buffer automatically
+- 🎥 Saves the OBS Replay Buffer automatically when a run ends
+- 🏆 Optional **personal bests only** mode
+- ✂️ Trims each clip to the run, with adjustable padding
 - 📸 Optional automatic screenshots
-- ✂️ Automatically trims clips
+- 🔔 Notifications, including ones that tell you when clipping stopped
 - 🎯 Kovaak's support
 - 🧪 Experimental Aimbeast support
-- ⚡ Runs quietly in the background
+- ⚡ Runs quietly in the tray
 - 🖥️ Simple graphical interface
-- ⚙️ No manual configuration files required
 
 ---
 
 ## How it works
 
-1. Start OBS and enable the Replay Buffer.
-2. Launch KovOBS.
-3. Select your Kovaak's (or Aimbeast) stats folder if it isn't detected automatically.
+1. Start OBS. KovOBS starts the Replay Buffer itself if it isn't already running.
+2. Launch KovOBS and finish the first-run setup.
+3. Set your Kovaak's and Aimbeast stats folders in Game settings.
 4. Connect to OBS.
 5. Start playing.
 
-Whenever you beat your previous score, KovOBS will automatically save the replay buffer.
+Every finished run is clipped. Turn on **Personal bests only** if you want clips just for runs that beat your best.
 
 ---
 
 ## Requirements
 
-- Windows (linux is supported but I didn't test it)
 - OBS Studio 28+ with the built-in WebSocket server
-- Replay Buffer enabled in OBS
+- FFmpeg — KovOBS can download a bundled copy for you, or use one already on your `PATH`
+- Windows. Linux builds (`deb`, `AppImage`) exist, but KovOBS detects a running program by its full executable path, which Proton, symlinks and Flatpak installs all defeat — so the "running" indicators and starting OBS automatically when a game launches don't work there. Watching, clipping and the launch buttons do, if you point them at something Linux can run
 
 ---
 
@@ -47,11 +47,11 @@ Whenever you beat your previous score, KovOBS will automatically save the replay
 1. Download the latest release.
 2. Extract it anywhere.
 3. Run `KovOBS.exe`.
-4. Connect to OBS from the application.
+4. Work through the setup: clips folder, OBS connection, FFmpeg, and your game's executable.
 
-That's it.
+KovOBS stores its own settings — you don't need to write a `config.json` by hand.
 
-KovOBS now stores and manages its own settings automatically—you no longer need to create or edit a `config.json` file.
+The default stats folder paths assume a standard Steam install on `C:`. If yours is elsewhere, set it in Game settings; nothing is auto-detected.
 
 ---
 
@@ -62,31 +62,52 @@ In OBS:
 1. Open **Tools → WebSocket Server Settings**.
 2. Enable the WebSocket server.
 3. Set a password (recommended).
-4. Enter the same password in KovOBS.
+4. Enter the same password in KovOBS, along with the host and port if you changed them.
 
-Make sure the Replay Buffer is running before starting a scenario.
+Pick the OBS source for each game in KovOBS. Screenshots need it too.
 
 ---
 
 ## Trimming
 
-KovOBS can optionally trim saved replays so the clip only contains the end of your run instead of the entire replay buffer.
+KovOBS trims each saved replay down to the run instead of keeping the whole buffer.
 
-This is useful if you keep a long replay buffer but only want the important part of each attempt.
+- **Padding** — `trim_padding_start` and `trim_padding_end` extend the clip either side of the run. End padding defaults to 5 seconds, and also delays the buffer save by that long.
+- **Your own FFmpeg arguments** — global, input and output argument slots run as a second pass over the trimmed clip, so you can re-encode or change container. If your arguments fail, the trimmed clip is kept.
+- **Delete after trimming** — optional, and it deletes the original replay buffer file.
+
+Turning trimming off still passes the buffer through FFmpeg, so FFmpeg is needed either way.
 
 ---
 
 ## Screenshots
 
-KovOBS can automatically save screenshots alongside your clips whenever a replay is saved.
+KovOBS can save a PNG of the configured OBS source alongside each clip.
 
 ---
 
 ## Experimental Aimbeast Support
 
-Aimbeast support is available but currently considered experimental.
+Aimbeast support is available but still considered experimental.
 
-Some scenarios may require disabling trimming because Aimbeast does not always expose enough information to determine the exact run length.
+Scenarios under **Normal**, **Ranked** and **Custom** are watched, so scenarios you built yourself are clipped too. Only folders that exist are watched, and only their top level.
+
+Aimbeast's stats file records that a run happened, but not how long it took. KovOBS works the length out from Aimbeast's training log instead:
+
+- Aimbeast counts a run there only once its **timer runs out**. For those, KovOBS measures the run exactly.
+- A run that **ends early** — cleared fast, or ended on a miss — is never counted, so no duration exists for it anywhere. KovOBS falls back to the average of that scenario's recorded runs, capped by the time since your previous run of it.
+- With nothing recorded at all, the clip falls back to one minute.
+
+So clips of early-ending runs are approximate, and usually a little long rather than short.
+
+---
+
+## Notifications
+
+- Clip saved — clicking it opens the folder
+- Failures, on by default, sent as urgent so they aren't silenced
+- Optional sound, and an optional urgent style for clips
+- A **Test notification** button in settings
 
 ---
 
@@ -106,15 +127,21 @@ OBS Studio is required.
 
 ### Do I need to edit a config file?
 
-No.
+No. Everything you need is in the interface.
 
-Everything can be configured through the application's interface.
+### Does closing the window stop it?
+
+No. KovOBS hides to the tray and keeps clipping. Use **Quit** in the tray menu to stop it.
+
+### Does it update itself?
+
+No. The About page checks for a newer release when you ask it to.
 
 ---
 
 ## Roadmap
 
-- Better Aimbeast support
+- Exact run length for Aimbeast runs that end early
 - More game support
 - Improved clip trimming
 - Additional screenshot options
