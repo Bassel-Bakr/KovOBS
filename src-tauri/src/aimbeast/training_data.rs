@@ -45,11 +45,10 @@ impl ScenarioDay {
     /// The length of the runs completed since `earlier`, which is one run when
     /// this is read once per run.
     ///
-    /// Scenarios that end early -- on a miss, say -- last a different time
-    /// every run, so the day's average describes none of them. The totals only
-    /// move when a run completes, and by exactly that run's duration, so the
-    /// difference between two readings is the truth about the runs between
-    /// them.
+    /// Counted runs of one scenario do not all last the same time, so the day's
+    /// average can describe none of them. The totals only move when a run is
+    /// counted, and by exactly that run's duration, so the difference between
+    /// two readings is the truth about the runs between them.
     fn length_since(&self, earlier: &Self) -> Option<Duration> {
         let runs = self
             .completed_sessions
@@ -438,9 +437,10 @@ mod tests {
         assert_eq!(average(&log, "TEST"), Some(Duration::from_secs(60)));
     }
 
-    /// What the averaging misses. Aimbeast's `SPHERE FRENZY BAZ 10S 1SHOT` ends
-    /// on a miss, so 14 completed runs came to 93 seconds of a nominally 10
-    /// second scenario -- an average of 6.64 that describes none of them.
+    /// What the averaging misses. Counted runs of a scenario do not all last
+    /// the same time -- `SPHERE FRENZY BAZ 10S 1SHOT` has 14 of them totalling
+    /// 93 seconds, an average of 6.64 that describes none of them -- so the run
+    /// in hand is worth measuring rather than assuming.
     #[test]
     fn a_run_is_measured_against_the_reading_before_it() {
         let before = totals(93.0, 14);
