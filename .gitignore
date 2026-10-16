@@ -7,3 +7,4 @@ config.json
 *.exe
 /dist
 .claude
+__pycache__/

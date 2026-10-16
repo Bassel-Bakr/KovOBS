@@ -1,5 +1,7 @@
-# Only used to work out the next version number (see scripts/bump-version.py).
-# The changelog itself comes from GitHub's generate_release_notes.
+# The rules a release's version follows, in git-cliff's terms, so
+# `git cliff --bumped-version` agrees with scripts/release.py, which applies the
+# same rules itself (CI needs no git-cliff). The changelog itself comes from
+# GitHub's generate_release_notes. Same rules as masar.
 
 [changelog]
 header = ""
@@ -11,9 +13,12 @@ conventional_commits = true
 filter_commits = true
 topo_order = false
 sort_commits = "oldest"
+# A breaking change releases whatever its type.
+protect_breaking_commits = true
+tag_pattern = "v[0-9].*"
 
-# Only these types justify a release. Everything else is skipped so a docs- or
-# chore-only branch doesn't bump the version and trigger a build.
+# Only these types release. Everything else is skipped, so a docs- or
+# chore-only push releases nothing.
 commit_parsers = [
   { message = "^feat", group = "features" },
   { message = "^fix", group = "fixes" },
@@ -23,4 +28,7 @@ commit_parsers = [
 
 [bump]
 features_always_bump_minor = true
-breaking_always_bump_major = true
+# Before 1.0 a breaking change bumps the minor version; from 1.0 on, the major.
+breaking_always_bump_major = false
+# The first release, with no tag before it.
+initial_tag = "0.1.0"

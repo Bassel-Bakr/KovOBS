@@ -1,63 +1,64 @@
+# Releases on every push to main that has a feat, fix, perf or breaking commit
+# since the last v* tag (scripts/release.py, with cliff.toml's rules), the way
+# masar does: tags the commit v<version>, builds the installers on each platform
+# with that version stamped into src-tauri/Cargo.toml, and publishes them as the
+# GitHub release v<version>. The version lives in the tags, so nothing commits a
+# version bump. A tag pushed with GITHUB_TOKEN starts no other workflow, so
+# everything happens in this one run.
+
 name: Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version (leave empty to use Cargo.toml)"
-        required: false
-
   push:
     branches:
       - main
-    paths:
-      - src-tauri/Cargo.toml
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version to release (MAJOR.MINOR.PATCH); empty for the one the commits since the last tag give"
+        required: false
 
 permissions:
   contents: write
 
+# One release at a time. A run waits for the one in flight instead of
+# cancelling it; GitHub keeps only the newest waiting run, which loses nothing,
+# since it releases every commit since the last tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  prepare:
+  version:
     runs-on: ubuntu-latest
 
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.tag.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The whole history and the tags, to find the last release and the
+          # commits since.
+          fetch-depth: 0
 
-      - name: Determine version
-        id: version
-        shell: bash
-        run: |
-          VERSION="${{ inputs.version }}"
-
-          if [ -z "$VERSION" ]; then
-            # Read straight from the manifest: this job gates the whole
-            # matrix, so installing a toolchain just to run `cargo metadata`
-            # is latency in front of every build.
-            VERSION=$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)
-          fi
-
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Check whether release already exists
-        id: check
+      # Tags HEAD v<version> and writes version= (empty for no release). A
+      # commit that already has its tag (this run again after a failure) keeps
+      # it, so the build and the release run again.
+      - name: Tag the release
+        id: tag
         env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          if gh release view "v$VERSION" >/dev/null 2>&1; then
-            echo "Release v$VERSION already exists"
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-          fi
+          VERSION: ${{ inputs.version }}
+        run: python3 scripts/release.py --tag "$VERSION"
+
+      - name: Push the tag
+        if: steps.tag.outputs.version != ''
+        run: git push origin "v${{ steps.tag.outputs.version }}"
 
   build:
-    needs: prepare
-    if: needs.prepare.outputs.should_release == 'true'
+    needs: version
+    if: needs.version.outputs.version != ''
 
     strategy:
       fail-fast: false
@@ -75,10 +76,12 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     env:
-      VERSION: ${{ needs.prepare.outputs.version }}
+      VERSION: ${{ needs.version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.version.outputs.version }}
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -135,6 +138,17 @@ jobs:
         if: steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
+      # `python` on every runner; Windows has no `python3`.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      # src-tauri/Cargo.toml holds a placeholder in git; Tauri reads the version
+      # from it.
+      - name: Stamp the version
+        shell: bash
+        run: python scripts/release.py --stamp "$VERSION"
+
       # A release used to ship on nothing but a successful compile. The crate is
       # already built by this point, so this is seconds.
       - name: Test
@@ -187,10 +201,8 @@ jobs:
 
   release:
     needs:
-      - prepare
+      - version
       - build
-
-    if: needs.prepare.outputs.should_release == 'true'
 
     runs-on: ubuntu-latest
 
@@ -205,8 +217,8 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.prepare.outputs.version }}
-          name: v${{ needs.prepare.outputs.version }}
+          tag_name: v${{ needs.version.outputs.version }}
+          name: v${{ needs.version.outputs.version }}
           generate_release_notes: true
           files: |
             *

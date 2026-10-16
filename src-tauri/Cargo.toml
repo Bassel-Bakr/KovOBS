@@ -1,6 +1,8 @@
 [package]
 name = "kovobs"
-version = "0.18.0"
+# A placeholder: the version lives in the v* tags, and CI stamps the release's
+# version in before it builds (scripts/release.py).
+version = "0.0.0"
 description = "KovOBS"
 authors = ["Bassel Bakr"]
 edition = "2024"

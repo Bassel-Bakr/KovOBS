@@ -96,17 +96,22 @@ from your change.
 
 ## CI
 
-`.github/workflows/release.yml` triggers on a push to `main` touching
-`src-tauri/Cargo.toml`, and on manual dispatch. It builds and publishes.
+`.github/workflows/release.yml` runs on every push to `main`, and on manual
+dispatch. It releases when a `feat`, `fix`, `perf` or breaking commit landed
+since the last `v*` tag: `scripts/release.py` works out the version from those
+commits (rules in `cliff.toml`; before 1.0 a breaking change bumps the minor),
+tags the commit, stamps the version into the build, and publishes. A docs- or
+chore-only push releases nothing. The same scheme as masar.
 
-**Never bump the version by hand.** CI owns it, and the `chore(#N): bump
-version` commits in the history are its work, not a convention to copy onto a
-branch.
+**The version lives in the tags, not in a file.** `src-tauri/Cargo.toml` holds
+the placeholder `0.0.0`; never set a real version there. The commit types are
+what release, so get them right. The `chore(#N): bump version` commits in the
+history are from the old scheme, not a convention to copy.
 
 `.github/workflows/checks.yml` runs formatting, clippy (`-D warnings`), the
-Rust tests, a generated-types freshness check, and the frontend tests and
-build -- on pull requests, on pushes to `main`, and on demand. `release.yml`
-runs the Rust tests before it builds.
+Rust tests, a generated-types freshness check, the frontend tests and build,
+and the release script's tests -- on pull requests, on pushes to `main`, and on
+demand. `release.yml` runs the Rust tests before it builds.
 
 The build caches the registry and `target/` via a Rust cache action. Do not
 reintroduce a compilation cache with a per-object remote backend; it fragmented

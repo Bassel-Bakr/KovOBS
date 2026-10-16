@@ -102,3 +102,14 @@ jobs:
 
       - name: Build
         run: npx ng build
+
+  # release.yml works out every version with this script, so a mistake in it
+  # ships the wrong version or none.
+  release-script:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test
+        run: python3 -m unittest discover -s scripts -p "test_*.py"
