@@ -75,10 +75,9 @@ async fn run_exe(exe: &str, args: Option<Box<[String]>>, cwd: Option<&Path>) -> 
     Ok(())
 }
 
-// Matches on the full program path, the same way `observe_processes` decides
-// whether OBS/KovaaK's/Aimbeast are running. Matching on the file name instead
-// would let an unrelated process with the same name suppress the launch while
-// the UI still reports it as not running.
+// Matches on the program's file name, the same way `observe_processes` decides
+// whether OBS/KovaaK's/Aimbeast are running, so the two never disagree about
+// whether a launch is needed.
 fn is_process_running(exe: &Path) -> bool {
     let program = ConfiguredProgram::new(exe);
     let mut system = sysinfo::System::new();

@@ -39,7 +39,7 @@ Every finished run is clipped. Turn on **Personal bests only** if you want clips
 
 - OBS Studio 28+ with the built-in WebSocket server
 - FFmpeg — KovOBS can download a bundled copy for you, or use one already on your `PATH`
-- Windows. Linux builds (`deb`, `AppImage`, and a `tar.gz` that needs no FUSE) exist too. There, KovOBS recognises a game Steam runs under Proton by the Windows path Wine gives it: with the game running, click the list button next to its Executable and pick it. The launch buttons start whatever the path points at, so a game's Windows `.exe` won't launch from them on Linux
+- Windows. Linux builds (`deb`, `AppImage`, and a `tar.gz` that needs no FUSE) exist too. There, KovOBS recognises a running program by its file name, and for a game Steam runs under Proton it reads that name from the Windows path Wine gives the game, so the default Executable works as it is. The launch buttons start whatever the path points at, so a game's Windows `.exe` won't launch from them on Linux
 
 ---
 

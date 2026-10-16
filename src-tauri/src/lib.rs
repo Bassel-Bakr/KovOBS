@@ -191,7 +191,7 @@ fn observe_processes() {
             let mut new_kovaaks_running = false;
             let mut new_aimbeast_running = false;
 
-            // Compares the full program path, matching `cmds::is_process_running`,
+            // Compares the program's file name, matching `cmds::is_process_running`,
             // which also finds a game Proton runs on Linux.
             let obs = programs::ConfiguredProgram::new(&config_processes.paths.obs);
             let kovaaks = programs::ConfiguredProgram::new(&config_processes.paths.kovaaks);
