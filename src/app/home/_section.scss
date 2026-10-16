@@ -32,6 +32,11 @@
   color: var(--mat-sys-error);
 }
 
+// Something worth knowing that does not stop anything.
+.hint--warning {
+  color: var(--mat-sys-tertiary);
+}
+
 .banner {
   display: flex;
   align-items: center;

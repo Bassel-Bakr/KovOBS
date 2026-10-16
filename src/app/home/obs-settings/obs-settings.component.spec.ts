@@ -69,16 +69,20 @@ describe('ObsSettingsComponent', () => {
     expect(text(fixture)).toContain('2 sources found');
   });
 
-  /** A path that is not there should be called out, not silently accepted. */
-  it('flags an executable that does not exist', async () => {
+  /**
+   * A path that is not there should be called out, not silently accepted, but
+   * as a warning: it is saved, and a running program can still report it.
+   */
+  it('warns about an executable that does not exist', async () => {
     const fixture = render();
 
-    expect(fixture.nativeElement.querySelector('.hint--error')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.hint--warning')).toBeNull();
 
     fixture.componentInstance.missing.set(new Set(['C:/obs.exe']));
     fixture.detectChanges();
     await fixture.whenStable();
 
-    expect(fixture.nativeElement.querySelector('.hint--error').textContent).toContain('Cannot find this file');
+    expect(fixture.nativeElement.querySelector('.hint--warning').textContent).toContain('saved anyway');
+    expect(fixture.nativeElement.querySelector('.hint--error')).toBeNull();
   });
 });

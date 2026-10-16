@@ -53,7 +53,7 @@
       </button>
     </span>
     @if (isMissing(executable()().value())) {
-      <mat-hint class="hint--error">Cannot find this file, so the game will not be detected or launched.</mat-hint>
+      <mat-hint class="hint--warning">Not found on disk, saved anyway. The game is still detected while it runs, but can't be launched from here.</mat-hint>
     } @else {
       <mat-hint>Used to detect and launch the game.</mat-hint>
     }
