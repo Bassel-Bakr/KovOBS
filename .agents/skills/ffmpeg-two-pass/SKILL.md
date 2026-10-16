@@ -75,13 +75,19 @@ failure only logs: the clip is already saved.
   can pass Windows' 32,767-character command line. `ffmetadata` escapes `\r`
   too: FFmpeg's reader ends a line at a bare one, which cut a CRLF CSV after
   its first line.
-- `-map_metadata 0 -map_metadata 1` keeps the clip's own tags;
+- `-map_metadata 1 -map_metadata 0` adds the stats and keeps the clip's own
+  tags. The order matters: on a key both have, the first map wins, so the
+  other way round a tag already in the clip (from the user's own `-metadata`,
+  say) silently kept the stats out while the log reported them added.
   `-movflags +use_metadata_tags` is what lets MP4 store a custom key.
+- The user's arguments cannot reach this pass, which takes no config. The most
+  they can do is leave a clip it cannot remux, and then only the stats are lost.
 - The tagged clip swaps in through `<name>.untagged.<ext>`, so a failed rename
   puts the original back rather than leaving no clip.
 
 `real_ffmpeg_embeds_the_stats_readably` (ignored; needs `ffmpeg` and `ffprobe`
-on the PATH) runs the whole pass and reads the tag back, for MP4 and MKV.
+on the PATH) runs the whole pass on a clip that already has a stale tag under
+the key, and reads the tag back, for MP4 and MKV.
 
 ### Keeping metadata
 

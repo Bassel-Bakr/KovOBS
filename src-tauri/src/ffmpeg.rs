@@ -260,7 +260,8 @@ fn ffmetadata(key: &str, value: &str) -> String {
     format!(";FFMETADATA1\n{}={}\n", escape(key), escape(value))
 }
 
-/// Copies `clip` to `out_file` with the global tags of `metadata_file` added.
+/// Copies `clip` to `out_file` with the global tags of `metadata_file` added,
+/// replacing any the clip already has under the same name.
 fn metadata_args(
     clip: &path::Path,
     metadata_file: &path::Path,
@@ -283,11 +284,13 @@ fn metadata_args(
         // Every stream the trim kept.
         "-map".into(),
         "0".into(),
-        // The clip's own tags first, then the new one on top.
-        "-map_metadata".into(),
-        "0".into(),
+        // The new tag, then the clip's own. On a name both have, the first map
+        // wins, so this order is what stops a tag already in the clip -- one
+        // the user's own arguments set, say -- silently keeping the stats out.
         "-map_metadata".into(),
         "1".into(),
+        "-map_metadata".into(),
+        "0".into(),
         "-c".into(),
         "copy".into(),
         // MP4 drops a key it has no name for unless told to keep it. Other
@@ -518,8 +521,9 @@ mod tests {
         assert_eq!(unescaped, CSV);
     }
 
-    /// The clip's own tags are kept and the new one goes on top, every stream
-    /// is copied, and MP4 is told to keep a key it has no name for.
+    /// The new tag is mapped before the clip's own, so it wins a name both
+    /// have; every stream is copied, and MP4 is told to keep a key it has no
+    /// name for.
     #[test]
     fn the_metadata_pass_keeps_the_clip_and_adds_the_tag() {
         let args = metadata_args(
@@ -530,7 +534,7 @@ mod tests {
         let line = args.join(" ");
 
         assert!(line.contains("-i clip.mp4 -f ffmetadata -i clip.ffmetadata"));
-        assert!(line.contains("-map 0 -map_metadata 0 -map_metadata 1 -c copy"));
+        assert!(line.contains("-map 0 -map_metadata 1 -map_metadata 0 -c copy"));
         assert!(line.contains("-movflags +use_metadata_tags"));
         assert_eq!(args.last().map(String::as_str), Some("clip.tagging.mp4"));
     }
@@ -590,6 +594,12 @@ mod tests {
                     "testsrc=d=1:s=160x120:r=10",
                     "-metadata",
                     "title=kept",
+                    // A tag already under the key, as the user's own
+                    // arguments could leave: the stats have to replace it.
+                    "-metadata",
+                    &format!("{STATS_METADATA_KEY}=stale"),
+                    "-movflags",
+                    "+use_metadata_tags",
                 ])
                 .arg(&clip)
                 .status()
