@@ -1,5 +1,5 @@
 use crate::utils;
-use chrono::{DateTime, Duration, Local, Timelike, Utc};
+use chrono::{DateTime, Duration, Local, LocalResult, NaiveTime, Offset, TimeZone, Utc};
 use std::fmt::Display;
 use std::{
     fs::File,
@@ -86,40 +86,57 @@ impl Stat {
         })
     }
 
-    /// Computes the start timestamp from the replay end time and the
-    /// challenge duration recorded by KovaaK's.
+    /// The moment a run started, from when it ended and the local clock time
+    /// KovaaK's wrote as its `Challenge Start`.
     ///
-    /// KovaaK's stores the challenge duration as a clock value (`HH:MM:SS`)
-    /// rather than as an elapsed duration. This function therefore replaces
-    /// the hour, minute, and second components of `end_dt` with those from
-    /// `duration`.
-    ///
-    /// If the resulting timestamp falls after `end_dt`, it is assumed that
-    /// the challenge started on the previous day.
-    pub fn compute_start_time(end_dt: DateTime<Utc>, duration: Duration) -> DateTime<Utc> {
-        let total_seconds = duration.num_seconds();
+    /// The clock time has no date. The stats file is named for the run's end,
+    /// so a run that crossed midnight carries the next day's date and started
+    /// on the day before. Every instant showing that clock time on the end's
+    /// day or the day before is a candidate, and the start is the latest one
+    /// not after the end. That one rule covers a run on one day, a run across
+    /// midnight, and the hour a change from summer time shows twice.
+    pub fn compute_start_time(end_dt: DateTime<Utc>, time_of_day: Duration) -> DateTime<Utc> {
+        Self::start_in(&Local, end_dt, time_of_day)
+    }
 
-        let hours = total_seconds / 3600;
-        let minutes = (total_seconds % 3600) / 60;
-        let seconds = total_seconds % 60;
+    /// How far after the end a start may land and still be the same day.
+    /// KovaaK's writes the start to the millisecond, but the file's time can
+    /// trail it by a second on a run that ends as it begins: "01:31:45.253"
+    /// in a file written at 01:31:44. A run that crossed midnight is a whole
+    /// day out instead.
+    const START_AFTER_END_SLACK: Duration = Duration::seconds(60);
 
-        let start_dt = end_dt
-            .with_timezone(&Local)
-            .with_hour(hours as u32)
-            .unwrap()
-            .with_minute(minutes as u32)
-            .unwrap()
-            .with_second(seconds as u32)
-            .unwrap()
-            .with_nanosecond(0)
-            .unwrap()
-            .with_timezone(&Utc);
+    fn start_in<Tz: TimeZone>(
+        tz: &Tz,
+        end_dt: DateTime<Utc>,
+        time_of_day: Duration,
+    ) -> DateTime<Utc> {
+        let end = end_dt.with_timezone(tz);
+        let offset_at_end = end.offset().fix();
+        let day = end.date_naive();
 
-        if start_dt > end_dt {
-            start_dt - Duration::days(1)
-        } else {
-            start_dt
-        }
+        std::iter::once(day)
+            .chain(day.pred_opt())
+            .flat_map(|date| {
+                let clock = date.and_time(NaiveTime::MIN) + time_of_day;
+
+                match tz.from_local_datetime(&clock) {
+                    LocalResult::Single(start) => vec![start.with_timezone(&Utc)],
+                    LocalResult::Ambiguous(first, second) => {
+                        vec![first.with_timezone(&Utc), second.with_timezone(&Utc)]
+                    }
+                    // A clock time the change to summer time skips. KovaaK's
+                    // cannot write one, but a wrong file must not take the
+                    // session down, so read it with the offset at the end.
+                    LocalResult::None => vec![
+                        (clock - Duration::seconds(offset_at_end.local_minus_utc().into()))
+                            .and_utc(),
+                    ],
+                }
+            })
+            .filter(|start| *start <= end_dt + Self::START_AFTER_END_SLACK)
+            .max()
+            .unwrap_or(end_dt)
     }
     /// Returns the end time of a KovaaK's stats file in UTC.
     ///
@@ -165,31 +182,112 @@ impl Stat {
             .unwrap_or(named)
     }
 
-    /// Parses the challenge start time from the stats file and calculates the corresponding Duration.
+    /// Reads a `Challenge Start` clock time, `HH:MM:SS.mmm` or `MM:SS.mmm`, as
+    /// the time since midnight, milliseconds included. The fraction is read as
+    /// digits rather than through a float, so "49.059" is exactly 49,059 ms.
     fn parse_challenge_duration(challenge_start: &str) -> Option<Duration> {
-        let parts: Vec<&str> = challenge_start.split(":").collect();
+        let parts: Vec<&str> = challenge_start.split(':').collect();
 
-        if parts.len() == 3 {
-            let h: u32 = parts[0].parse().unwrap_or(0);
-            let m: u32 = parts[1].parse().unwrap_or(0);
-            let s: f32 = parts[2].parse().unwrap_or(0.0);
-            let total_secs = h * 3600 + m * 60 + s as u32;
-            Some(Duration::seconds(total_secs as i64))
-        } else if parts.len() == 2 {
-            let m: u32 = parts[0].parse().unwrap_or(0);
-            let s: f32 = parts[1].parse().unwrap_or(0.0);
-            let total_secs = m * 60 + s as u32;
-            Some(Duration::seconds(total_secs as i64))
-        } else {
-            None
+        let (hours, minutes, seconds) = match parts.as_slice() {
+            [h, m, s] => (h.parse::<i64>().ok()?, m.parse::<i64>().ok()?, *s),
+            [m, s] => (0, m.parse::<i64>().ok()?, *s),
+            _ => return None,
+        };
+
+        let (whole, fraction) = seconds.split_once('.').unwrap_or((seconds, ""));
+        let whole: i64 = whole.parse().ok()?;
+        if !fraction.chars().all(|c| c.is_ascii_digit()) {
+            return None;
         }
+        // Milliseconds are the first three digits, padded: ".5" is 500.
+        let millis: i64 = format!("{:0<3}", &fraction[..fraction.len().min(3)])
+            .parse()
+            .ok()?;
+
+        Some(
+            Duration::hours(hours)
+                + Duration::minutes(minutes)
+                + Duration::seconds(whole)
+                + Duration::milliseconds(millis),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{Stat, StatType};
-    use chrono::{DateTime, Duration, Local, TimeZone, Utc};
+    use chrono::{
+        DateTime, Duration, FixedOffset, Local, MappedLocalTime, NaiveDate, NaiveDateTime,
+        NaiveTime, TimeZone, Utc,
+    };
+
+    /// Berlin's clocks in 2026, written out so the summer-time tests do not
+    /// depend on the machine's time zone: UTC+1, and UTC+2 from 29 March to
+    /// 25 October, each change at 01:00 UTC.
+    #[derive(Clone, Copy, Debug)]
+    struct Berlin2026;
+
+    impl Berlin2026 {
+        fn summer(utc: &NaiveDateTime) -> bool {
+            let start = NaiveDate::from_ymd_opt(2026, 3, 29)
+                .expect("a date")
+                .and_hms_opt(1, 0, 0);
+            let end = NaiveDate::from_ymd_opt(2026, 10, 25)
+                .expect("a date")
+                .and_hms_opt(1, 0, 0);
+            Some(*utc) >= start && Some(*utc) < end
+        }
+
+        fn hours(h: i32) -> FixedOffset {
+            FixedOffset::east_opt(h * 3600).expect("an offset")
+        }
+    }
+
+    impl TimeZone for Berlin2026 {
+        type Offset = FixedOffset;
+
+        fn from_offset(_: &FixedOffset) -> Self {
+            Berlin2026
+        }
+
+        fn offset_from_local_date(&self, local: &NaiveDate) -> MappedLocalTime<FixedOffset> {
+            self.offset_from_local_datetime(&local.and_time(NaiveTime::MIN))
+        }
+
+        fn offset_from_local_datetime(
+            &self,
+            local: &NaiveDateTime,
+        ) -> MappedLocalTime<FixedOffset> {
+            // Summer first, so a clock time shown twice lists its earlier instant first.
+            let fits: Vec<FixedOffset> = [Self::hours(2), Self::hours(1)]
+                .into_iter()
+                .filter(|offset| {
+                    let utc = *local - Duration::seconds(offset.local_minus_utc().into());
+                    self.offset_from_utc_datetime(&utc) == *offset
+                })
+                .collect();
+
+            match fits.as_slice() {
+                [] => MappedLocalTime::None,
+                [one] => MappedLocalTime::Single(*one),
+                [first, second, ..] => MappedLocalTime::Ambiguous(*first, *second),
+            }
+        }
+
+        fn offset_from_utc_date(&self, utc: &NaiveDate) -> FixedOffset {
+            self.offset_from_utc_datetime(&utc.and_time(NaiveTime::MIN))
+        }
+
+        fn offset_from_utc_datetime(&self, utc: &NaiveDateTime) -> FixedOffset {
+            Self::hours(if Self::summer(utc) { 2 } else { 1 })
+        }
+    }
+
+    fn utc(year: i32, month: u32, day: u32, h: u32, m: u32, s: u32) -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(year, month, day, h, m, s)
+            .single()
+            .expect("a UTC time")
+    }
 
     fn at(seconds: i64, millis: i64) -> DateTime<Utc> {
         DateTime::from_timestamp(1_800_000_000 + seconds, 0).expect("valid moment")
@@ -235,13 +333,21 @@ mod tests {
         );
     }
 
-    /// KovaaK's writes milliseconds; they are dropped, which moves a clip's
-    /// start up to a second early rather than late.
+    /// KovaaK's writes milliseconds, and they are kept exactly.
     #[test]
-    fn a_challenge_start_drops_its_milliseconds() {
+    fn a_challenge_start_keeps_its_milliseconds() {
         assert_eq!(
             Stat::parse_challenge_duration("21:23:49.059"),
-            Some(clock(21, 23, 49))
+            Some(clock(21, 23, 49) + Duration::milliseconds(59))
+        );
+        assert_eq!(
+            Stat::parse_challenge_duration("23:49.5"),
+            Some(clock(0, 23, 49) + Duration::milliseconds(500))
+        );
+        // Past the millisecond is dropped, not rounded.
+        assert_eq!(
+            Stat::parse_challenge_duration("0:0:1.0009"),
+            Some(clock(0, 0, 1))
         );
     }
 
@@ -250,6 +356,9 @@ mod tests {
         assert_eq!(Stat::parse_challenge_duration(""), None);
         assert_eq!(Stat::parse_challenge_duration("soon"), None);
         assert_eq!(Stat::parse_challenge_duration("1:2:3:4"), None);
+        assert_eq!(Stat::parse_challenge_duration("a:b:c"), None);
+        assert_eq!(Stat::parse_challenge_duration("21:23:4x"), None);
+        assert_eq!(Stat::parse_challenge_duration("21:23:49.05x"), None);
     }
 
     #[test]
@@ -283,6 +392,94 @@ mod tests {
         assert_eq!(Stat::compute_start_time(end, clock(21, 25, 43)), end);
     }
 
+    /// `1w2ts Perfected`, played on this install: named for 00:00:16 on 23
+    /// March, written then, Challenge Start 23:59:16.403.
+    #[test]
+    fn a_real_run_across_midnight_starts_the_evening_before() {
+        let end = local(2026, 3, 23, 0, 0, 16);
+
+        assert_eq!(
+            Stat::compute_start_time(end, clock(23, 59, 16) + Duration::milliseconds(403)),
+            local(2026, 3, 22, 23, 59, 16) + Duration::milliseconds(403)
+        );
+    }
+
+    /// A run that ends as it begins can show a start a moment after its
+    /// file's time: "01:31:45.253" in a file written at 01:31:44. That is the
+    /// same day, not a run that started the day before.
+    #[test]
+    fn a_start_a_moment_after_the_end_is_that_day() {
+        let end = local(2026, 8, 2, 1, 31, 44) + Duration::milliseconds(900);
+        let start = clock(1, 31, 45) + Duration::milliseconds(253);
+
+        assert_eq!(
+            Stat::compute_start_time(end, start),
+            local(2026, 8, 2, 1, 31, 45) + Duration::milliseconds(253)
+        );
+    }
+
+    #[test]
+    fn the_start_keeps_its_milliseconds() {
+        let end = local(2026, 10, 15, 21, 25, 43) + Duration::milliseconds(781);
+
+        assert_eq!(
+            Stat::compute_start_time(end, clock(21, 23, 49) + Duration::milliseconds(59)),
+            local(2026, 10, 15, 21, 23, 49) + Duration::milliseconds(59)
+        );
+    }
+
+    /// When the clocks go back, 02:00 to 03:00 happens twice. A run that ends
+    /// in the second pass started in it too, not an hour earlier. The old
+    /// version panicked here: setting the hour on an ambiguous time gives none.
+    #[test]
+    fn a_run_in_the_repeated_hour_is_not_an_hour_long() {
+        // 02:40 CET, the second 02:40 of the night.
+        let end = utc(2026, 10, 25, 1, 40, 0);
+
+        assert_eq!(
+            Stat::start_in(&Berlin2026, end, clock(2, 35, 0)),
+            utc(2026, 10, 25, 1, 35, 0)
+        );
+    }
+
+    /// Started in the first pass of the repeated hour, ended in the second.
+    #[test]
+    fn a_run_across_the_clocks_going_back_starts_in_the_first_pass() {
+        // 02:10 CET, after the clocks went back from 03:00 CEST.
+        let end = utc(2026, 10, 25, 1, 10, 0);
+
+        assert_eq!(
+            Stat::start_in(&Berlin2026, end, clock(2, 55, 0)),
+            utc(2026, 10, 25, 0, 55, 0)
+        );
+    }
+
+    /// Started before the clocks went forward, ended after.
+    #[test]
+    fn a_run_across_the_clocks_going_forward_keeps_its_length() {
+        // 03:00:30 CEST, a minute of wall clock after 01:59:50 CET.
+        let end = utc(2026, 3, 29, 1, 0, 30);
+
+        assert_eq!(
+            Stat::start_in(&Berlin2026, end, clock(1, 59, 50)),
+            utc(2026, 3, 29, 0, 59, 50)
+        );
+    }
+
+    /// 02:30 never shows on 29 March: the clocks jump from 02:00 to 03:00.
+    /// KovaaK's cannot write it, but a wrong file must not panic, and is read
+    /// with the offset the run ended in.
+    #[test]
+    fn a_clock_time_the_clocks_skip_does_not_panic() {
+        // 03:10 CEST.
+        let end = utc(2026, 3, 29, 1, 10, 0);
+
+        assert_eq!(
+            Stat::start_in(&Berlin2026, end, clock(2, 30, 0)),
+            utc(2026, 3, 29, 0, 30, 0)
+        );
+    }
+
     #[test]
     fn a_stats_file_gives_the_run() {
         let dir = std::env::temp_dir().join("kovobs_stat_parse");
@@ -298,7 +495,10 @@ mod tests {
         assert_eq!(stat.scenario, "Ground Plaza Sparky v3 OW");
         // The same f32 the file's text parses to; the literal has more digits than an f32 holds.
         assert_eq!(stat.score, "885.119141".parse::<f32>().expect("a number"));
-        assert_eq!(stat.start_dt, local(2026, 10, 15, 21, 23, 49));
+        assert_eq!(
+            stat.start_dt,
+            local(2026, 10, 15, 21, 23, 49) + Duration::milliseconds(59)
+        );
         assert!(matches!(stat.stat_type, StatType::KovaaKs));
         // Just written, so its timestamp is far from the name's and the name decides.
         assert_eq!(stat.end_dt, local(2026, 10, 15, 21, 25, 43));
