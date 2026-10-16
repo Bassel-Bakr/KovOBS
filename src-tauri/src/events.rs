@@ -15,7 +15,7 @@ pub enum AppEvent {
 }
 
 pub fn emit(event: AppEvent) -> Result<(), String> {
-    let app_handle = APP_HANDLE.get().unwrap();
+    let app_handle = APP_HANDLE.get().ok_or("The app is not running")?;
 
     let res = match event {
         AppEvent::Running(is_running) => Emitter::emit(app_handle, "running", is_running),

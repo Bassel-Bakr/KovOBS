@@ -87,6 +87,8 @@ impl ScenarioStatistics {
             end_dt,
             start_dt: end_dt - length,
             stat_type: Aimbeast,
+            // One file holds every run of the scenario, not this run alone.
+            stats_file: None,
         }
     }
 }

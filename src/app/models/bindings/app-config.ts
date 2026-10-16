@@ -11,4 +11,9 @@ export type AppConfig = { auto_start: boolean,
 /**
  * False until the first-run checklist is finished or skipped.
  */
-setup_completed: boolean, theme: Theme, obs: ObsConfig, clips_folder: string, stats_folder: string, trim: boolean, trim_padding_start: number, trim_padding_end: number, delete_after_trimming: boolean, only_pb: boolean, cache_version: string, cache_file: string, screenshot: ScreenshotConfig, notifications: NotificationsConfig, ffmpeg: FFmpegConfig, processes: ProcessesConfig, aimbeast: AimbeastConfig, };
+setup_completed: boolean, theme: Theme, obs: ObsConfig, clips_folder: string, stats_folder: string, trim: boolean, trim_padding_start: number, trim_padding_end: number, delete_after_trimming: boolean, 
+/**
+ * Embed a KovaaK's run's stats file in its clip, the CSV as it is, under
+ * the container metadata key `kovobs_kovaaks_stats`.
+ */
+embed_stats: boolean, only_pb: boolean, cache_version: string, cache_file: string, screenshot: ScreenshotConfig, notifications: NotificationsConfig, ffmpeg: FFmpegConfig, processes: ProcessesConfig, aimbeast: AimbeastConfig, };

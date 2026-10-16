@@ -17,6 +17,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   "trim_padding_start": 0.0,
   "trim_padding_end": 5.0,
   "delete_after_trimming": false,
+  "embed_stats": false,
   "only_pb": false,
   "cache_version": "",
   "cache_file": "",

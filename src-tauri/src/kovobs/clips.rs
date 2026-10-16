@@ -87,6 +87,8 @@ async fn store_clip(
 
     ffmpeg::trim(replay_buffer, &clip_path, trim_duration, &config.ffmpeg).await?;
 
+    embed_stats(config, stat, &clip_path, trim_duration).await;
+
     notification::clip_saved(
         "Clip saved",
         &stat.to_string(),
@@ -107,4 +109,25 @@ async fn store_clip(
     }
 
     Ok(())
+}
+
+/// Adds the run's stats file to its clip, when that is turned on and the run
+/// has a file of its own (KovaaK's). A failure costs only the stats: the clip
+/// is already saved and stays as it was.
+async fn embed_stats(config: &AppConfig, stat: &Stat, clip: &path::Path, clip_duration: TimeDelta) {
+    let Some(stats_file) = stat.stats_file.as_deref().filter(|_| config.embed_stats) else {
+        return;
+    };
+
+    let embedded: Result<(), Box<dyn std::error::Error + Send + Sync>> = async {
+        let csv = String::from_utf8_lossy(&tokio::fs::read(stats_file).await?).into_owned();
+
+        ffmpeg::add_metadata(clip, ffmpeg::STATS_METADATA_KEY, &csv, clip_duration).await
+    }
+    .await;
+
+    match embedded {
+        Ok(()) => ui_println!("🏷️ Added the stats file to the clip"),
+        Err(e) => ui_println!("👎 Could not add the stats file, keeping the clip without it:\n{e}"),
+    }
 }

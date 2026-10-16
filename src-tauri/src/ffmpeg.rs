@@ -167,11 +167,135 @@ async fn keep_trimmed(
 
 /// A sibling of `out_file` that the trim writes to before the second pass.
 fn intermediate_path(out_file: &path::Path) -> PathBuf {
-    let ext = out_file
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("mp4");
-    out_file.with_extension(format!("trimming.{ext}"))
+    sibling(out_file, "trimming")
+}
+
+/// `<name>.<stage>.<ext>` beside `file`.
+fn sibling(file: &path::Path, stage: &str) -> PathBuf {
+    let ext = file.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+    file.with_extension(format!("{stage}.{ext}"))
+}
+
+/// The container metadata key a KovaaK's run's stats file goes under, as the
+/// CSV itself. Prefixed so it cannot be taken for another program's tag.
+pub const STATS_METADATA_KEY: &str = "kovobs_kovaaks_stats";
+
+/// Adds `key=value` to the finished clip's metadata, keeping the tags it had.
+///
+/// A pass of its own after the clip is saved, never part of the trim, so
+/// nothing a setting turns on can cost the clip. It is a remux, cheap and
+/// lossless. The value goes in through an FFmpeg metadata file rather than
+/// `-metadata` on the command line: a long run's stats file runs past the
+/// 32,767 characters Windows allows a command line.
+///
+/// On any failure the clip is left exactly as it was.
+pub async fn add_metadata(
+    clip: &path::Path,
+    key: &str,
+    value: &str,
+    clip_duration: TimeDelta,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let metadata_file = clip.with_extension("ffmetadata");
+    let tagged = sibling(clip, "tagging");
+
+    tokio::fs::write(&metadata_file, ffmetadata(key, value))
+        .await
+        .with_context(|| format!("Failed to write '{}'", metadata_file.display()))?;
+
+    let tagging = run(
+        &metadata_args(clip, &metadata_file, &tagged),
+        clip_duration,
+        "🏷️ Adding the stats",
+    )
+    .await;
+
+    _ = tokio::fs::remove_file(&metadata_file).await;
+
+    if let Err(e) = tagging {
+        _ = tokio::fs::remove_file(&tagged).await;
+        return Err(e);
+    }
+
+    // Swap the tagged clip in without ever leaving no clip: the original
+    // steps aside first and comes back if the tagged one cannot take its place.
+    // `rename` refuses to overwrite on Windows, hence the two steps.
+    let untagged = sibling(clip, "untagged");
+
+    if let Err(e) = tokio::fs::rename(clip, &untagged).await {
+        _ = tokio::fs::remove_file(&tagged).await;
+        return Err(format!("Failed to replace '{}': {e}", clip.display()).into());
+    }
+
+    if let Err(e) = tokio::fs::rename(&tagged, clip).await {
+        _ = tokio::fs::rename(&untagged, clip).await;
+        _ = tokio::fs::remove_file(&tagged).await;
+        return Err(format!("Failed to replace '{}': {e}", clip.display()).into());
+    }
+
+    _ = tokio::fs::remove_file(&untagged).await;
+
+    Ok(())
+}
+
+/// An FFmpeg metadata file (`FFMETADATA1`) setting one global `key=value`.
+///
+/// The format reserves `=`, `;`, `#`, `\` and line breaks, so each is
+/// preceded by a backslash wherever it appears in the key or the value. That
+/// includes `\r`, which FFmpeg's own writer leaves bare but its reader ends a
+/// line at: a stats file's CRLFs would cut it off after the first line.
+fn ffmetadata(key: &str, value: &str) -> String {
+    fn escape(text: &str) -> String {
+        let mut escaped = String::with_capacity(text.len());
+
+        for c in text.chars() {
+            if matches!(c, '=' | ';' | '#' | '\\' | '\r' | '\n') {
+                escaped.push('\\');
+            }
+            escaped.push(c);
+        }
+
+        escaped
+    }
+
+    format!(";FFMETADATA1\n{}={}\n", escape(key), escape(value))
+}
+
+/// Copies `clip` to `out_file` with the global tags of `metadata_file` added.
+fn metadata_args(
+    clip: &path::Path,
+    metadata_file: &path::Path,
+    out_file: &path::Path,
+) -> Vec<String> {
+    vec![
+        "-hide_banner".into(),
+        "-loglevel".into(),
+        "error".into(),
+        "-nostats".into(),
+        "-progress".into(),
+        "pipe:1".into(),
+        "-y".into(),
+        "-i".into(),
+        clip.to_string_lossy().into_owned(),
+        "-f".into(),
+        "ffmetadata".into(),
+        "-i".into(),
+        metadata_file.to_string_lossy().into_owned(),
+        // Every stream the trim kept.
+        "-map".into(),
+        "0".into(),
+        // The clip's own tags first, then the new one on top.
+        "-map_metadata".into(),
+        "0".into(),
+        "-map_metadata".into(),
+        "1".into(),
+        "-c".into(),
+        "copy".into(),
+        // MP4 drops a key it has no name for unless told to keep it. Other
+        // containers keep any key and ignore this.
+        "-movflags".into(),
+        "+use_metadata_tags".into(),
+        out_file.to_string_lossy().into_owned(),
+    ]
 }
 
 fn trim_args(
@@ -265,11 +389,11 @@ async fn run(
     label: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Falling back to the bare name lets a system-wide FFmpeg work when the
-    // bundled one hasn't been downloaded.
-    let program = {
-        let app_handle = APP_HANDLE.get().unwrap();
-        get_ffmpeg_path(app_handle).unwrap_or_else(|_| PathBuf::from("ffmpeg"))
-    };
+    // bundled one hasn't been downloaded -- and in tests, where there is no app.
+    let program = APP_HANDLE
+        .get()
+        .and_then(|app_handle| get_ffmpeg_path(app_handle).ok())
+        .unwrap_or_else(|| PathBuf::from("ffmpeg"));
     let command_line = display_command(&program, args);
 
     let mut process = Command::new(&program)
@@ -344,8 +468,131 @@ async fn run(
 
 #[cfg(test)]
 mod tests {
-    use super::display_command;
+    use super::{STATS_METADATA_KEY, add_metadata, display_command, ffmetadata, metadata_args};
+    use chrono::TimeDelta;
     use std::path::Path;
+
+    /// The shape of a KovaaK's stats file: line breaks, commas, colons, and
+    /// the odd character the metadata file format reserves.
+    const CSV: &str = "Kill #,Timestamp,Bot\r\n1,21:24:11.069,\"blink\" #1\r\n\r\nScore:,885.119141\r\nCrosshair Color:,#FF0000; a=b \\ c\r\n";
+
+    #[test]
+    fn a_metadata_file_escapes_what_the_format_reserves() {
+        assert_eq!(
+            ffmetadata("meta", "a=b;c#d\\e\r\nf"),
+            ";FFMETADATA1\nmeta=a\\=b\\;c\\#d\\\\e\\\r\\\nf\n"
+        );
+    }
+
+    /// Undoing the escaping gives back exactly the CSV that went in.
+    #[test]
+    fn a_metadata_file_holds_the_stats_losslessly() {
+        let file = ffmetadata(STATS_METADATA_KEY, CSV);
+        let line = file
+            .strip_prefix(&format!(";FFMETADATA1\n{STATS_METADATA_KEY}="))
+            .and_then(|rest| rest.strip_suffix('\n'))
+            .expect("one key");
+
+        let mut unescaped = String::new();
+        let mut chars = line.chars();
+        while let Some(c) = chars.next() {
+            unescaped.push(if c == '\\' {
+                chars.next().expect("an escaped char")
+            } else {
+                c
+            });
+        }
+
+        assert_eq!(unescaped, CSV);
+    }
+
+    /// The clip's own tags are kept and the new one goes on top, every stream
+    /// is copied, and MP4 is told to keep a key it has no name for.
+    #[test]
+    fn the_metadata_pass_keeps_the_clip_and_adds_the_tag() {
+        let args = metadata_args(
+            Path::new("clip.mp4"),
+            Path::new("clip.ffmetadata"),
+            Path::new("clip.tagging.mp4"),
+        );
+        let line = args.join(" ");
+
+        assert!(line.contains("-i clip.mp4 -f ffmetadata -i clip.ffmetadata"));
+        assert!(line.contains("-map 0 -map_metadata 0 -map_metadata 1 -c copy"));
+        assert!(line.contains("-movflags +use_metadata_tags"));
+        assert_eq!(args.last().map(String::as_str), Some("clip.tagging.mp4"));
+    }
+
+    /// The whole pass against a real FFmpeg, read back from the clip in place
+    /// with FFprobe. Needs both on the PATH:
+    /// `cargo test --manifest-path src-tauri/Cargo.toml --lib -- --ignored`
+    #[test]
+    #[ignore = "needs ffmpeg and ffprobe on the PATH"]
+    fn real_ffmpeg_embeds_the_stats_readably() {
+        let dir = std::env::temp_dir().join("kovobs_ffmpeg_metadata");
+        _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("created folder");
+        let runtime = tokio::runtime::Runtime::new().expect("runtime");
+
+        for ext in ["mp4", "mkv"] {
+            let clip = dir.join(format!("clip.{ext}"));
+
+            let made = std::process::Command::new("ffmpeg")
+                .args(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi"])
+                .args([
+                    "-i",
+                    "testsrc=d=1:s=160x120:r=10",
+                    "-metadata",
+                    "title=kept",
+                ])
+                .arg(&clip)
+                .status()
+                .expect("ffmpeg runs");
+            assert!(made.success());
+
+            runtime
+                .block_on(add_metadata(
+                    &clip,
+                    STATS_METADATA_KEY,
+                    CSV,
+                    TimeDelta::seconds(1),
+                ))
+                .expect("tagged");
+
+            let probe = std::process::Command::new("ffprobe")
+                .args(["-v", "error", "-show_entries", "format_tags", "-of", "json"])
+                .arg(&clip)
+                .output()
+                .expect("ffprobe runs");
+            let probed: serde_json::Value =
+                serde_json::from_slice(&probe.stdout).expect("ffprobe JSON");
+            let tags = &probed["format"]["tags"];
+
+            // Matroska stores tag names in capitals.
+            let stats = tags[STATS_METADATA_KEY]
+                .as_str()
+                .or(tags[STATS_METADATA_KEY.to_uppercase()].as_str())
+                .expect("the tag");
+            assert_eq!(stats, CSV, "{ext}");
+            assert_eq!(tags["title"], "kept", "{ext}");
+        }
+
+        // Only the clips themselves are left: no metadata file, no stage.
+        let mut left: Vec<String> = std::fs::read_dir(&dir)
+            .expect("listed")
+            .map(|entry| {
+                entry
+                    .expect("entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        left.sort();
+        assert_eq!(left, ["clip.mkv", "clip.mp4"]);
+
+        std::fs::remove_dir_all(&dir).expect("cleaned up");
+    }
 
     fn render(args: &[&str]) -> String {
         let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();

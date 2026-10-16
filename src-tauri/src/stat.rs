@@ -18,6 +18,10 @@ pub struct Stat {
     pub end_dt: DateTime<Utc>,
 
     pub stat_type: StatType,
+
+    /// The file the run was read from, when it is one run's own: a KovaaK's
+    /// stats CSV. Aimbeast keeps every run of a scenario in one file.
+    pub stats_file: Option<path::PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -83,6 +87,7 @@ impl Stat {
             start_dt,
             end_dt,
             stat_type: StatType::KovaaKs,
+            stats_file: Some(stat_file.to_path_buf()),
         })
     }
 
@@ -500,6 +505,7 @@ mod tests {
             local(2026, 10, 15, 21, 23, 49) + Duration::milliseconds(59)
         );
         assert!(matches!(stat.stat_type, StatType::KovaaKs));
+        assert_eq!(stat.stats_file.as_deref(), Some(path.as_path()));
         // Just written, so its timestamp is far from the name's and the name decides.
         assert_eq!(stat.end_dt, local(2026, 10, 15, 21, 25, 43));
 
@@ -523,6 +529,7 @@ mod tests {
             start_dt: local(2026, 10, 15, 21, 23, 49),
             end_dt: local(2026, 10, 15, 21, 25, 43),
             stat_type: StatType::KovaaKs,
+            stats_file: None,
         };
         assert_eq!(
             stat.to_string(),

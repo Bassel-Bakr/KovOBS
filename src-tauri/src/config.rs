@@ -32,6 +32,9 @@ pub struct AppConfig {
     pub trim_padding_start: f32,
     pub trim_padding_end: f32,
     pub delete_after_trimming: bool,
+    /// Embed a KovaaK's run's stats file in its clip, the CSV as it is, under
+    /// the container metadata key `kovobs_kovaaks_stats`.
+    pub embed_stats: bool,
     pub only_pb: bool,
     pub cache_version: String,
     pub cache_file: String,
@@ -250,6 +253,7 @@ impl Default for AppConfig {
             trim_padding_start: 0.0,
             trim_padding_end: 5.0,
             delete_after_trimming: false,
+            embed_stats: false,
             only_pb: false,
             cache_version: "".into(),
             cache_file: "".into(),
@@ -272,6 +276,14 @@ mod tests {
         let config = AppConfig::load(&path).expect("failed to load test config");
         _ = std::fs::remove_file(&path);
         config
+    }
+
+    /// A new step on every clip, so configs written before it existed keep
+    /// clips as they were.
+    #[test]
+    fn embedding_the_stats_is_off_unless_asked_for() {
+        assert!(!load_json("no-embed-key", r#"{ "trim": true }"#).embed_stats);
+        assert!(load_json("embed-key", r#"{ "embed_stats": true }"#).embed_stats);
     }
 
     /// Configs written before the `ffmpeg` object existed must still load.

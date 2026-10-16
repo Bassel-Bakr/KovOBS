@@ -14,6 +14,7 @@ No more remembering to press a hotkey after a good run.
 - 🏆 Optional **personal bests only** mode
 - ✂️ Trims each clip to the run, with adjustable padding
 - 📸 Optional automatic screenshots
+- 🏷️ Optional KovaaK's stats file embedded in each clip's metadata
 - 🔔 Notifications, including ones that tell you when clipping stopped
 - 🎯 Kovaak's support
 - 🧪 Experimental Aimbeast support
@@ -91,6 +92,20 @@ Turning trimming off still passes the buffer through FFmpeg, so FFmpeg is needed
 ## Screenshots
 
 KovOBS can save a PNG of the configured OBS source alongside each clip.
+
+---
+
+## Stats in the clip
+
+Turn on **Embed the stats file** and each KovaaK's clip carries its run's stats CSV, as it is, in the container metadata under the key `kovobs_kovaaks_stats` (`KOVOBS_KOVAAKS_STATS` in MKV, which capitalises tag names). Print it with:
+
+```
+ffprobe -v error -show_entries format_tags=kovobs_kovaaks_stats -of default=nw=1:nk=1 clip.mp4
+```
+
+On Windows that doubles the carriage returns, so for the exact file, as a program would want it, read the tag from `ffprobe -v error -show_entries format_tags -of json clip.mp4`.
+
+It is a lossless remux after the clip is saved; if it fails, the clip is kept without the stats. Aimbeast keeps every run of a scenario in one file, so its clips get nothing.
 
 ---
 

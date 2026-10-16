@@ -15,4 +15,5 @@ export default class AutomationSettingsComponent {
   readonly onlyPb = input.required<FieldTree<boolean, string>>();
   readonly deleteAfterTrimming = input.required<FieldTree<boolean, string>>();
   readonly screenshot = input.required<FieldTree<boolean, string>>();
+  readonly embedStats = input.required<FieldTree<boolean, string>>();
 }

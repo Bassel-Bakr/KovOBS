@@ -60,6 +60,28 @@ produced a usable clip before the user's arguments are parsed.
 
 ---
 
+## The metadata pass
+
+With `embed_stats` on, `add_metadata` remuxes the finished clip once more
+(`-c copy`) to add the run's stats CSV under the key `kovobs_kovaaks_stats`.
+It runs after
+`trim` returns, from `kovobs/clips.rs`, never inside it, and a failure only
+logs: the clip is already saved.
+
+- The value goes through an `FFMETADATA1` file, not `-metadata`: a stats file
+  can pass Windows' 32,767-character command line. `ffmetadata` escapes `\r`
+  too: FFmpeg's reader ends a line at a bare one, which cut a CRLF CSV after
+  its first line.
+- `-map_metadata 0 -map_metadata 1` keeps the clip's own tags;
+  `-movflags +use_metadata_tags` is what lets MP4 store a custom key.
+- The tagged clip swaps in through `<name>.untagged.<ext>`, so a failed rename
+  puts the original back rather than leaving no clip.
+
+`real_ffmpeg_embeds_the_stats_readably` (ignored; needs `ffmpeg` and `ffprobe`
+on the PATH) runs the whole pass and reads the tag back, for MP4 and MKV.
+
+---
+
 ## Argument parsing
 
 The three slots are free text, parsed by `src-tauri/src/args.rs`, not by a

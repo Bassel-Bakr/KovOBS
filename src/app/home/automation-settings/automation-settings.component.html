@@ -38,4 +38,12 @@
       <span class="toggle__desc">Capture the end-of-run screen alongside the clip.</span>
     </span>
   </label>
+
+  <label class="toggle">
+    <mat-slide-toggle [formField]="embedStats()" />
+    <span class="toggle__text">
+      <span class="toggle__label">Embed the stats file</span>
+      <span class="toggle__desc">Store a KovaaK's run's stats CSV in its clip's metadata, under the key kovobs_kovaaks_stats.</span>
+    </span>
+  </label>
 </div>
