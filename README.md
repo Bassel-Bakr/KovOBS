@@ -38,7 +38,7 @@ Every finished run is clipped. Turn on **Personal bests only** if you want clips
 
 - OBS Studio 28+ with the built-in WebSocket server
 - FFmpeg — KovOBS can download a bundled copy for you, or use one already on your `PATH`
-- Windows. Linux builds (`deb`, `AppImage`) exist, but KovOBS detects a running program by its full executable path, which Proton, symlinks and Flatpak installs all defeat — so the "running" indicators and starting OBS automatically when a game launches don't work there. Watching, clipping and the launch buttons do, if you point them at something Linux can run
+- Windows. Linux builds (`deb`, `AppImage`, and a `tar.gz` that needs no FUSE) exist, but KovOBS detects a running program by its full executable path, which Proton, symlinks and Flatpak installs all defeat — so the "running" indicators and starting OBS automatically when a game launches don't work there. Watching, clipping and the launch buttons do, if you point them at something Linux can run
 
 ---
 
@@ -52,6 +52,14 @@ Every finished run is clipped. Turn on **Personal bests only** if you want clips
 KovOBS stores its own settings — you don't need to write a `config.json` by hand.
 
 The default stats folder paths assume a standard Steam install on `C:`. If yours is elsewhere, set it in Game settings; nothing is auto-detected.
+
+### Linux
+
+- **AppImage**: `chmod +x KovOBS-linux-*.AppImage`, then run it. It needs FUSE's `fusermount` helper (the `fuse3` or `fuse2` package). Without it, run it with `--appimage-extract-and-run`, or use the `tar.gz`.
+- **tar.gz**: `tar -xzf KovOBS-linux-*.tar.gz`, then run `AppRun` in the folder it creates. No FUSE needed.
+- **deb**: for Debian, Ubuntu and their relatives; it uses the system's WebKitGTK.
+
+The AppImage of releases up to 0.18.0 shows a blank window on Arch, CachyOS and other distros with a recent Mesa; later releases do not.
 
 ---
 

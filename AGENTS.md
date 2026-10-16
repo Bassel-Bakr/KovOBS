@@ -103,6 +103,12 @@ commits (rules in `cliff.toml`; before 1.0 a breaking change bumps the minor),
 tags the commit, stamps the version into the build, and publishes. A docs- or
 chore-only push releases nothing. The same scheme as masar.
 
+The Linux AppImage is not shipped as Tauri builds it. `scripts/linux-portable.sh`
+removes the build machine's bundled `libwayland-*` and repacks it, because with
+them WebKit cannot create its EGL display on distros with a newer Mesa (Arch,
+CachyOS) and the window stays blank. It also publishes the same app as a
+`tar.gz` for systems without FUSE. Do not drop that step from `release.yml`.
+
 **The version lives in the tags, not in a file.** `src-tauri/Cargo.toml` holds
 the placeholder `0.0.0`; never set a real version there. The commit types are
 what release, so get them right. The `chore(#N): bump version` commits in the
@@ -110,8 +116,9 @@ history are from the old scheme, not a convention to copy.
 
 `.github/workflows/checks.yml` runs formatting, clippy (`-D warnings`), the
 Rust tests, a generated-types freshness check, the frontend tests and build,
-and the release script's tests -- on pull requests, on pushes to `main`, and on
-demand. `release.yml` runs the Rust tests before it builds.
+the release script's tests and a ShellCheck of `scripts/*.sh` -- on pull
+requests, on pushes to `main`, and on demand. `release.yml` runs the Rust tests
+before it builds.
 
 The build caches the registry and `target/` via a Rust cache action. Do not
 reintroduce a compilation cache with a per-object remote backend; it fragmented

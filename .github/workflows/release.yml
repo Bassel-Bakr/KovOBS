@@ -181,6 +181,24 @@ jobs:
             mv "$f" "KovOBS-${{ matrix.platform }}-v${VERSION}.${ext}"
           done
 
+      # The AppImage as Tauri builds it shows a blank window on Arch, CachyOS and
+      # other distros with a newer Mesa: it bundles the build machine's
+      # libwayland. This strips those and repacks it, and adds a .tar.gz of the
+      # same app that runs without FUSE. See scripts/linux-portable.sh.
+      - name: Fix the AppImage and add a FUSE-free build (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          APPIMAGETOOL_URL: https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          APPIMAGETOOL_SHA256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/appimagetool" "$APPIMAGETOOL_URL"
+          echo "$APPIMAGETOOL_SHA256  $RUNNER_TEMP/appimagetool" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/appimagetool"
+
+          name="KovOBS-linux-v${VERSION}"
+          bash scripts/linux-portable.sh "release-assets/$name.AppImage" "$RUNNER_TEMP/appimagetool" release-assets "$name"
+
       - name: Prepare release assets (Windows)
         if: runner.os == 'Windows'
         shell: pwsh

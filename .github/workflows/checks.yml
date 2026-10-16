@@ -103,13 +103,18 @@ jobs:
       - name: Build
         run: npx ng build
 
-  # release.yml works out every version with this script, so a mistake in it
-  # ships the wrong version or none.
-  release-script:
+  # release.yml works out every version with release.py and fixes the Linux
+  # AppImage with linux-portable.sh, so a mistake in either ships a wrong or
+  # broken release. Both only run for real once something is released.
+  release-scripts:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Test
+      - name: Test release.py
         run: python3 -m unittest discover -s scripts -p "test_*.py"
+
+      # ShellCheck is preinstalled on GitHub's Ubuntu runners.
+      - name: Lint the shell scripts
+        run: shellcheck scripts/*.sh
