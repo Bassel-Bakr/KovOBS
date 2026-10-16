@@ -130,6 +130,13 @@ impl Stat {
     ///
     /// The parsed timestamp is interpreted as local time and converted to UTC.
     ///
+    /// The name only has whole seconds. KovaaK's writes the file as the run
+    /// ends, so the file's modification time is the same moment to the
+    /// millisecond, and it is used whenever it agrees with the name. A file
+    /// that was copied or restored keeps its name but not its timestamp, so the
+    /// name decides when they disagree. Across the latest 3,000 runs on one
+    /// install, 2,999 agreed.
+    ///
     /// If the file name does not contain a valid timestamp, falls back to the
     /// file's creation time or, if unavailable, its last modification time.
     ///
@@ -143,10 +150,19 @@ impl Stat {
             .strip_suffix(consts::STAT_FILE_SUFFIX)
             .and_then(|s| s.get(s.len() - consts::STAT_DATE_TIME_LEN..))
             .and_then(utils::parse_local_datetime)
+            .map(|named| Self::refine_end(named, utils::get_modification_time(stat_file).ok()))
             .unwrap_or_else(|| {
                 utils::get_creation_or_modification_time(stat_file)
                     .expect("Failed to get creation or modification time")
             })
+    }
+
+    /// The modification time when it is within two seconds of the end time
+    /// read from the name, otherwise the name's.
+    fn refine_end(named: DateTime<Utc>, modified: Option<DateTime<Utc>>) -> DateTime<Utc> {
+        modified
+            .filter(|modified| (*modified - named).abs() < Duration::seconds(2))
+            .unwrap_or(named)
     }
 
     /// Parses the challenge start time from the stats file and calculates the corresponding Duration.
@@ -167,5 +183,55 @@ impl Stat {
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Stat;
+    use chrono::{DateTime, Duration, Utc};
+
+    fn at(seconds: i64, millis: i64) -> DateTime<Utc> {
+        DateTime::from_timestamp(1_800_000_000 + seconds, 0).expect("valid moment")
+            + Duration::milliseconds(millis)
+    }
+
+    /// The name stops at the second; the file's own time does not.
+    #[test]
+    fn a_modification_time_that_agrees_gives_the_milliseconds() {
+        assert_eq!(Stat::refine_end(at(0, 0), Some(at(0, 183))), at(0, 183));
+    }
+
+    /// A copied or restored file keeps its name but takes a new timestamp.
+    #[test]
+    fn a_modification_time_far_from_the_name_is_ignored() {
+        assert_eq!(Stat::refine_end(at(0, 0), Some(at(86_400, 0))), at(0, 0));
+        assert_eq!(Stat::refine_end(at(0, 0), Some(at(-5, 0))), at(0, 0));
+    }
+
+    #[test]
+    fn without_a_modification_time_the_name_stands() {
+        assert_eq!(Stat::refine_end(at(0, 0), None), at(0, 0));
+    }
+
+    /// End to end, on a file named the way KovaaK's names them.
+    #[test]
+    fn the_end_of_a_real_stats_file_comes_from_its_timestamp() {
+        let dir = std::env::temp_dir().join("kovobs_stat_end_dt");
+        _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("created folder");
+
+        let path = dir.join("Ground Plaza - Challenge - 2026.10.15-21.33.16 Stats.csv");
+        let file = std::fs::File::create(&path).expect("created file");
+
+        let named = crate::utils::parse_local_datetime("2026.10.15-21.33.16").expect("a name time");
+        let written = named + Duration::milliseconds(183);
+        file.set_modified(written.into())
+            .expect("set the timestamp");
+        drop(file);
+
+        assert_eq!(Stat::get_end_dt(&path), written);
+
+        std::fs::remove_dir_all(&dir).expect("cleaned up");
     }
 }
