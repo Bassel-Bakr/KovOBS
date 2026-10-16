@@ -47,43 +47,72 @@ training log, whose entries look like:
 {"19/9/2026": {"1 WALL 6 TARGETS": {"Completed Sessions Time": 120, "Completed Sessions": 2, "Total Time": 129}}}
 ```
 
-**A "Completed Session" is a run whose timer ran out.** Verified by playing the
-two kinds back to back: clearing a scenario early, and ending it on a miss,
-both leave `Completed Sessions`, `Completed Sessions Time` and `Total Time`
-untouched. Only a run that goes the distance is recorded.
+**Every run of over 3 seconds is counted, however it ended**: timer, kill
+limit, miss limit, dying, and touching an end block all go through the same
+`EndSession`, which saves the run as completed. It saves the length rounded to
+whole seconds, with pauses left out, and only when that is over 3
+(`Save Scenario To Training Streak` checks `Time > 3.0`). So a run that ended
+without a log write lasted under 3.5 seconds (`UNCOUNTED_RUN_MAX`).
 
-So the log describes exactly the runs whose length you could have guessed, and
-is silent about every run that ended early. Nothing else on disk covers them
-either: watching every file Aimbeast touches during a run shows writes only
-when one *ends*, and the window title never changes. There is no scenario-start
-signal in any file.
+This replaces an earlier note here, that only runs whose timer ran out are
+counted. That was observed on runs of 3 seconds or less. The bytecode says
+otherwise, and so does the player's own log: `SPHERE FRENZY BAZ 10S 1SHOT`
+has a 10 second timer, yet logged 14 completed runs totalling 93 seconds.
+Decompiled and checked live in `aimbeast-reverse-engineer`, `docs/REPORT.md`
+section 15b.
 
-The totals only move when a run completes, and by exactly that run's duration,
-so measure rather than assume:
+The totals move by exactly the run's duration when it is counted, so measure
+rather than assume:
 
 ```
 length = ΔCompleted Sessions Time / ΔCompleted Sessions
 ```
 
 between the reading taken for the previous run and this one. `ScenarioLengths`
-keeps those readings, in memory and per scenario per day.
+keeps those readings, in memory and per scenario per day, primed at startup.
 
-The day's own average, `Completed Sessions Time / Completed Sessions`, is the
-fallback — the first run of a scenario since launch, or since the day rolled
-over, has nothing to measure against. Since only timer-expiry runs are counted,
-that average is the scenario's timer, so it is right for a run that went the
-distance and too long for one that ended early. Too long is the safe direction:
-the clip keeps the whole run and some lead-in, rather than losing the start.
+With nothing to measure against, the answer is the longer of the day's average
+`Completed Sessions Time / Completed Sessions` and the run's **kill span**,
+`(Kills - 1) x TBK` from the statistics file. Aimbeast's `TBK` is the average
+gap between consecutive kills, so the gaps add back up to the time from the
+first kill to the last. The kill span is a floor: it leaves out the time before
+the first kill, and it is game time, so a 1.25x scenario reads about a quarter
+long. The average is exact only for a scenario that always runs its timer
+out. Taking the longer of the two loses no start.
 
-A run that ended early is then capped by the time since that scenario's
-previous run ended. The player was in the scenario for the whole gap, so the
-run cannot have outlasted it. An upper bound, not a measurement.
+Whatever the source, the answer is capped twice. First, by the time since that
+scenario's previous run ended. Second, by the time since the training-log
+write before this run's own (`TrainingWrites`). The log is written when a
+counted run ends, and also when a run is restarted from inside: fast restart,
+the pause menu's Restart, and Smart Restart all save it as not completed, for
+runs over 3 seconds. The results screen's Restart writes nothing. A run
+started after the write before it, whichever scenario that was for.
 
-**`Total Time` cannot give you a length.** It counts abandoned runs too: 49
+The write times have to be taken as they happen, by a separate watcher on the
+`Training Data` folder. By the time a run is handled, the file's timestamp is
+that run's own write. The same watcher says whether the run wrote the log at
+all, which is how an uncounted run is told apart from one logged under another
+name.
+
+**Ranked runs are logged under another name.** The training entry is
+`<name> - RANKED`, while the statistics file under `Ranked/` drops the suffix
+(Aimbeast builds the path with `Replace(ScenarioName, " - RANKED", "")`).
+`logged_name` maps a `Ranked/` file back to the suffixed name when the log has
+it, played no earlier than the plain name. Some `Ranked/` scenarios are logged
+plainly, `PASU 5TGS SMOOTH V2 (2EZ)` for one. The clip folder keeps the file's
+name. A wrong match stays possible, which is why "no write" is asked of the
+watcher rather than read from unmoved totals.
+
+**`Total Time` cannot give you a length.** It counts restarted runs too: 49
 seconds across 3 sessions of a 15 second scenario.
 
-Day keys are `d/m/yyyy`, unpadded. Take the log's own newest day rather than
-today's date — the run being clipped was just written, so it is that day, and
+**Pauses are left out of every logged length**, so a clip placed at
+`end - length` starts late by however long the run was paused. Nothing on disk
+records pause time. This is a known gap, not handled yet.
+
+Day keys are `d/m/yyyy`, unpadded, from the local OS date, while the yearly
+file is named from the UTC year. Take the log's own newest day rather than
+today's date. The run being clipped was just written, so it is that day, and
 the system clock only adds ways to disagree with the file. Two readings are
 only comparable within one day; the totals restart at midnight.
 

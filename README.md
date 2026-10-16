@@ -94,11 +94,12 @@ Scenarios under **Normal**, **Ranked** and **Custom** are watched, so scenarios 
 
 Aimbeast's stats file records that a run happened, but not how long it took. KovOBS works the length out from Aimbeast's training log instead:
 
-- Aimbeast counts a run there only once its **timer runs out**. For those, KovOBS measures the run exactly.
-- A run that **ends early** — cleared fast, or ended on a miss — is never counted, so no duration exists for it anywhere. KovOBS falls back to the average of that scenario's recorded runs, capped by the time since your previous run of it.
-- With nothing recorded at all, the clip falls back to one minute.
+- Aimbeast logs every run that lasts **over 3 seconds**, however it ends: timer, kill limit, or a miss. KovOBS measures those exactly, to the second.
+- A run of **3 seconds or less** is never logged. KovOBS spots the missing write and clips it as at most 3.5 seconds.
+- With nothing to measure against, KovOBS takes the longer of that scenario's average and the run's own kill timing (time from first kill to last, from the stats file). With nothing at all, it falls back to one minute.
+- A clip never reaches back past your previous run of that scenario, or past the last restart or finish of any run.
 
-So clips of early-ending runs are approximate, and usually a little long rather than short.
+Ranked runs are logged as `<name> - RANKED`, and KovOBS looks them up under that name. Paused time is left out of every logged length, so a run you paused is clipped starting late by the length of the pause.
 
 ---
 

@@ -4,17 +4,128 @@ use chrono::{DateTime, NaiveDate, Utc};
 use encoding_rs_io::DecodeReaderBytesBuilder;
 use serde::Deserialize;
 use std::cmp::Reverse;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// Used when the training log cannot say how long the scenario runs. Most
 /// Aimbeast scenarios are a minute long.
 pub const DEFAULT_SCENARIO_LENGTH: Duration = Duration::from_mins(1);
 
+/// The longest run Aimbeast leaves out of the training log.
+///
+/// It saves a run's length rounded to whole seconds, and only when that is
+/// over 3 (`Save Scenario To Training Streak` checks `Time > 3.0`). So a run
+/// that ended without a write to the log was under 3.5 seconds, not counting
+/// pauses.
+pub const UNCOUNTED_RUN_MAX: Duration = Duration::from_millis(3500);
+
+/// How close to a run's end its own training-log write lands. Aimbeast writes
+/// the log a few milliseconds before the statistics file.
+const OWN_WRITE_SLACK: Duration = Duration::from_millis(250);
+
+/// What is known about a run as it ends, beyond the training log.
+#[derive(Clone, Copy, Debug)]
+pub struct RunEnd {
+    /// When the statistics file was written.
+    pub at: DateTime<Utc>,
+    /// First kill to last, from the statistics file. See
+    /// [`crate::aimbeast::ScenarioStatistics::kill_span`].
+    pub kill_span: Option<Duration>,
+    /// The training-log write before this run's own. See [`TrainingWrites`].
+    pub previous_write: Option<DateTime<Utc>>,
+    /// Whether the training log was written as the run ended, when the log is
+    /// being watched. Asked of the write rather than the totals: a ranked run
+    /// is logged as `<name> - RANKED` while its statistics file drops the
+    /// suffix, so the totals looked up for it may be another scenario's.
+    pub counted: Option<bool>,
+}
+
+impl From<DateTime<Utc>> for RunEnd {
+    fn from(at: DateTime<Utc>) -> Self {
+        Self {
+            at,
+            kill_span: None,
+            previous_write: None,
+            counted: None,
+        }
+    }
+}
+
+/// When Aimbeast wrote its training log, timed as the writes happen.
+///
+/// The log is written when a run of over 3 seconds ends, and when one is
+/// restarted from inside -- fast restart, the pause menu's Restart, or Smart
+/// Restart. A run therefore started after the write before its own, whichever
+/// scenario that write was for.
+///
+/// The times have to be taken as the writes happen. By the time a run is
+/// handled, the file's own timestamp is that run's, and every earlier write
+/// is gone from it.
+#[derive(Clone, Debug, Default)]
+pub struct TrainingWrites(Arc<Mutex<VecDeque<DateTime<Utc>>>>);
+
+impl TrainingWrites {
+    const KEPT: usize = 32;
+
+    pub fn record(&self, at: DateTime<Utc>) {
+        let mut writes = self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        // One write arrives as several file events.
+        if writes.back() == Some(&at) {
+            return;
+        }
+
+        writes.push_back(at);
+
+        if writes.len() > Self::KEPT {
+            writes.pop_front();
+        }
+    }
+
+    /// Whether the run that ended at `ended` wrote the log as it ended, which
+    /// it does when it lasted over 3 seconds.
+    pub fn wrote_at(&self, ended: DateTime<Utc>) -> bool {
+        let writes = self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        writes.iter().any(|&at| {
+            (ended - at)
+                .abs()
+                .to_std()
+                .is_ok_and(|gap| gap < OWN_WRITE_SLACK)
+        })
+    }
+
+    /// The latest write before the run that ended at `ended`, leaving out the
+    /// run's own.
+    pub fn last_before(&self, ended: DateTime<Utc>) -> Option<DateTime<Utc>> {
+        let writes = self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        writes
+            .iter()
+            .copied()
+            .filter(|&at| at + OWN_WRITE_SLACK < ended)
+            .max()
+    }
+}
+
 const LOG_FOLDER: &str = "Training Data";
 const LOG_PREFIX: &str = "training_data_";
+
+/// What a ranked run's name carries in the log and loses in its statistics
+/// file name. See [`logged_name`].
+const RANKED_SUFFIX: &str = " - RANKED";
 
 /// The log as it is written: days, then the scenarios played on that day.
 type TrainingLog = HashMap<String, HashMap<String, ScenarioDay>>;
@@ -139,55 +250,84 @@ impl ScenarioLengths {
         }
     }
 
-    /// The length of the run that ended at `ended`, and remembers what it was
+    /// The length of the run that ended at `end`, and remembers what it was
     /// worked out from.
     ///
-    /// Falls back to the day's average when there is nothing to compare
-    /// against: the first run of a scenario since the app started, or since the
-    /// day rolled over. When runs were missed -- the app was closed for some of
-    /// them -- the difference covers all of them at once, and their average is
-    /// still closer than the whole day's.
+    /// Every run of over 3 seconds is counted, however it ended -- the timer,
+    /// a kill or miss limit, dying -- so the difference from the previous
+    /// reading is the run itself. When runs were missed (the app was closed for
+    /// some of them), the difference covers all of them at once, and their
+    /// average is still closer than the whole day's. A run that ended without
+    /// writing the log was left out of it, which Aimbeast does only below
+    /// [`UNCOUNTED_RUN_MAX`].
+    ///
+    /// With nothing to compare against -- the first run of a scenario since the
+    /// day rolled over, or one the log has never counted -- the answer is the
+    /// longer of the day's average and the run's kill span. The average is
+    /// exact for a scenario that always runs its timer out and wrong for one
+    /// that can end early. The kill span is a floor under the run. Taking the
+    /// longer keeps the clip from losing the start of the run.
     ///
     /// Whatever the source, the answer is capped by the time since this
-    /// scenario's previous run ended. Aimbeast only counts a run that ran its
-    /// timer out, so a scenario cleared early is left to the average, which is
-    /// then the timer -- longer than the run every time. The player was in the
-    /// scenario for the whole gap, so the run cannot have outlasted it.
-    ///
-    /// The cap is only ever an upper bound, so it can shorten the answer toward
-    /// the truth but never past it -- unless Aimbeast writes the same run
-    /// twice, further apart than the watcher's debounce, which would read as
-    /// two runs a moment apart.
+    /// scenario's previous run ended, and by the time since the training-log
+    /// write before this run's own. The player started the run after both, so
+    /// it cannot have outlasted either. A cap is only ever an upper bound, so it
+    /// can shorten the answer toward the truth but never past it -- unless
+    /// Aimbeast writes the same run twice, further apart than the watcher's
+    /// debounce, which would read as two runs a moment apart.
     pub fn last_run_length(
         &mut self,
         stats_folder: &Path,
         scenario: &str,
-        ended: DateTime<Utc>,
+        end: impl Into<RunEnd>,
     ) -> Option<Duration> {
-        let (day, totals) = latest_totals(stats_folder, scenario)?;
+        let end = end.into();
+        let latest = latest_totals(stats_folder, scenario);
         let seen = self.0.get(scenario);
 
-        let measured = match seen {
-            Some(seen) if seen.day == day => totals.length_since(&seen.totals),
+        let measured = match (seen, &latest) {
+            (Some(seen), Some((day, totals))) if seen.day == *day => {
+                totals.length_since(&seen.totals)
+            }
             _ => None,
+        };
+
+        let uncounted = (end.counted == Some(false)).then_some(UNCOUNTED_RUN_MAX);
+
+        let fallback = || {
+            latest
+                .as_ref()
+                .and_then(|(_, totals)| totals.average_length())
+                .into_iter()
+                .chain(end.kill_span)
+                .max()
         };
 
         let since_previous_run = seen
             .and_then(|seen| seen.ended)
-            .and_then(|before| (ended - before).to_std().ok());
+            .and_then(|before| (end.at - before).to_std().ok());
 
-        let length = measured
-            .or_else(|| totals.average_length())
-            .map(|length| since_previous_run.map_or(length, |gap| length.min(gap)));
+        let since_previous_write = end
+            .previous_write
+            .and_then(|before| (end.at - before).to_std().ok());
 
-        self.0.insert(
-            scenario.to_owned(),
-            Seen {
-                day,
-                totals,
-                ended: Some(ended),
-            },
-        );
+        let length = measured.or(uncounted).or_else(fallback).map(|length| {
+            since_previous_run
+                .into_iter()
+                .chain(since_previous_write)
+                .fold(length, Duration::min)
+        });
+
+        if let Some((day, totals)) = latest {
+            self.0.insert(
+                scenario.to_owned(),
+                Seen {
+                    day,
+                    totals,
+                    ended: Some(end.at),
+                },
+            );
+        }
 
         length
     }
@@ -204,9 +344,36 @@ fn latest_totals(stats_folder: &Path, scenario: &str) -> Option<(String, Scenari
         .find_map(|log| totals_in(&log, scenario))
 }
 
+/// The name a run of `scenario` is logged under in the training log.
+///
+/// A ranked run is logged as `<name> - RANKED`, while its statistics file
+/// under `Ranked/` drops the suffix: Aimbeast saves the log under the
+/// scenario's full name and builds the statistics path with
+/// `Replace(ScenarioName, " - RANKED", "")`. Looked up by the file name, a
+/// ranked run would be measured against the Normal scenario's totals, or none.
+///
+/// Not every scenario filed under `Ranked/` is logged with the suffix, so the
+/// suffixed name is taken only when the log has it, and only when it was
+/// played no earlier than the plain name. A run that was just counted was
+/// written today, so its own name is the newer of the two.
+pub fn logged_name(stats_folder: &Path, scenario: &str, ranked: bool) -> String {
+    if !ranked {
+        return scenario.to_owned();
+    }
+
+    let suffixed = format!("{scenario}{RANKED_SUFFIX}");
+    let newest_day =
+        |name: &str| latest_totals(stats_folder, name).and_then(|(day, _)| day_date(&day));
+
+    match (newest_day(&suffixed), newest_day(scenario)) {
+        (Some(ranked_day), plain_day) if plain_day <= Some(ranked_day) => suffixed,
+        _ => scenario.to_owned(),
+    }
+}
+
 /// The training log sits beside the statistics, both under Aimbeast's
 /// `Trainer` folder.
-fn training_data_folder(stats_folder: &Path) -> Option<PathBuf> {
+pub fn training_data_folder(stats_folder: &Path) -> Option<PathBuf> {
     Some(stats_folder.parent()?.join(LOG_FOLDER))
 }
 
@@ -230,6 +397,12 @@ fn log_files(folder: &Path) -> Vec<PathBuf> {
     logs.sort_unstable_by_key(|(year, _)| Reverse(*year));
 
     logs.into_iter().map(|(_, path)| path).collect()
+}
+
+/// Whether the file is one of the yearly training logs, rather than anything
+/// else that shares their folder, such as Steam Cloud's bookkeeping.
+pub fn is_training_log(path: &Path) -> bool {
+    year_of(path).is_some()
 }
 
 fn year_of(path: &Path) -> Option<i32> {
@@ -285,8 +458,8 @@ fn day_date(key: &str) -> Option<NaiveDate> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ScenarioDay, ScenarioLengths, TrainingLog, day_date, log_files, parse_log, totals_in,
-        training_data_folder, year_of,
+        RunEnd, ScenarioDay, ScenarioLengths, TrainingLog, TrainingWrites, UNCOUNTED_RUN_MAX,
+        day_date, log_files, logged_name, parse_log, totals_in, training_data_folder, year_of,
     };
     use chrono::{DateTime, NaiveDate, Utc};
     use std::path::{Path, PathBuf};
@@ -732,13 +905,12 @@ mod tests {
         std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
     }
 
-    /// A cleared scenario is never counted by Aimbeast, so it falls back to the
-    /// day's average, which is the timer. The run cannot have outlasted the gap
-    /// since the previous one ended.
+    /// Aimbeast leaves a run out of the log only when it lasted 3 seconds or
+    /// less, rounded, so a run that ended without a write was under 3.5.
     #[test]
-    fn a_run_cannot_be_longer_than_the_gap_since_the_previous_one() {
+    fn a_run_the_log_left_out_was_under_three_and_a_half_seconds() {
         let stats_folder = install_with_log(
-            "capped",
+            "uncounted",
             r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":60,"Completed Sessions":2,"Total Time":60}}}"#,
         );
 
@@ -750,14 +922,293 @@ mod tests {
             Some(Duration::from_secs(30))
         );
 
-        // Cleared four seconds later. The totals did not move, so the average
-        // would say 30 again.
+        // Cleared a minute later, and the log was not written.
+        let end = RunEnd {
+            counted: Some(false),
+            ..RunEnd::from(at(60))
+        };
         assert_eq!(
-            lengths.last_run_length(&stats_folder, "TEST", at(4)),
-            Some(Duration::from_secs(4))
+            lengths.last_run_length(&stats_folder, "TEST", end),
+            Some(UNCOUNTED_RUN_MAX)
         );
 
         std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// The log was written, but not under this name -- a ranked run is logged
+    /// as `<name> - RANKED` -- so the unmoved totals say nothing about the run.
+    #[test]
+    fn unmoved_totals_after_a_write_are_not_taken_for_a_short_run() {
+        let stats_folder = install_with_log(
+            "counted_elsewhere",
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":120,"Completed Sessions":2,"Total Time":120}}}"#,
+        );
+
+        let mut lengths = ScenarioLengths::default();
+        lengths.prime(&stats_folder);
+
+        let end = RunEnd {
+            counted: Some(true),
+            ..RunEnd::from(much_later())
+        };
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST", end),
+            Some(Duration::from_secs(60))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// The run cannot have outlasted the gap since the previous one ended.
+    #[test]
+    fn a_run_cannot_be_longer_than_the_gap_since_the_previous_one() {
+        let stats_folder = install_with_log(
+            "capped",
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":60,"Completed Sessions":2,"Total Time":60}}}"#,
+        );
+
+        let mut lengths = ScenarioLengths::default();
+
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST", at(0)),
+            Some(Duration::from_secs(30))
+        );
+
+        // Two seconds later, and the totals did not move, so the average would
+        // say 30 again.
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST", at(2)),
+            Some(Duration::from_secs(2))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// The first run a log never counted -- no reading before it, no day of
+    /// its own -- has only its kill span to go on, rather than a minute.
+    #[test]
+    fn a_run_the_log_never_counted_takes_its_kill_span() {
+        let stats_folder = install_with_log("kill_span_only", r#"{}"#);
+
+        let mut lengths = ScenarioLengths::default();
+        let end = RunEnd {
+            kill_span: Some(Duration::from_secs(42)),
+            ..RunEnd::from(at(0))
+        };
+
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST", end),
+            Some(Duration::from_secs(42))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// Without a reading to measure against, the longer of the average and the
+    /// kill span stands: the span is a floor under the run, the average is
+    /// right only for a run that went the distance.
+    #[test]
+    fn the_fallback_is_the_longer_of_the_average_and_the_kill_span() {
+        let stats_folder = install_with_log(
+            "fallback_longer",
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":93,"Completed Sessions":14,"Total Time":93}}}"#,
+        );
+
+        let longer = RunEnd {
+            kill_span: Some(Duration::from_secs(9)),
+            ..RunEnd::from(much_later())
+        };
+        assert_eq!(
+            ScenarioLengths::default().last_run_length(&stats_folder, "TEST", longer),
+            Some(Duration::from_secs(9))
+        );
+
+        let shorter = RunEnd {
+            kill_span: Some(Duration::from_secs(2)),
+            ..RunEnd::from(much_later())
+        };
+        assert_eq!(
+            ScenarioLengths::default().last_run_length(&stats_folder, "TEST", shorter),
+            Some(Duration::from_secs_f64(93.0 / 14.0))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// A measured run is exact, so a kill span does not move it.
+    #[test]
+    fn a_measured_run_ignores_the_kill_span() {
+        let stats_folder = install_with_log(
+            "measured_ignores_span",
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":30,"Completed Sessions":3,"Total Time":30}}}"#,
+        );
+
+        let mut lengths = ScenarioLengths::default();
+        lengths.prime(&stats_folder);
+
+        rewrite_log(
+            &stats_folder,
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":36,"Completed Sessions":4,"Total Time":36}}}"#,
+        );
+
+        let end = RunEnd {
+            kill_span: Some(Duration::from_secs(20)),
+            ..RunEnd::from(much_later())
+        };
+        assert_eq!(
+            lengths.last_run_length(&stats_folder, "TEST", end),
+            Some(Duration::from_secs(6))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// A restart writes the log too, so the run that followed it cannot be
+    /// longer than the time since.
+    #[test]
+    fn a_run_cannot_be_longer_than_the_time_since_the_previous_log_write() {
+        let stats_folder = install_with_log(
+            "previous_write",
+            r#"{"19/9/2026":{"TEST":{"Completed Sessions Time":120,"Completed Sessions":2,"Total Time":150}}}"#,
+        );
+
+        let end = RunEnd {
+            previous_write: Some(at(-7)),
+            ..RunEnd::from(at(0))
+        };
+
+        // The average says a minute; the restart was seven seconds ago.
+        assert_eq!(
+            ScenarioLengths::default().last_run_length(&stats_folder, "TEST", end),
+            Some(Duration::from_secs(7))
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    #[test]
+    fn the_last_write_before_a_run_leaves_out_the_runs_own() {
+        let writes = TrainingWrites::default();
+        writes.record(at(-30));
+        writes.record(at(-7));
+        // The run's own write, a few milliseconds before its statistics file.
+        writes.record(at(0) - Duration::from_millis(3));
+
+        assert_eq!(writes.last_before(at(0)), Some(at(-7)));
+    }
+
+    /// `1 WALL 4 TARGETS` as played ranked: its statistics file drops the
+    /// suffix, the log keeps it.
+    #[test]
+    fn a_ranked_run_is_looked_up_with_its_suffix() {
+        let stats_folder = install_with_log(
+            "ranked_suffix",
+            r#"{
+                "21/4/2026":{"1 WALL 4 TARGETS - RANKED":{"Completed Sessions Time":1800,"Completed Sessions":30,"Total Time":1990}},
+                "19/4/2026":{"1 WALL 4 TARGETS":{"Completed Sessions Time":60,"Completed Sessions":1,"Total Time":60}}
+            }"#,
+        );
+
+        assert_eq!(
+            logged_name(&stats_folder, "1 WALL 4 TARGETS", true),
+            "1 WALL 4 TARGETS - RANKED"
+        );
+        assert_eq!(
+            logged_name(&stats_folder, "1 WALL 4 TARGETS", false),
+            "1 WALL 4 TARGETS"
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// Filed under `Ranked/` but logged without the suffix, as
+    /// `PASU 5TGS SMOOTH V2 (2EZ)` is.
+    #[test]
+    fn a_ranked_scenario_logged_plainly_keeps_its_plain_name() {
+        let stats_folder = install_with_log(
+            "ranked_plain",
+            r#"{"26/2/2026":{"PASU 5TGS SMOOTH V2 (2EZ)":{"Completed Sessions Time":300,"Completed Sessions":5,"Total Time":344}}}"#,
+        );
+
+        assert_eq!(
+            logged_name(&stats_folder, "PASU 5TGS SMOOTH V2 (2EZ)", true),
+            "PASU 5TGS SMOOTH V2 (2EZ)"
+        );
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// Both names in the log: the one written more recently is the run's own.
+    /// On the same day the suffix, which is where ranked runs go.
+    #[test]
+    fn the_more_recently_logged_name_wins() {
+        let stats_folder = install_with_log(
+            "ranked_newest",
+            r#"{
+                "23/10/2025":{"X - RANKED":{"Completed Sessions Time":60,"Completed Sessions":1,"Total Time":60}},
+                "24/10/2025":{"X":{"Completed Sessions Time":60,"Completed Sessions":1,"Total Time":60}}
+            }"#,
+        );
+        assert_eq!(logged_name(&stats_folder, "X", true), "X");
+
+        rewrite_log(
+            &stats_folder,
+            r#"{"24/10/2025":{
+                "X":{"Completed Sessions Time":60,"Completed Sessions":1,"Total Time":60},
+                "X - RANKED":{"Completed Sessions Time":60,"Completed Sessions":1,"Total Time":60}
+            }}"#,
+        );
+        assert_eq!(logged_name(&stats_folder, "X", true), "X - RANKED");
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    #[test]
+    fn a_name_the_log_has_never_seen_stays_as_it_is() {
+        let stats_folder = install_with_log("ranked_unknown", r#"{}"#);
+
+        assert_eq!(logged_name(&stats_folder, "X", true), "X");
+
+        std::fs::remove_dir_all(stats_folder.parent().expect("a parent")).expect("cleaned up");
+    }
+
+    /// The run's own write lands a few milliseconds before its statistics file.
+    #[test]
+    fn a_run_over_three_seconds_wrote_as_it_ended() {
+        let writes = TrainingWrites::default();
+        writes.record(at(-30));
+        writes.record(at(0) - Duration::from_millis(10));
+
+        assert!(writes.wrote_at(at(0)));
+        assert!(!writes.wrote_at(at(-10)));
+    }
+
+    #[test]
+    fn no_write_before_a_run_leaves_nothing_to_cap_with() {
+        let writes = TrainingWrites::default();
+        writes.record(at(5));
+
+        assert_eq!(writes.last_before(at(0)), None);
+    }
+
+    /// One write arrives as several file events, and only recent writes matter.
+    #[test]
+    fn writes_are_kept_once_and_only_the_latest() {
+        let writes = TrainingWrites::default();
+        writes.record(at(0));
+        writes.record(at(0));
+
+        assert_eq!(writes.0.lock().expect("unpoisoned").len(), 1);
+
+        for second in 1..=100 {
+            writes.record(at(second));
+        }
+
+        assert_eq!(
+            writes.0.lock().expect("unpoisoned").len(),
+            TrainingWrites::KEPT
+        );
+        assert_eq!(writes.last_before(at(1000)), Some(at(100)));
     }
 
     /// The cap is a ceiling, not an answer: a measured run below it is left

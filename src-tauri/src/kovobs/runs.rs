@@ -234,6 +234,11 @@ pub(super) async fn watch_aimbeast_stats_folder(
 
     ui_println!("📁 Watching Aimbeast stats");
 
+    // Kept alive for as long as the stats are watched; dropping it stops it.
+    let training_writes = crate::aimbeast::TrainingWrites::default();
+    let training_watcher = watch_training_writes(stats_folder, &training_writes);
+    let watched_writes = training_watcher.as_ref().map(|_| &training_writes);
+
     let mut pending = PendingRuns::default();
 
     // Read the totals before any run lands, so the first one of the session is
@@ -266,8 +271,15 @@ pub(super) async fn watch_aimbeast_stats_folder(
                 // Sequentially, so OBS is never asked to save two buffers at
                 // once and the clips stay paired with the runs that made them.
                 for path in pending.take() {
-                    if let Err(e) =
-                        handle_aimbeast_run(&path, &mut lengths, &config, &client, &stat_sender).await
+                    if let Err(e) = handle_aimbeast_run(
+                        &path,
+                        &mut lengths,
+                        watched_writes,
+                        &config,
+                        &client,
+                        &stat_sender,
+                    )
+                    .await
                     {
                         ui_println!(
                             "👎 Could not handle the run in {:?}:\n{e}",
@@ -276,6 +288,52 @@ pub(super) async fn watch_aimbeast_stats_folder(
                     }
                 }
             }
+        }
+    }
+}
+
+/// Times every write of Aimbeast's training log as it happens, into `writes`.
+///
+/// A separate watcher, so the log never reaches the queue of statistics files:
+/// it is JSON too, and would be taken for a run. Without it the cap on a run's
+/// length only loses the restarts, so a failure here is reported, not fatal.
+fn watch_training_writes(
+    stats_folder: &std::path::Path,
+    writes: &crate::aimbeast::TrainingWrites,
+) -> Option<RecommendedWatcher> {
+    let folder = crate::aimbeast::training_data_folder(stats_folder)?;
+    let writes = writes.clone();
+
+    let watcher = RecommendedWatcher::new(
+        move |res: Result<notify::Event, notify::Error>| {
+            let Ok(event) = res else { return };
+
+            for path in written_paths(&event) {
+                if !crate::aimbeast::is_training_log(path) {
+                    continue;
+                }
+
+                // The file's own time, read now: by the time the run is
+                // handled, the next write has replaced it.
+                if let Ok(at) = utils::get_modification_time(path) {
+                    writes.record(at);
+                }
+            }
+        },
+        notify::Config::default(),
+    )
+    .and_then(|mut watcher| {
+        watcher.watch(&folder, notify::RecursiveMode::NonRecursive)?;
+        Ok(watcher)
+    });
+
+    match watcher {
+        Ok(watcher) => Some(watcher),
+        Err(e) => {
+            ui_println!(
+                "⚠️ Not watching Aimbeast's training log, so restarts will not shorten clips: {e}"
+            );
+            None
         }
     }
 }
@@ -306,6 +364,7 @@ fn read_statistics(
 async fn handle_aimbeast_run(
     path: &std::path::Path,
     lengths: &mut crate::aimbeast::ScenarioLengths,
+    training_writes: Option<&crate::aimbeast::TrainingWrites>,
     config: &Arc<AppConfig>,
     client: &Arc<Client>,
     stat_sender: &mpsc::Sender<Stat>,
@@ -351,12 +410,25 @@ async fn handle_aimbeast_run(
 
     let stats_folder = std::path::Path::new(&config.aimbeast.stats_folder);
 
+    let end = crate::aimbeast::RunEnd {
+        at: end_dt,
+        kill_span: stat.kill_span(),
+        previous_write: training_writes.and_then(|writes| writes.last_before(end_dt)),
+        counted: training_writes.map(|writes| writes.wrote_at(end_dt)),
+    };
+
+    let ranked = path
+        .parent()
+        .and_then(|folder| folder.file_name())
+        .is_some_and(|folder| folder == "Ranked");
+    let logged_name = crate::aimbeast::logged_name(stats_folder, &stat.scenario, ranked);
+
     let length = lengths
-        .last_run_length(stats_folder, &stat.scenario, end_dt)
+        .last_run_length(stats_folder, &logged_name, end)
         .unwrap_or_else(|| {
             ui_println!(
                 "⏱️ No training data for {}, assuming {}s",
-                stat.scenario,
+                logged_name,
                 crate::aimbeast::DEFAULT_SCENARIO_LENGTH.as_secs()
             );
 

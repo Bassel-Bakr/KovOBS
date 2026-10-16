@@ -10,11 +10,35 @@ pub struct ScenarioStatistics {
     pub scenario: String,
     #[serde(rename = "Score")]
     pub scores: Box<[f32]>,
+    #[serde(rename = "Kills")]
+    pub kills: Box<[f32]>,
+    /// Each run's average gap between consecutive kills, in seconds.
+    #[serde(rename = "TBK")]
+    pub tbk: Box<[f32]>,
 }
 
 impl ScenarioStatistics {
     pub fn last_score(&self) -> Option<&f32> {
         self.scores.last()
+    }
+
+    /// How long the last run took from its first kill to its last:
+    /// `(Kills - 1) x TBK`.
+    ///
+    /// Aimbeast's `TBK` is an average over the gaps between consecutive kills.
+    /// The first kill only starts the clock, and each later one adds the gap
+    /// since the one before, so the gaps add back up to the first-to-last span.
+    ///
+    /// It is a floor under the run, not its length: the time before the first
+    /// kill is not in it. It is also game time. Pauses are left out, and a
+    /// scenario that changes the game speed scales it, so a 1.25x scenario
+    /// reads about a quarter long.
+    pub fn kill_span(&self) -> Option<Duration> {
+        let kills = f64::from(*self.kills.last()?);
+        let tbk = f64::from(*self.tbk.last()?);
+        let span = (kills - 1.0) * tbk;
+
+        (span.is_finite() && span > 0.0).then(|| Duration::from_secs_f64(span))
     }
 
     /// The best of every run before the last one, ignoring readings that are
@@ -77,7 +101,58 @@ mod tests {
         ScenarioStatistics {
             scenario: "test".into(),
             scores: scores.into(),
+            ..Default::default()
         }
+    }
+
+    fn with_kills(kills: &[f32], tbk: &[f32]) -> ScenarioStatistics {
+        ScenarioStatistics {
+            kills: kills.into(),
+            tbk: tbk.into(),
+            ..Default::default()
+        }
+    }
+
+    /// `PRESSURE BALANCE` as played on 11/10/2026: 100 kills at 0.471125 apart.
+    /// Aimbeast saved the run as 48 seconds; the span is 46.6, the rest being
+    /// the time before the first kill.
+    #[test]
+    fn the_kill_span_is_the_gaps_between_kills_added_back_up() {
+        let span = with_kills(&[100.0], &[0.471125])
+            .kill_span()
+            .expect("a span");
+
+        assert!((span.as_secs_f64() - 46.641375).abs() < 1e-3, "{span:?}");
+    }
+
+    /// Each array gains one entry per run, so the last entries are the last run.
+    #[test]
+    fn the_kill_span_is_the_last_runs() {
+        let span = with_kills(&[10.0, 3.0], &[1.0, 2.0]).kill_span();
+
+        assert_eq!(span, Some(Duration::from_secs(4)));
+    }
+
+    /// One kill starts the clock without stopping it, so there is no gap.
+    #[test]
+    fn fewer_than_two_kills_have_no_span() {
+        assert_eq!(with_kills(&[1.0], &[0.0]).kill_span(), None);
+        assert_eq!(with_kills(&[0.0], &[0.0]).kill_span(), None);
+    }
+
+    /// Older statistics files, or ones from a tracking scenario, may not carry
+    /// the arrays at all.
+    #[test]
+    fn a_file_without_kills_has_no_span() {
+        assert_eq!(with(&[10.0]).kill_span(), None);
+    }
+
+    #[test]
+    fn kills_and_tbk_are_read_from_the_file() {
+        let stat: ScenarioStatistics =
+            serde_json::from_str(r#"{"Score":[5.0],"Kills":[3.0],"TBK":[1.5]}"#).expect("parsed");
+
+        assert_eq!(stat.kill_span(), Some(Duration::from_secs(3)));
     }
 
     /// The first run of a scenario has nothing to beat, so it counts.
