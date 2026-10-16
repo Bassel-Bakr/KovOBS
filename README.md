@@ -105,6 +105,8 @@ ffprobe -v error -show_entries format_tags=kovobs_kovaaks_stats -of default=nw=1
 
 On Windows that doubles the carriage returns, so for the exact file, as a program would want it, read the tag from `ffprobe -v error -show_entries format_tags -of json clip.mp4`.
 
+If you remux a clip to MP4 yourself, add `-movflags +use_metadata_tags` or FFmpeg drops the stats. Your FFmpeg arguments in KovOBS can't drop them: the stats go in after those run. Editors and upload sites that re-encode usually drop them anyway.
+
 It is a lossless remux after the clip is saved; if it fails, the clip is kept without the stats. Aimbeast keeps every run of a scenario in one file, so its clips get nothing.
 
 ---

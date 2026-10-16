@@ -47,12 +47,16 @@ produced a usable clip before the user's arguments are parsed.
    that ran. See `display_command`.
 7. **Delete the destination before renaming.** `rename` refuses to overwrite on
    Windows, and a failed pass may have left a partial file.
+8. **Every pass that writes MP4 keeps the tags.** It carries `-movflags
+   +use_metadata_tags`; without it a remux drops every tag MP4 has no name for.
+   See [Keeping metadata](#keeping-metadata).
 
 ## Recommendations
 
 - Impose an option on a pass only if it does real work. Currently: `-progress
-  pipe:1` (progress parsing), `-y` (no stdin prompt), and `-hide_banner
-  -loglevel error -nostats` (keeps captured stderr to the actual error).
+  pipe:1` (progress parsing), `-y` (no stdin prompt), `-hide_banner
+  -loglevel error -nostats` (keeps captured stderr to the actual error), and
+  `-movflags +use_metadata_tags` (keeps custom tags).
 - Put imposed options **before** the user's, so the user can override any of them.
 - Prefer `-c copy` for the trim: it should be cheap and lossless.
 - Use `-map 0?` on the trim. Without an explicit map, FFmpeg selects one stream
@@ -64,9 +68,8 @@ produced a usable clip before the user's arguments are parsed.
 
 With `embed_stats` on, `add_metadata` remuxes the finished clip once more
 (`-c copy`) to add the run's stats CSV under the key `kovobs_kovaaks_stats`.
-It runs after
-`trim` returns, from `kovobs/clips.rs`, never inside it, and a failure only
-logs: the clip is already saved.
+It runs after `trim` returns, from `kovobs/clips.rs`, never inside it, and a
+failure only logs: the clip is already saved.
 
 - The value goes through an `FFMETADATA1` file, not `-metadata`: a stats file
   can pass Windows' 32,767-character command line. `ffmetadata` escapes `\r`
@@ -79,6 +82,28 @@ logs: the clip is already saved.
 
 `real_ffmpeg_embeds_the_stats_readably` (ignored; needs `ffmpeg` and `ffprobe`
 on the PATH) runs the whole pass and reads the tag back, for MP4 and MKV.
+
+### Keeping metadata
+
+Checked with FFmpeg 8.1:
+
+- Container tags are a flat list of text keys and text values: no nesting, no
+  types. Structure has to live in the key name or be encoded in the value.
+- A plain `-c copy` remux to MP4 keeps only the keys MP4 has a name for
+  (`title`, `encoder`, ...) and silently drops the rest. `-movflags
+  +use_metadata_tags` keeps them all, and adds nothing to an OBS buffer's tags.
+- MKV keeps every tag without a flag but upper-cases the names:
+  `KOVOBS_KOVAAKS_STATS`. Match key names case-insensitively, and prefer
+  snake_case keys, since camelCase loses its word breaks.
+- Later `-movflags` combine: `+faststart` adds to an earlier
+  `+use_metadata_tags`, a bare `faststart` or `-use_metadata_tags` replaces it.
+- Read tags back with `ffprobe -show_entries format_tags -of json`, which is
+  exact. `-of default` on Windows writes `\n` as `\r\n`, doubling a CSV's
+  carriage returns.
+- In MP4 these keys are QuickTime "keys" metadata. FFmpeg-based readers see
+  them; iTunes-style taggers (mutagen, TagLib), Explorer and players are not
+  expected to, and re-encoding editors and upload sites drop them. Untested
+  beyond FFmpeg.
 
 ---
 

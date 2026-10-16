@@ -323,6 +323,9 @@ fn trim_args(
         // Remux rather than re-encode: the trim should be cheap and lossless.
         "-c".into(),
         "copy".into(),
+        // MP4 drops every tag it has no name for unless told to keep them.
+        "-movflags".into(),
+        "+use_metadata_tags".into(),
         out_file.to_string_lossy().into_owned(),
     ]
 }
@@ -330,10 +333,13 @@ fn trim_args(
 /// Builds `ffmpeg [global] [input] -i in [output] out` from the user's three
 /// slots.
 ///
-/// Only two options are imposed, and both are mechanically required rather than
-/// a matter of taste: `-progress pipe:1` is what `run` reads to report progress,
-/// and `-y` stops FFmpeg prompting on stdin when the output exists, which would
-/// hang because nothing writes to stdin.
+/// Only three options are imposed, each doing real work rather than being a
+/// matter of taste: `-progress pipe:1` is what `run` reads to report progress,
+/// `-y` stops FFmpeg prompting on stdin when the output exists, which would
+/// hang because nothing writes to stdin, and `-movflags +use_metadata_tags`
+/// keeps the tags MP4 has no name for. That one goes before the user's output
+/// options, so theirs win: `-movflags +faststart` adds to it, while a bare
+/// `faststart` or `-use_metadata_tags` replaces it.
 ///
 /// The log-shaping options that `trim_args` sets -- `-hide_banner`,
 /// `-loglevel error`, `-nostats` -- are deliberately absent here. This pass is
@@ -354,6 +360,8 @@ fn extra_command(
     command.push("-i".into());
     command.push(in_file.to_string_lossy().into_owned());
 
+    command.push("-movflags".into());
+    command.push("+use_metadata_tags".into());
     command.extend(args::parse(&extra.output_args)?);
     command.push(out_file.to_string_lossy().into_owned());
 
@@ -468,7 +476,11 @@ async fn run(
 
 #[cfg(test)]
 mod tests {
-    use super::{STATS_METADATA_KEY, add_metadata, display_command, ffmetadata, metadata_args};
+    use super::{
+        STATS_METADATA_KEY, add_metadata, display_command, extra_command, ffmetadata,
+        metadata_args, trim_args,
+    };
+    use crate::config::FFmpegConfig;
     use chrono::TimeDelta;
     use std::path::Path;
 
@@ -521,6 +533,40 @@ mod tests {
         assert!(line.contains("-map 0 -map_metadata 0 -map_metadata 1 -c copy"));
         assert!(line.contains("-movflags +use_metadata_tags"));
         assert_eq!(args.last().map(String::as_str), Some("clip.tagging.mp4"));
+    }
+
+    /// A remux to MP4 keeps the recording's tags rather than only the ones MP4
+    /// has a name for.
+    #[test]
+    fn the_trim_keeps_every_tag() {
+        let args = trim_args(
+            Path::new("buffer.mkv"),
+            Path::new("clip.mp4"),
+            TimeDelta::seconds(10),
+        );
+
+        assert!(
+            args.join(" ")
+                .ends_with("-movflags +use_metadata_tags clip.mp4")
+        );
+    }
+
+    /// Kept through the user's pass too. Their own `-movflags` comes later, so
+    /// `+faststart` adds to it and a bare `faststart` replaces it.
+    #[test]
+    fn the_user_pass_keeps_every_tag_unless_told_otherwise() {
+        let extra = FFmpegConfig {
+            output_args: "-movflags +faststart".into(),
+            ..Default::default()
+        };
+        let command = extra_command(Path::new("in.mp4"), Path::new("out.mp4"), &extra)
+            .expect("parsed")
+            .join(" ");
+
+        assert!(
+            command
+                .ends_with("-i in.mp4 -movflags +use_metadata_tags -movflags +faststart out.mp4")
+        );
     }
 
     /// The whole pass against a real FFmpeg, read back from the clip in place

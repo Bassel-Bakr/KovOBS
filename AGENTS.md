@@ -23,7 +23,7 @@ silently, and never let one bad clip end the session.
 |---|---|
 | `src-tauri/src/kovobs/` | orchestration: `runs.rs` watches the stat folders, `clips.rs` turns saved buffers into clips |
 | `src-tauri/src/aimbeast/` | reading Aimbeast's statistics and training log |
-| `src-tauri/src/ffmpeg.rs` | two-pass trim, then optional user args |
+| `src-tauri/src/ffmpeg.rs` | two-pass trim, then optional user args, then the optional stats metadata pass |
 | `src-tauri/src/config.rs` | all config structs and defaults |
 | `src-tauri/src/cmds/` | commands callable from the frontend, one file per concern |
 | `src/app/home/` | the settings window |
@@ -135,7 +135,7 @@ to touch.
 | Skill | For |
 |---|---|
 | `aimbeast-stat-files` | anything reading Aimbeast's statistics or training log |
-| `ffmpeg-two-pass` | changing how clips are trimmed or user args applied |
+| `ffmpeg-two-pass` | changing how clips are trimmed, user args applied, or tags written and kept |
 | `add-config-option` | adding a persisted setting end to end |
 | `preview-ui-without-tauri` | seeing and measuring UI changes |
 | `verify-by-effect` | anything that reports success but produces no effect |
