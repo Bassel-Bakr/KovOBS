@@ -1,6 +1,7 @@
-import { Component, input } from '@angular/core';
+import { Component, inject, input } from '@angular/core';
 import { FieldTree, FormField } from '@angular/forms/signals';
-import { browseFolder, browseFile } from '../../browse';
+import { MatDialog } from '@angular/material/dialog';
+import { browseFolder, browseFile, browseRunning } from '../../browse';
 import { MatFormField, MatHint, MatInput, MatLabel, MatSuffix } from '@angular/material/input';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
@@ -36,8 +37,14 @@ export default class GameSettingsComponent {
   readonly sources = input<string[] | null>(null);
   readonly missing = input<ReadonlySet<string>>(new Set());
 
+  private readonly dialog = inject(MatDialog);
+
   protected readonly browseFolder = browseFolder;
   protected readonly browseFile = browseFile;
+
+  protected browseRunning(field: FieldTree<string, string>): Promise<void> {
+    return browseRunning(this.dialog, field);
+  }
 
   protected isMissing(path: string): boolean {
     return this.missing().has(path);

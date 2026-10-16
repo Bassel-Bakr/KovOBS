@@ -38,6 +38,11 @@
     test_notification: () => null,
     quit_app: () => { window.__QUIT_CALLED__ = true; return null; },
     run_obs: () => null, run_kovaaks: () => null, run_aimbeast: () => null,
+    list_running_programs: () => [
+      { name: 'FPSAimTrainer-Win64-Shipping.exe', path: '/home/u/.local/share/Steam/steamapps/common/FPSAimTrainer/FPSAimTrainer/Binaries/Win64/FPSAimTrainer-Win64-Shipping.exe' },
+      { name: 'obs64.exe', path: 'C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe' },
+      { name: 'steam', path: '/home/u/.local/share/Steam/ubuntu12_32/steam' },
+    ],
   };
 
   const emit = (event, payload) => {

@@ -1,9 +1,10 @@
-import { Component, input, output } from '@angular/core';
+import { Component, inject, input, output } from '@angular/core';
 import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatFormField, MatHint, MatInput, MatLabel, MatSuffix } from '@angular/material/input';
 import { MatButton, MatIconButton } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatIcon } from '@angular/material/icon';
-import { browseFile } from '../../browse';
+import { browseFile, browseRunning } from '../../browse';
 
 /** How KovOBS reaches OBS, and where its executable lives. */
 @Component({
@@ -26,7 +27,13 @@ export default class ObsSettingsComponent {
   /** Asking OBS again, for when it was not open a moment ago. */
   readonly refresh = output<void>();
 
+  private readonly dialog = inject(MatDialog);
+
   protected readonly browseFile = browseFile;
+
+  protected browseRunning(field: FieldTree<string, string>): Promise<void> {
+    return browseRunning(this.dialog, field);
+  }
 
   protected isMissing(path: string): boolean {
     return this.missing().has(path);

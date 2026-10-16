@@ -3,7 +3,7 @@ use crate::globals::{APP_HANDLE, APP_STATE, FFMPEG_DOWNLOAD_PROGRESS};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Duration;
-use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+use sysinfo::{ProcessesToUpdate, System};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WindowEvent};
@@ -21,6 +21,7 @@ mod globals;
 mod kovobs;
 mod macros;
 mod notification;
+mod programs;
 mod shell;
 mod stat;
 mod update;
@@ -65,6 +66,7 @@ pub fn run() {
             cmds::run_obs,
             cmds::run_kovaaks,
             cmds::run_aimbeast,
+            cmds::list_running_programs,
             cmds::is_ffmpeg_downloaded,
             cmds::download_ffmpeg,
             cmds::remove_ffmpeg,
@@ -182,25 +184,23 @@ fn observe_processes() {
             system.refresh_processes_specifics(
                 ProcessesToUpdate::All,
                 true,
-                ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet),
+                programs::program_refresh(),
             );
 
             let mut new_obs_running = false;
             let mut new_kovaaks_running = false;
             let mut new_aimbeast_running = false;
 
-            // Compares the full exe path, matching `cmds::is_process_running`.
-            // See the note there on why this is unreliable on Linux.
-            for process in system.processes().values() {
-                let Some(exe_path) = process.exe() else {
-                    continue;
-                };
+            // Compares the full program path, matching `cmds::is_process_running`,
+            // which also finds a game Proton runs on Linux.
+            let obs = programs::ConfiguredProgram::new(&config_processes.paths.obs);
+            let kovaaks = programs::ConfiguredProgram::new(&config_processes.paths.kovaaks);
+            let aimbeast = programs::ConfiguredProgram::new(&config_processes.paths.aimbeast);
 
-                new_obs_running = new_obs_running || exe_path == &config_processes.paths.obs;
-                new_kovaaks_running =
-                    new_kovaaks_running || exe_path == &config_processes.paths.kovaaks;
-                new_aimbeast_running =
-                    new_aimbeast_running || exe_path == &config_processes.paths.aimbeast;
+            for process in system.processes().values() {
+                new_obs_running = new_obs_running || obs.runs_in(process);
+                new_kovaaks_running = new_kovaaks_running || kovaaks.runs_in(process);
+                new_aimbeast_running = new_aimbeast_running || aimbeast.runs_in(process);
 
                 if new_obs_running && new_kovaaks_running && new_aimbeast_running {
                     break;

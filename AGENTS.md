@@ -25,6 +25,7 @@ silently, and never let one bad clip end the session.
 | `src-tauri/src/aimbeast/` | reading Aimbeast's statistics and training log |
 | `src-tauri/src/ffmpeg.rs` | two-pass trim, then optional user args, then the optional stats metadata pass |
 | `src-tauri/src/config.rs` | all config structs and defaults |
+| `src-tauri/src/programs.rs` | which program a process runs, including a Proton game on Linux (from Wine's `Z:\` command line); builds on its own so it can be checked on Linux |
 | `src-tauri/src/cmds/` | commands callable from the frontend, one file per concern |
 | `src/app/home/` | the settings window |
 | `.github/workflows/` | release and version bump |

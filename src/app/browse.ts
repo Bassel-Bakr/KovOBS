@@ -1,5 +1,8 @@
 import { FieldTree } from '@angular/forms/signals';
+import { MatDialog } from '@angular/material/dialog';
 import { open } from '@tauri-apps/plugin-dialog';
+import { firstValueFrom } from 'rxjs';
+import ProgramPickerComponent from './home/program-picker/program-picker.component';
 
 /**
  * Native path pickers.
@@ -29,5 +32,16 @@ export async function browseFile(field: FieldTree<string, string>): Promise<void
 
   if (file != null) {
     field().value.set(file);
+  }
+}
+
+/** Fills a program path from what is running, which on Linux is the only way to see a Proton game's own path. */
+export async function browseRunning(dialog: MatDialog, field: FieldTree<string, string>): Promise<void> {
+  const path = await firstValueFrom(
+    dialog.open<ProgramPickerComponent, void, string>(ProgramPickerComponent, { width: '640px' }).afterClosed(),
+  );
+
+  if (path != null) {
+    field().value.set(path);
   }
 }

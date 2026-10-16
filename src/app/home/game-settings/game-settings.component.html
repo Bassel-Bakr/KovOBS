@@ -38,9 +38,20 @@
   <mat-form-field>
     <mat-label>Executable</mat-label>
     <input matInput [formField]="executable()" />
-    <button matIconButton matSuffix type="button" (click)="browseFile(executable())">
-      <mat-icon>terminal</mat-icon>
-    </button>
+    <span matSuffix class="suffix-buttons">
+      <button
+        matIconButton
+        type="button"
+        title="Pick a running program"
+        aria-label="Pick a running program"
+        (click)="browseRunning(executable())"
+      >
+        <mat-icon>apps</mat-icon>
+      </button>
+      <button matIconButton type="button" title="Browse" aria-label="Browse" (click)="browseFile(executable())">
+        <mat-icon>terminal</mat-icon>
+      </button>
+    </span>
     @if (isMissing(executable()().value())) {
       <mat-hint class="hint--error">Cannot find this file, so the game will not be detected or launched.</mat-hint>
     } @else {

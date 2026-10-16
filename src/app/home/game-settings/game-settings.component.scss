@@ -9,6 +9,10 @@
   }
 }
 
+.suffix-buttons {
+  display: flex;
+}
+
 .hint--error {
   color: var(--mat-sys-error);
 }

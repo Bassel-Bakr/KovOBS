@@ -1,0 +1,31 @@
+<h2 mat-dialog-title>Pick a running program</h2>
+
+<mat-dialog-content>
+  <mat-form-field class="filter">
+    <mat-label>Filter</mat-label>
+    <input matInput cdkFocusInitial [value]="query()" (input)="query.set($any($event.target).value)" />
+  </mat-form-field>
+
+  @if (loading()) {
+    <p class="note">Looking at what is running…</p>
+  } @else if (failed()) {
+    <p class="note note--error">Could not list the running programs.</p>
+  } @else if (shown().length === 0) {
+    <p class="note">Nothing running matches. Start the program, then open this again.</p>
+  } @else {
+    <ul class="programs">
+      @for (program of shown(); track program.path) {
+        <li>
+          <button type="button" class="program" [mat-dialog-close]="program.path" [title]="program.path">
+            <span class="program__name">{{ program.name }}</span>
+            <span class="program__path">{{ program.path }}</span>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button matButton mat-dialog-close type="button">Cancel</button>
+</mat-dialog-actions>

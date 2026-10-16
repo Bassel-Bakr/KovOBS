@@ -2,11 +2,12 @@
 
 use crate::config::AppConfig;
 use crate::globals::APP_STATE;
+use crate::programs::{ConfiguredProgram, RunningProgram, program_refresh, running_programs};
 use crate::shell::ShellExt;
 use crate::ui_println;
 use std::path::Path;
 use std::sync::Arc;
-use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, UpdateKind};
+use sysinfo::ProcessesToUpdate;
 use tokio::process::Command;
 
 // Clone the config out of the state so the lock isn't held while we scan
@@ -74,26 +75,25 @@ async fn run_exe(exe: &str, args: Option<Box<[String]>>, cwd: Option<&Path>) -> 
     Ok(())
 }
 
-// Matches on the full executable path, the same way `observe_processes` decides
+// Matches on the full program path, the same way `observe_processes` decides
 // whether OBS/KovaaK's/Aimbeast are running. Matching on the file name instead
 // would let an unrelated process with the same name suppress the launch while
 // the UI still reports it as not running.
-//
-// Windows-shaped by design. On Linux `process.exe()` is `realpath("/proc/<pid>/exe")`,
-// so it won't match a configured path that is a symlink or wrapper script, and it can
-// never match a Flatpak/Snap/AppImage install whose real exe lives in another mount
-// namespace. Accepted: KovaaK's and Aimbeast are Windows-only and run under Proton
-// there anyway, so the Linux bundle can't detect them regardless.
 fn is_process_running(exe: &Path) -> bool {
+    let program = ConfiguredProgram::new(exe);
     let mut system = sysinfo::System::new();
-    system.refresh_processes_specifics(
-        ProcessesToUpdate::All,
-        true,
-        ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet),
-    );
+    system.refresh_processes_specifics(ProcessesToUpdate::All, true, program_refresh());
 
     system
         .processes()
         .values()
-        .any(|process| process.exe() == Some(exe))
+        .any(|process| program.runs_in(process))
+}
+
+/// Every program running now, once each, by name.
+#[tauri::command]
+pub async fn list_running_programs() -> Result<Vec<RunningProgram>, String> {
+    tokio::task::spawn_blocking(running_programs)
+        .await
+        .map_err(|e| e.to_string())
 }
