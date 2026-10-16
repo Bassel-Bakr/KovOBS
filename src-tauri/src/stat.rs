@@ -116,7 +116,7 @@ impl Stat {
             .with_timezone(&Utc);
 
         if start_dt > end_dt {
-            end_dt - Duration::days(1)
+            start_dt - Duration::days(1)
         } else {
             start_dt
         }
@@ -188,12 +188,153 @@ impl Stat {
 
 #[cfg(test)]
 mod tests {
-    use super::Stat;
-    use chrono::{DateTime, Duration, Utc};
+    use super::{Stat, StatType};
+    use chrono::{DateTime, Duration, Local, TimeZone, Utc};
 
     fn at(seconds: i64, millis: i64) -> DateTime<Utc> {
         DateTime::from_timestamp(1_800_000_000 + seconds, 0).expect("valid moment")
             + Duration::milliseconds(millis)
+    }
+
+    /// A wall-clock time here, the way KovaaK's writes its times.
+    fn local(year: i32, month: u32, day: u32, h: u32, m: u32, s: u32) -> DateTime<Utc> {
+        Local
+            .with_ymd_and_hms(year, month, day, h, m, s)
+            .single()
+            .expect("an unambiguous local time")
+            .with_timezone(&Utc)
+    }
+
+    fn clock(h: i64, m: i64, s: i64) -> Duration {
+        Duration::hours(h) + Duration::minutes(m) + Duration::seconds(s)
+    }
+
+    /// The tail of a stats file as KovaaK's 3.9.10 writes it.
+    const STATS: &str = "Kill #,Timestamp,Bot,Weapon,TTK,Shots,Hits\n\
+        1,21:24:11.069,fast strafes blink,LG,21.755001s,2177,1000\n\
+        \n\
+        Kills:,6\n\
+        Fight Time:,113.575996\n\
+        Score:,885.119141\n\
+        Scenario:,Ground Plaza Sparky v3 OW\n\
+        Hash:,7d1081a21910a705055afdb9d35dca79\n\
+        Challenge Start:,21:23:49.059\n\
+        Pause Count:,0\n\
+        \n\
+        Sens Scale:,cm/360\n";
+
+    #[test]
+    fn a_challenge_start_is_read_as_a_clock_time() {
+        assert_eq!(
+            Stat::parse_challenge_duration("21:23:49"),
+            Some(clock(21, 23, 49))
+        );
+        assert_eq!(
+            Stat::parse_challenge_duration("23:49"),
+            Some(clock(0, 23, 49))
+        );
+    }
+
+    /// KovaaK's writes milliseconds; they are dropped, which moves a clip's
+    /// start up to a second early rather than late.
+    #[test]
+    fn a_challenge_start_drops_its_milliseconds() {
+        assert_eq!(
+            Stat::parse_challenge_duration("21:23:49.059"),
+            Some(clock(21, 23, 49))
+        );
+    }
+
+    #[test]
+    fn a_challenge_start_that_is_not_a_clock_time_is_none() {
+        assert_eq!(Stat::parse_challenge_duration(""), None);
+        assert_eq!(Stat::parse_challenge_duration("soon"), None);
+        assert_eq!(Stat::parse_challenge_duration("1:2:3:4"), None);
+    }
+
+    #[test]
+    fn a_run_starts_on_the_day_it_ended() {
+        let end = local(2026, 10, 15, 21, 25, 43);
+
+        assert_eq!(
+            Stat::compute_start_time(end, clock(21, 23, 49)),
+            local(2026, 10, 15, 21, 23, 49)
+        );
+    }
+
+    /// Started before midnight, ended after: the clock time of the start is
+    /// later than the end's, so the start was the day before.
+    #[test]
+    fn a_run_across_midnight_starts_the_day_before() {
+        let end = local(2026, 10, 16, 0, 1, 10);
+
+        assert_eq!(
+            Stat::compute_start_time(end, clock(23, 59, 20)),
+            local(2026, 10, 15, 23, 59, 20)
+        );
+    }
+
+    /// A run that starts and ends in the same second is not mistaken for one
+    /// that crossed midnight.
+    #[test]
+    fn a_start_in_the_same_second_as_the_end_is_that_day() {
+        let end = local(2026, 10, 15, 21, 25, 43);
+
+        assert_eq!(Stat::compute_start_time(end, clock(21, 25, 43)), end);
+    }
+
+    #[test]
+    fn a_stats_file_gives_the_run() {
+        let dir = std::env::temp_dir().join("kovobs_stat_parse");
+        _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("created folder");
+
+        let path =
+            dir.join("Ground Plaza Sparky v3 OW - Challenge - 2026.10.15-21.25.43 Stats.csv");
+        std::fs::write(&path, STATS).expect("written stats");
+
+        let stat = Stat::parse_kovaaks_stat(&path).expect("parsed");
+
+        assert_eq!(stat.scenario, "Ground Plaza Sparky v3 OW");
+        // The same f32 the file's text parses to; the literal has more digits than an f32 holds.
+        assert_eq!(stat.score, "885.119141".parse::<f32>().expect("a number"));
+        assert_eq!(stat.start_dt, local(2026, 10, 15, 21, 23, 49));
+        assert!(matches!(stat.stat_type, StatType::KovaaKs));
+        // Just written, so its timestamp is far from the name's and the name decides.
+        assert_eq!(stat.end_dt, local(2026, 10, 15, 21, 25, 43));
+
+        std::fs::remove_dir_all(&dir).expect("cleaned up");
+    }
+
+    #[test]
+    fn a_missing_stats_file_is_an_error() {
+        let path = std::env::temp_dir()
+            .join("kovobs_stat_missing - Challenge - 2026.10.15-21.25.43 Stats.csv");
+
+        assert!(Stat::parse_kovaaks_stat(&path).is_err());
+    }
+
+    /// Clip and screenshot names are built from this.
+    #[test]
+    fn a_run_reads_as_scenario_score_and_end_time() {
+        let mut stat = Stat {
+            scenario: "Ground Plaza".into(),
+            score: 885.119,
+            start_dt: local(2026, 10, 15, 21, 23, 49),
+            end_dt: local(2026, 10, 15, 21, 25, 43),
+            stat_type: StatType::KovaaKs,
+        };
+        assert_eq!(
+            stat.to_string(),
+            "Ground Plaza - 885.12 - 2026.10.15-21.25.43"
+        );
+
+        // A whole score drops its decimals.
+        stat.score = 1314.0;
+        assert_eq!(
+            stat.to_string(),
+            "Ground Plaza - 1314 - 2026.10.15-21.25.43"
+        );
     }
 
     /// The name stops at the second; the file's own time does not.
